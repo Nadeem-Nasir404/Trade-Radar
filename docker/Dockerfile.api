@@ -1,0 +1,29 @@
+# Optional container image for apps/api. Not required for local dev (see README) -
+# useful for deploying the backend to Railway/Render/Fly/AWS or for docker-compose.yml.
+FROM node:22-slim AS base
+RUN corepack enable
+WORKDIR /repo
+
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY apps/api/package.json apps/api/package.json
+RUN pnpm install --frozen-lockfile --filter @levelpulse/api... --filter @levelpulse/shared-types
+
+FROM deps AS build
+COPY packages/shared-types packages/shared-types
+COPY apps/api apps/api
+RUN pnpm --filter @levelpulse/shared-types build
+RUN pnpm --filter @levelpulse/api prisma:generate
+RUN pnpm --filter @levelpulse/api build
+
+FROM node:22-slim AS runner
+RUN corepack enable
+WORKDIR /repo
+ENV NODE_ENV=production
+COPY --from=build /repo/node_modules ./node_modules
+COPY --from=build /repo/packages/shared-types ./packages/shared-types
+COPY --from=build /repo/apps/api ./apps/api
+WORKDIR /repo/apps/api
+EXPOSE 4000
+CMD ["node", "dist/src/main.js"]

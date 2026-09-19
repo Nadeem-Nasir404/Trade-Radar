@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "39688456410",
+    "project_id": "coinradar-e8619",
+    "storage_bucket": "coinradar-e8619.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:39688456410:android:9190ec1bebabcfe425bde3",
+        "android_client_info": {
+          "package_name": "app.levelpulse.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBq0HiwFfcbVVAX8Ha1NbgY_29FnDldz5o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

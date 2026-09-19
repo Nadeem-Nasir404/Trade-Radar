@@ -1,0 +1,26 @@
+{
+  "name": "levelpulse",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LevelPulse - real-time multi-market price-alert platform",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "pnpm --filter @levelpulse/api prisma:migrate",
+    "db:generate": "pnpm --filter @levelpulse/api prisma:generate",
+    "db:seed": "pnpm --filter @levelpulse/api prisma:seed",
+    "db:studio": "pnpm --filter @levelpulse/api prisma:studio",
+    "eas-build-post-install": "pnpm --filter @levelpulse/shared-types build"
+  },
+  "devDependencies": {
+    "turbo": "2.10.13",
+    "typescript": "5.9.3"
+  }
+}

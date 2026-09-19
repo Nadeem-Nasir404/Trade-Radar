@@ -1,0 +1,15 @@
+export const queryKeys = {
+  me: ["me"] as const,
+  subscription: ["subscription"] as const,
+  plans: ["plans"] as const,
+  markets: (filters?: object) => ["markets", filters ?? {}] as const,
+  market: (symbol: string) => ["markets", symbol] as const,
+  marketHistory: (symbol: string, timeframe: string) => ["markets", symbol, "history", timeframe] as const,
+  discover: (q: string) => ["discover", q] as const,
+  alerts: (filters?: object) => ["alerts", filters ?? {}] as const,
+  alert: (id: string) => ["alerts", id] as const,
+  alertGroups: ["alert-groups"] as const,
+  alertEvents: (filters?: object) => ["alert-events", filters ?? {}] as const,
+  watchlists: ["watchlists"] as const,
+  notificationChannels: ["notification-channels"] as const,
+};

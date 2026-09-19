@@ -1,0 +1,13 @@
+{
+  "name": "LevelPulse - Set Every Level. Miss Nothing.",
+  "short_name": "LevelPulse",
+  "description": "Real-time crypto and market price alerts without tiny alert limits.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#08090c",
+  "theme_color": "#08090c",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

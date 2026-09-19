@@ -1,0 +1,16 @@
+{
+  "name": "@levelpulse/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared enums, DTO contracts, WebSocket event contracts and plan/queue constants for LevelPulse",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

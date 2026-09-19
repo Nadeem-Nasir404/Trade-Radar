@@ -1,0 +1,450 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: connection URL lives in prisma.config.ts (CLI) and is passed to PrismaClient via a
+// driver adapter (PrismaService), not here. See https://pris.ly/d/config-datasource
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PlanTier {
+  FREE
+  PRO
+  MAX
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIALING
+}
+
+enum AssetType {
+  CRYPTO
+  FOREX
+  COMMODITY
+  INDEX
+}
+
+enum ProviderType {
+  BINANCE
+  COINBASE
+  KRAKEN
+  COINGECKO
+  TWELVE_DATA
+  MOCK
+}
+
+/// Each value maps 1:1 to a Redis registry / evaluation path in AlertEngineService.
+enum ConditionType {
+  ABOVE
+  BELOW
+  CROSSES_ABOVE
+  CROSSES_BELOW
+  ENTERS_RANGE
+  EXITS_RANGE
+  EQUALS
+  PCT_CHANGE
+  PCT_CHANGE_WINDOW
+}
+
+enum AlertStatus {
+  ACTIVE
+  PAUSED
+  TRIGGERED
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationChannelType {
+  EMAIL
+  WEBPUSH
+  TELEGRAM
+  DISCORD
+  EXPO_PUSH
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String?
+  name           String?
+  avatarUrl      String?
+  emailVerified  DateTime?
+  timezone       String    @default("UTC")
+  currency       String    @default("USD")
+  role           UserRole  @default(USER)
+  isSuspended    Boolean   @default(false)
+  suspendedReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  settings             UserSettings?
+  subscription         Subscription?
+  watchlists           Watchlist[]
+  alerts               Alert[]
+  alertGroups          AlertGroup[]
+  alertEvents          AlertEvent[]
+  notificationChannels NotificationChannel[]
+  notificationDeliveries NotificationDelivery[]
+  pushSubscriptions    PushSubscription[]
+  apiUsage             ApiUsage[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?  @db.Text
+  refreshToken      String?  @db.Text
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshTokenHash String
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id                   String  @id @default(cuid())
+  userId               String  @unique
+  theme                String  @default("dark")
+  defaultChartInterval String  @default("15m")
+  emailDigestEnabled   Boolean @default(true)
+  soundEnabled         Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  plan                 PlanTier           @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  maxActiveAlerts      Int                @default(15)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Market data
+// ---------------------------------------------------------------------------
+
+model Provider {
+  id         String       @id @default(cuid())
+  name       String       @unique
+  type       ProviderType
+  assetTypes AssetType[]
+  isEnabled  Boolean      @default(true)
+  priority   Int          @default(0)
+  config     Json?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  instruments Instrument[]
+  exchanges   Exchange[]
+  alertEvents AlertEvent[]
+
+  @@index([type])
+}
+
+model Exchange {
+  id         String  @id @default(cuid())
+  name       String  @unique
+  providerId String?
+  timezone   String?
+
+  provider    Provider?    @relation(fields: [providerId], references: [id])
+  instruments Instrument[]
+  alertEvents AlertEvent[]
+}
+
+model Instrument {
+  id             String    @id @default(cuid())
+  symbol         String
+  displaySymbol  String
+  name           String?
+  assetType      AssetType
+  baseCurrency   String?
+  quoteCurrency  String?
+  providerId     String
+  providerSymbol String
+  exchangeId     String?
+  coingeckoId    String?
+  iconUrl        String?
+  isActive       Boolean   @default(true)
+  lastPrice      Decimal?  @db.Decimal(24, 10)
+  lastPriceAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  provider       Provider        @relation(fields: [providerId], references: [id])
+  exchange       Exchange?       @relation(fields: [exchangeId], references: [id])
+  watchlistItems WatchlistItem[]
+  alerts         Alert[]
+
+  @@unique([providerId, providerSymbol])
+  @@index([symbol])
+  @@index([assetType])
+}
+
+// ---------------------------------------------------------------------------
+// Watchlists
+// ---------------------------------------------------------------------------
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WatchlistItem[]
+
+  @@index([userId])
+}
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  watchlistId  String
+  instrumentId String
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  watchlist  Watchlist  @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  instrument Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, instrumentId])
+  @@index([instrumentId])
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+model AlertGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isPaused  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([userId])
+}
+
+model Alert {
+  id                 String        @id @default(cuid())
+  userId             String
+  instrumentId       String
+  alertGroupId       String?
+  conditionType      ConditionType
+  targetValue        Decimal       @db.Decimal(24, 10)
+  secondaryValue     Decimal?      @db.Decimal(24, 10)
+  timeframe          String?
+  status             AlertStatus   @default(ACTIVE)
+  isRecurring        Boolean       @default(false)
+  cooldownSeconds    Int           @default(0)
+  triggerCount       Int           @default(0)
+  lastTriggeredAt    DateTime?
+  lastEvaluatedPrice Decimal?      @db.Decimal(24, 10)
+  expiresAt          DateTime?
+  notes              String?       @db.Text
+  tags               String[]      @default([])
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument   Instrument               @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  group        AlertGroup?              @relation(fields: [alertGroupId], references: [id], onDelete: SetNull)
+  channelPrefs AlertChannelPreference[]
+  events       AlertEvent[]
+
+  @@index([userId, status])
+  @@index([instrumentId, status])
+  @@index([status, conditionType])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model AlertChannelPreference {
+  id          String                  @id @default(cuid())
+  alertId     String
+  channelType NotificationChannelType
+  isEnabled   Boolean                 @default(true)
+
+  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, channelType])
+}
+
+model AlertEvent {
+  id            String        @id @default(cuid())
+  alertId       String
+  userId        String
+  instrumentId  String
+  providerId    String
+  exchangeId    String?
+  conditionType ConditionType
+  targetValue   Decimal       @db.Decimal(24, 10)
+  observedPrice Decimal       @db.Decimal(24, 10)
+  previousPrice Decimal?      @db.Decimal(24, 10)
+  eventTime     DateTime
+  receivedTime  DateTime
+  transitionId  String        @unique
+  createdAt     DateTime      @default(now())
+
+  alert      Alert                   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   Provider                @relation(fields: [providerId], references: [id])
+  exchange   Exchange?               @relation(fields: [exchangeId], references: [id])
+  deliveries NotificationDelivery[]
+
+  @@index([alertId, eventTime])
+  @@index([userId, createdAt])
+  @@index([instrumentId, eventTime])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model NotificationChannel {
+  id         String                  @id @default(cuid())
+  userId     String
+  type       NotificationChannelType
+  isEnabled  Boolean                 @default(true)
+  isVerified Boolean                 @default(false)
+  config     Json
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationDelivery {
+  id            String                  @id @default(cuid())
+  alertEventId  String
+  userId        String
+  channelType   NotificationChannelType
+  status        DeliveryStatus          @default(PENDING)
+  attempts      Int                     @default(0)
+  lastAttemptAt DateTime?
+  sentAt        DateTime?
+  failReason    String?
+  latencyMs     Int?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  alertEvent AlertEvent @relation(fields: [alertEventId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([alertEventId])
+  @@index([status])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Observability / admin
+// ---------------------------------------------------------------------------
+
+model ApiUsage {
+  id         String   @id @default(cuid())
+  userId     String?
+  endpoint   String
+  method     String
+  statusCode Int
+  latencyMs  Int
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([endpoint])
+}
+
+model SystemEvent {
+  id          String   @id @default(cuid())
+  type        String
+  severity    String   @default("info")
+  message     String
+  metadata    Json?
+  actorUserId String?
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
+}

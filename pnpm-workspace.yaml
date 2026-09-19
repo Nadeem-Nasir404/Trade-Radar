@@ -1,0 +1,23 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+overrides:
+  # apps/web and apps/mobile declare slightly different @types/react ranges (different React
+  # runtime versions); forcing one resolved version avoids TypeScript seeing two structurally
+  # identical but nominally distinct copies of React's global types ("two different types with
+  # this name exist" errors). Safe: @types packages are dev-only type info, not runtime code.
+  '@types/react': 19.3.0
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  msgpackr-extract: true
+  prisma: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@nestjs/cli@12.0.3'
+  - '@nestjs/throttler@6.6.0'
+  - prettier@3.9.7
+  - '@tanstack/query-core@5.103.1'
+  - '@tanstack/react-query@5.103.1'
+  - framer-motion@13.4.0
+  - react-native-safe-area-context@5.10.0
