@@ -37,3 +37,4 @@ apps/api/prisma/dev.db-journal
 
 # editors
 .idea/
+.claude/
