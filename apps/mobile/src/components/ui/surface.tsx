@@ -1,4 +1,4 @@
-import { View, type ViewProps, StyleSheet } from "react-native";
+import { View, Platform, type ViewProps, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/lib/use-theme";
@@ -12,7 +12,12 @@ export function Surface({ style, intensity = 32, children, ...props }: SurfacePr
   const { colors } = useTheme();
   return (
     <View style={[styles.surface, { borderColor: colors.glassBorder }, style]} {...props}>
-      <BlurView intensity={intensity} tint={colors.blurTint} style={StyleSheet.absoluteFill} />
+      <BlurView
+        intensity={intensity}
+        tint={colors.blurTint}
+        style={StyleSheet.absoluteFill}
+        experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
+      />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
       {/* Faint top-edge highlight - the light-catching-glass detail flat translucent fills alone don't sell. */}
       <LinearGradient
