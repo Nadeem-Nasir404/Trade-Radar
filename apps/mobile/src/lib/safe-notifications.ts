@@ -29,15 +29,48 @@ export async function setupNotificationHandler(): Promise<void> {
   });
 }
 
-export async function scheduleLocalNotification(title: string, body: string): Promise<boolean> {
+export async function scheduleLocalNotification(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+): Promise<boolean> {
   const Notifications = await loadNotifications();
   if (!Notifications) return false;
   try {
-    await Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null });
+    await Notifications.scheduleNotificationAsync({ content: { title, body, data }, trigger: null });
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Fires `onTap` with whatever `data` the notification was created with, whenever the user taps a
+ * notification (local, or a real push delivered while backgrounded/closed) - both this listener
+ * and `getLastNotificationResponseAsync` (the tap that actually launched/foregrounded the app,
+ * which this dedupes against so it isn't handled twice) go through here. No-ops in Expo Go.
+ */
+export async function subscribeNotificationTaps(onTap: (data: Record<string, unknown>) => void): Promise<() => void> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return () => undefined;
+
+  let handledInitial = false;
+  const handle = (data: unknown) => {
+    if (data && typeof data === "object") onTap(data as Record<string, unknown>);
+  };
+
+  Notifications.getLastNotificationResponseAsync()
+    .then((response) => {
+      if (!handledInitial && response) handle(response.notification.request.content.data);
+      handledInitial = true;
+    })
+    .catch(() => undefined);
+
+  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    handle(response.notification.request.content.data);
+  });
+
+  return () => subscription.remove();
 }
 
 /** True if local notifications are actually available right now (real build/iOS Expo Go) and the OS permission is granted. */

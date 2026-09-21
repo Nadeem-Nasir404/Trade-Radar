@@ -36,7 +36,7 @@ export function useAlertTriggeredListener() {
         // build / iOS Expo Go) so it's also visible if the app is backgrounded.
         haptics.success();
         showToast(title, body, "success");
-        scheduleLocalNotification(title, body);
+        scheduleLocalNotification(title, body, { symbol: payload.symbol.replace("/", ""), instrumentId: payload.instrumentId });
 
         queryClient.invalidateQueries({ queryKey: ["alerts"] });
         queryClient.invalidateQueries({ queryKey: ["alert-events"] });

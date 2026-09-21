@@ -57,6 +57,7 @@ export class ExpoPushProcessor extends WorkerHost {
           to: token,
           title: `${ctx.symbol} ${conditionText}`,
           body: `Observed price: ${ctx.observedPrice}`,
+          data: { symbol: ctx.symbol.replace("/", ""), instrumentId: ctx.instrumentId },
           sound: "default",
           priority: "high",
           channelId: "default",

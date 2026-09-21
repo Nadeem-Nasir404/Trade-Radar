@@ -5,6 +5,7 @@ export interface NotificationContext {
   userEmail: string;
   userName: string | null;
   symbol: string;
+  instrumentId: string;
   conditionType: string;
   targetValue: string;
   observedPrice: string;
@@ -24,6 +25,7 @@ export class NotificationContextService {
         userEmail: user.email,
         userName: user.name,
         symbol: "BTC/USDT",
+        instrumentId: "",
         conditionType: "CROSSES_ABOVE",
         targetValue: "100000",
         observedPrice: "100000.42",
@@ -41,6 +43,7 @@ export class NotificationContextService {
       userEmail: alertEvent.user.email,
       userName: alertEvent.user.name,
       symbol: alertEvent.alert.instrument.displaySymbol,
+      instrumentId: alertEvent.instrumentId,
       conditionType: alertEvent.conditionType,
       targetValue: alertEvent.targetValue.toString(),
       observedPrice: alertEvent.observedPrice.toString(),

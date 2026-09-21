@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import { useTheme } from "@/lib/use-theme";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { bootstrapAuth } from "@/lib/api/hooks/use-auth";
 import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
-import { setupNotificationHandler } from "@/lib/safe-notifications";
+import { setupNotificationHandler, subscribeNotificationTaps } from "@/lib/safe-notifications";
 import { ToastHost } from "@/components/ui/toast-host";
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -79,6 +79,18 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let unsubscribe: (() => void) | undefined;
+    subscribeNotificationTaps((data) => {
+      const symbol = typeof data.symbol === "string" ? data.symbol : undefined;
+      if (symbol) router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol } });
+    }).then((unsub) => {
+      unsubscribe = unsub;
+    });
+    return () => unsubscribe?.();
   }, [ready]);
 
   useProtectedRoute();
