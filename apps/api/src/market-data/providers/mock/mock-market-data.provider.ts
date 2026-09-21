@@ -24,7 +24,7 @@ const BASE_PRICES: Record<string, { price: number; volatilityPct: number; dailyV
   btcusdt: { price: 103_420, volatilityPct: 0.0006, dailyVolumeUsd: 28_000_000_000 },
   ethusdt: { price: 4_821, volatilityPct: 0.0009, dailyVolumeUsd: 14_000_000_000 },
   solusdt: { price: 238, volatilityPct: 0.0015, dailyVolumeUsd: 2_600_000_000 },
-  xauusd: { price: 3_987, volatilityPct: 0.0002, dailyVolumeUsd: 95_000_000_000 },
+  "xau/usd": { price: 3_987, volatilityPct: 0.0002, dailyVolumeUsd: 95_000_000_000 },
 };
 const DEFAULT_SYMBOL_SEED = { price: 100, volatilityPct: 0.001, dailyVolumeUsd: 50_000_000 };
 
