@@ -1,32 +1,36 @@
-import { View, StyleSheet, FlatList, RefreshControl, Pressable } from "react-native";
+import { View, StyleSheet, FlatList, ScrollView, RefreshControl, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, FadeInDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
 import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
+import { CoinLogo } from "@/components/coin-logo";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
+import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getGreeting } from "@/lib/format";
+import { getGreeting, formatCompactPrice, formatPct } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
-import type { Alert } from "@/lib/api/types";
+import { withAlpha } from "@/lib/color";
+import type { Alert, Instrument } from "@/lib/api/types";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
   const { data: recentAlerts } = useAlerts({ sort: "recent" });
+  const { data: topMarkets } = useMarkets({ limit: 8 });
   const triggeredCount = (recentAlerts ?? []).filter((a) => a.status === "TRIGGERED").length;
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -41,13 +45,14 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+      <View pointerEvents="none" style={[styles.glowTop, { backgroundColor: colors.brandGlow }]} />
       <FlatList
         data={(recentAlerts ?? []).slice(0, 10)}
         keyExtractor={(item: Alert) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
         ListHeaderComponent={
-          <View style={styles.header}>
+          <Animated.View entering={FadeInDown.duration(320).easing(Easing.out(Easing.quad))} style={styles.header}>
             <View style={styles.greetingRow}>
               <View>
                 <ThemedText variant="muted">{getGreeting()}</ThemedText>
@@ -60,7 +65,7 @@ export default function HomeScreen() {
 
             <View style={styles.statsGrid}>
               <Stat icon="pulse" tint={colors.brand} label="Active Alerts" value={activeAlerts?.length ?? 0} />
-              <Stat icon="grid" tint={colors.positive} label="Triggered" value={triggeredCount} />
+              <Stat icon="checkmark-done" tint={colors.positive} label="Triggered" value={triggeredCount} />
             </View>
 
             <View style={styles.quickActions}>
@@ -90,10 +95,34 @@ export default function HomeScreen() {
               />
             </View>
 
-            <ThemedText variant="label" style={styles.sectionLabel}>
-              Recent alerts
-            </ThemedText>
-          </View>
+            {topMarkets && topMarkets.length > 0 && (
+              <View style={styles.tickerSection}>
+                <ThemedText variant="label" style={styles.sectionLabel}>
+                  Markets
+                </ThemedText>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.tickerRow}
+                >
+                  {topMarkets.map((m) => (
+                    <TickerCard key={m.id} instrument={m} />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText variant="label" style={styles.sectionLabel}>
+                Recent alerts
+              </ThemedText>
+              {(recentAlerts?.length ?? 0) > 0 && (
+                <Pressable hitSlop={8} onPress={() => router.push("/(tabs)/alerts")}>
+                  <ThemedText style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>See all</ThemedText>
+                </Pressable>
+              )}
+            </View>
+          </Animated.View>
         }
         renderItem={({ item, index }) => (
           <FadeInItem index={index}>
@@ -113,6 +142,34 @@ export default function HomeScreen() {
         }
       />
     </SafeAreaView>
+  );
+}
+
+function TickerCard({ instrument }: { instrument: Instrument }) {
+  const { colors } = useTheme();
+  const positive = (instrument.changePct24h ?? 0) >= 0;
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.light();
+        router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: instrument.symbol } });
+      }}
+    >
+      <Surface style={styles.tickerCard}>
+        <View style={styles.tickerTop}>
+          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={22} />
+          <ThemedText numberOfLines={1} style={styles.tickerSymbol}>
+            {instrument.displaySymbol}
+          </ThemedText>
+        </View>
+        <ThemedText variant="mono" numberOfLines={1} style={styles.tickerPrice}>
+          {formatCompactPrice(instrument.price)}
+        </ThemedText>
+        <ThemedText style={{ color: positive ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
+          {formatPct(instrument.changePct24h)}
+        </ThemedText>
+      </Surface>
+    </Pressable>
   );
 }
 
@@ -154,9 +211,14 @@ function Stat({
   const animated = useCountUp(value);
   return (
     <Surface style={styles.stat}>
-      <View style={[styles.statIcon, { backgroundColor: colors.glassHover }]}>
+      <LinearGradient
+        colors={[withAlpha(tint, 0.28), withAlpha(tint, 0.08)]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.statIcon}
+      >
         <Ionicons name={icon} size={16} color={tint} />
-      </View>
+      </LinearGradient>
       <ThemedText variant="title" style={styles.statValue}>
         {Math.round(animated)}
       </ThemedText>
@@ -167,6 +229,15 @@ function Stat({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  glowTop: {
+    position: "absolute",
+    top: -160,
+    alignSelf: "center",
+    width: 360,
+    height: 360,
+    borderRadius: radius.full,
+    opacity: 0.4,
+  },
   list: { paddingHorizontal: 20, paddingBottom: 110 },
   header: { gap: 24, marginBottom: 12, paddingTop: 4 },
   greetingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
@@ -182,4 +253,11 @@ const styles = StyleSheet.create({
   secondaryAction: { flex: 1, borderWidth: 1 },
   actionText: { fontSize: 14, fontWeight: "600" },
   sectionLabel: { marginTop: 4 },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: -8 },
+  tickerSection: { gap: 10 },
+  tickerRow: { gap: 10, paddingRight: 8 },
+  tickerCard: { width: 108, padding: 12, gap: 8 },
+  tickerTop: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tickerSymbol: { fontSize: 12, fontWeight: "600", flexShrink: 1 },
+  tickerPrice: { fontSize: 14, fontWeight: "600" },
 });
