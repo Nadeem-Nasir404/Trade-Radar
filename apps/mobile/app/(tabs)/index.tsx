@@ -107,7 +107,7 @@ export default function HomeScreen() {
         }
         renderItem={({ item, index }) => (
           <FadeInItem index={index}>
-            <AlertRow alert={item} />
+            <AlertRow alert={item} autoPeek={index === 0} />
           </FadeInItem>
         )}
         ListEmptyComponent={

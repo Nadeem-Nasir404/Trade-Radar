@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, { useAnimatedStyle, interpolate, type SharedValue } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,14 +32,42 @@ function statusLabel(status: string): string {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
+const SWIPE_HINT_SEEN_KEY = "lp-swipe-hint-seen";
+
+/** Peeks the row's delete action open and closed once, the very first time any list ever renders
+ * one with `autoPeek` - the only way a first-time user would otherwise discover the gesture. */
+function useSwipeHint(swipeRef: React.RefObject<SwipeableMethods | null>, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let openTimer: ReturnType<typeof setTimeout> | undefined;
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    AsyncStorage.getItem(SWIPE_HINT_SEEN_KEY).then((seen) => {
+      if (cancelled || seen) return;
+      AsyncStorage.setItem(SWIPE_HINT_SEEN_KEY, "1").catch(() => undefined);
+      openTimer = setTimeout(() => swipeRef.current?.openRight(), 700);
+      closeTimer = setTimeout(() => swipeRef.current?.close(), 1700);
+    });
+
+    return () => {
+      cancelled = true;
+      if (openTimer) clearTimeout(openTimer);
+      if (closeTimer) clearTimeout(closeTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+}
+
 // Flat row + hairline divider, not a glass card - list rows stay at "Level 1" per the design
 // system, reserving glass for genuinely elevated/floating surfaces elsewhere in the app.
-export function AlertRow({ alert }: { alert: Alert }) {
+export function AlertRow({ alert, autoPeek = false }: { alert: Alert; autoPeek?: boolean }) {
   const { colors } = useTheme();
   const up = isUpwardCondition(alert.conditionType, alert.targetValue);
   const deleteAlert = useDeleteAlert();
   const showToast = useToastStore((s) => s.show);
   const swipeRef = useRef<SwipeableMethods>(null);
+  useSwipeHint(swipeRef, autoPeek);
 
   const live = useLivePrice(alert.instrumentId, { price: alert.currentPrice, changePct24h: null });
   const price = live.price ?? alert.currentPrice;

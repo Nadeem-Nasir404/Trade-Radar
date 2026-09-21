@@ -67,8 +67,8 @@ export default function AlertsScreen() {
                 {section.title.toUpperCase()} · {section.data.length}
               </ThemedText>
               <Surface style={styles.card}>
-                {section.data.map((alert) => (
-                  <AlertRow key={alert.id} alert={alert} />
+                {section.data.map((alert, alertIndex) => (
+                  <AlertRow key={alert.id} alert={alert} autoPeek={index === 0 && alertIndex === 0} />
                 ))}
               </Surface>
             </FadeInItem>
