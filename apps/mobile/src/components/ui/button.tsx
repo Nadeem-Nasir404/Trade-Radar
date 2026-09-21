@@ -11,10 +11,11 @@ interface ButtonProps extends Omit<PressableProps, "style"> {
   variant?: Variant;
   loading?: boolean;
   icon?: React.ReactNode;
+  trailingIcon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Button({ title, variant = "primary", loading, icon, style, disabled, ...props }: ButtonProps) {
+export function Button({ title, variant = "primary", loading, icon, trailingIcon, style, disabled, ...props }: ButtonProps) {
   const { colors } = useTheme();
 
   const onColor = variant === "primary" || variant === "destructive" ? colors.brandForeground : colors.foreground;
@@ -27,6 +28,7 @@ export function Button({ title, variant = "primary", loading, icon, style, disab
       <ThemedText variant="subtitle" style={[styles.text, { color: onColor }]}>
         {title}
       </ThemedText>
+      {trailingIcon}
     </>
   );
 

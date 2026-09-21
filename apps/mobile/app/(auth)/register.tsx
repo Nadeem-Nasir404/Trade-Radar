@@ -3,7 +3,6 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "re
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
@@ -39,14 +38,13 @@ export default function RegisterScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <LinearGradient
-              colors={[colors.brand, colors.brandGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.iconTile}
-            >
-              <Ionicons name="rocket" size={28} color={colors.brandForeground} />
-            </LinearGradient>
+            <Surface style={styles.iconTile}>
+              <Ionicons name="notifications" size={26} color={colors.brand} />
+            </Surface>
+            <View style={styles.wordmarkWrap}>
+              <ThemedText variant="subtitle">CoinRadar</ThemedText>
+              <ThemedText variant="subtle">Price alerts for every coin</ThemedText>
+            </View>
           </View>
 
           <ThemedText variant="title" style={[styles.centerText, styles.heading]}>
@@ -87,7 +85,13 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              <Button title="Create account" onPress={handleSubmit} loading={register.isPending} style={styles.submit} />
+              <Button
+                title="Create Account"
+                onPress={handleSubmit}
+                loading={register.isPending}
+                trailingIcon={<Ionicons name="arrow-forward" size={18} color={colors.brandForeground} />}
+                style={styles.submit}
+              />
             </View>
           </Surface>
 
@@ -107,7 +111,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: 24 },
   centerText: { textAlign: "center" },
-  logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  logoWrap: { alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 24 },
   iconTile: {
     width: 64,
     height: 64,
@@ -115,12 +119,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#a855f7",
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.25,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
-  heading: { fontSize: 28 },
+  wordmarkWrap: { alignItems: "center", gap: 2 },
+  heading: { fontSize: 26 },
   subtitle: { marginTop: 6, marginBottom: 28 },
   card: { padding: 20, marginTop: 4 },
   form: { gap: 16 },
