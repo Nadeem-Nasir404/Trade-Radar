@@ -1,4 +1,4 @@
-import { View, StyleSheet, FlatList, ScrollView, RefreshControl, Pressable } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,26 +11,23 @@ import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
 import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
-import { CoinLogo } from "@/components/coin-logo";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
-import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getGreeting, formatCompactPrice, formatPct } from "@/lib/format";
+import { getGreeting } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
 import { withAlpha } from "@/lib/color";
-import type { Alert, Instrument } from "@/lib/api/types";
+import type { Alert } from "@/lib/api/types";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
   const { data: recentAlerts } = useAlerts({ sort: "recent" });
-  const { data: topMarkets } = useMarkets({ limit: 8 });
   const triggeredCount = (recentAlerts ?? []).filter((a) => a.status === "TRIGGERED").length;
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -95,23 +92,6 @@ export default function HomeScreen() {
               />
             </View>
 
-            {topMarkets && topMarkets.length > 0 && (
-              <View style={styles.tickerSection}>
-                <ThemedText variant="label" style={styles.sectionLabel}>
-                  Markets
-                </ThemedText>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.tickerRow}
-                >
-                  {topMarkets.map((m) => (
-                    <TickerCard key={m.id} instrument={m} />
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
             <View style={styles.sectionHeaderRow}>
               <ThemedText variant="label" style={styles.sectionLabel}>
                 Recent alerts
@@ -142,34 +122,6 @@ export default function HomeScreen() {
         }
       />
     </SafeAreaView>
-  );
-}
-
-function TickerCard({ instrument }: { instrument: Instrument }) {
-  const { colors } = useTheme();
-  const positive = (instrument.changePct24h ?? 0) >= 0;
-  return (
-    <Pressable
-      onPress={() => {
-        haptics.light();
-        router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: instrument.symbol } });
-      }}
-    >
-      <Surface style={styles.tickerCard}>
-        <View style={styles.tickerTop}>
-          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={22} />
-          <ThemedText numberOfLines={1} style={styles.tickerSymbol}>
-            {instrument.displaySymbol}
-          </ThemedText>
-        </View>
-        <ThemedText variant="mono" numberOfLines={1} style={styles.tickerPrice}>
-          {formatCompactPrice(instrument.price)}
-        </ThemedText>
-        <ThemedText style={{ color: positive ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
-          {formatPct(instrument.changePct24h)}
-        </ThemedText>
-      </Surface>
-    </Pressable>
   );
 }
 
@@ -231,12 +183,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   glowTop: {
     position: "absolute",
-    top: -160,
+    top: -180,
     alignSelf: "center",
-    width: 360,
-    height: 360,
+    width: 280,
+    height: 280,
     borderRadius: radius.full,
-    opacity: 0.4,
+    opacity: 0.22,
   },
   list: { paddingHorizontal: 20, paddingBottom: 110 },
   header: { gap: 24, marginBottom: 12, paddingTop: 4 },
@@ -254,10 +206,4 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 14, fontWeight: "600" },
   sectionLabel: { marginTop: 4 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: -8 },
-  tickerSection: { gap: 10 },
-  tickerRow: { gap: 10, paddingRight: 8 },
-  tickerCard: { width: 108, padding: 12, gap: 8 },
-  tickerTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-  tickerSymbol: { fontSize: 12, fontWeight: "600", flexShrink: 1 },
-  tickerPrice: { fontSize: 14, fontWeight: "600" },
 });
