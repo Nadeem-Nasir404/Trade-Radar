@@ -19,7 +19,10 @@ interface TwelveDataQuote {
   previous_close: string;
   percent_change: string;
   volume?: string;
+  /** Trading-day marker (midnight), NOT a live update time - see `last_quote_at`. */
   timestamp?: number;
+  /** Actual freshness of this quote - what "eventTime" must be based on. */
+  last_quote_at?: number;
 }
 
 const TIMEFRAME_INTERVAL: Record<Timeframe, string> = {
@@ -127,7 +130,7 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
           instrumentId: quote.symbol.toLowerCase(),
           providerSymbol: quote.symbol.toLowerCase(),
           price,
-          eventTime: quote.timestamp ? quote.timestamp * 1000 : now,
+          eventTime: quote.last_quote_at ? quote.last_quote_at * 1000 : now,
           receivedTime: now,
           providerId: this.name,
           high24h: quote.high !== undefined ? Number(quote.high) : undefined,
