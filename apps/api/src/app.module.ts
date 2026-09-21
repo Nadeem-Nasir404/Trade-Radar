@@ -44,13 +44,19 @@ import { WebsocketModule } from "./websocket/websocket.module";
     EventEmitterModule.forRoot(),
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvConfig, true>) => ({
-        connection: {
-          host: new URL(config.get("REDIS_URL", { infer: true })).hostname,
-          port: Number(new URL(config.get("REDIS_URL", { infer: true })).port || 6379),
-          maxRetriesPerRequest: null,
-        },
-      }),
+      useFactory: (config: ConfigService<EnvConfig, true>) => {
+        const url = new URL(config.get("REDIS_URL", { infer: true }));
+        return {
+          connection: {
+            host: url.hostname,
+            port: Number(url.port || 6379),
+            username: url.username || undefined,
+            password: url.password || undefined,
+            tls: url.protocol === "rediss:" ? {} : undefined,
+            maxRetriesPerRequest: null,
+          },
+        };
+      },
     }),
     PrismaModule,
     RedisModule,
