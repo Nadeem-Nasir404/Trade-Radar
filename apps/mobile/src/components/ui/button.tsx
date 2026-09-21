@@ -24,7 +24,9 @@ export function Button({ title, variant = "primary", loading, icon, style, disab
   ) : (
     <>
       {icon}
-      <ThemedText style={[styles.text, { color: onColor }]}>{title}</ThemedText>
+      <ThemedText variant="subtitle" style={[styles.text, { color: onColor }]}>
+        {title}
+      </ThemedText>
     </>
   );
 
@@ -72,7 +74,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 16,
   },
-  text: { fontSize: 15, fontWeight: "600" },
+  text: { fontSize: 15 },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
 });

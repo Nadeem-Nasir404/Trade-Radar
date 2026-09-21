@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, FadeInDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Button } from "@/components/ui/button";
 import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
@@ -42,7 +43,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
-      <View pointerEvents="none" style={[styles.glowTop, { backgroundColor: colors.brandGlow }]} />
+      <AmbientOrbs />
       <FlatList
         data={(recentAlerts ?? []).slice(0, 10)}
         keyExtractor={(item: Alert) => item.id}
@@ -141,8 +142,10 @@ function SettingsButton() {
         router.push("/(tabs)/profile");
       }}
     >
-      <Animated.View style={[styles.settingsButton, animatedStyle]}>
-        <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+      <Animated.View style={animatedStyle}>
+        <Surface style={styles.settingsButton}>
+          <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+        </Surface>
       </Animated.View>
     </Pressable>
   );
@@ -181,19 +184,10 @@ function Stat({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  glowTop: {
-    position: "absolute",
-    top: -180,
-    alignSelf: "center",
-    width: 280,
-    height: 280,
-    borderRadius: radius.full,
-    opacity: 0.22,
-  },
   list: { paddingHorizontal: 20, paddingBottom: 110 },
   header: { gap: 24, marginBottom: 12, paddingTop: 4 },
   greetingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  settingsButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  settingsButton: { width: 44, height: 44, borderRadius: radius.lg, alignItems: "center", justifyContent: "center" },
   greetingName: { fontSize: 30, marginTop: 2 },
   statsGrid: { flexDirection: "row", gap: 12 },
   stat: { flex: 1, padding: 16, gap: 6 },

@@ -4,6 +4,13 @@ import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import {
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from "@expo-google-fonts/space-grotesk";
+import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold } from "@expo-google-fonts/manrope";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, StyleSheet } from "react-native";
@@ -23,6 +30,15 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const { colors } = useTheme();
+  const [fontsLoaded] = useFonts({
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+  });
 
   useEffect(() => {
     // Android runs edge-to-edge, so the status bar itself is always transparent - it shows
@@ -39,7 +55,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <View style={[styles.flex, { backgroundColor: colors.background }]}>
             <StatusBar style={colors.statusBarStyle} />
-            <AuthGate />
+            <AuthGate fontsLoaded={fontsLoaded} />
             <ToastHost />
           </View>
         </QueryClientProvider>
@@ -48,16 +64,17 @@ export default function RootLayout() {
   );
 }
 
-function AuthGate() {
+function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { colors } = useTheme();
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const setUnauthenticated = useAuthStore((s) => s.setUnauthenticated);
-  const [ready, setReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const ready = authReady && fontsLoaded;
 
   useEffect(() => {
     bootstrapAuth()
       .then((user) => (user ? setAuthenticated(user) : setUnauthenticated()))
-      .finally(() => setReady(true));
+      .finally(() => setAuthReady(true));
   }, [setAuthenticated, setUnauthenticated]);
 
   useEffect(() => {

@@ -10,3 +10,14 @@ export const radius = {
 };
 
 export const spacing = (n: number) => n * 4;
+
+/** Space Grotesk for headings/prices (a little technical, numeric), Manrope for everything else. */
+export const fonts = {
+  headingSemibold: "SpaceGrotesk_600SemiBold",
+  headingBold: "SpaceGrotesk_700Bold",
+  headingMedium: "SpaceGrotesk_500Medium",
+  body: "Manrope_400Regular",
+  bodyMedium: "Manrope_500Medium",
+  bodySemibold: "Manrope_600SemiBold",
+  bodyBold: "Manrope_700Bold",
+};

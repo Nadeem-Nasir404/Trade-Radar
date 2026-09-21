@@ -1,16 +1,19 @@
 import { Text, type TextProps, type TextStyle } from "react-native";
 import { useTheme } from "@/lib/use-theme";
+import { fonts } from "@/lib/theme";
 
 type Variant = "title" | "subtitle" | "body" | "muted" | "subtle" | "label" | "mono";
 
+// Space Grotesk carries headings and numbers (title/subtitle/mono - the latter is what price
+// displays use); Manrope carries everything read as prose, per the glassmorphic design pass.
 const VARIANT_STYLE: Record<Variant, TextStyle> = {
-  title: { fontSize: 24, fontWeight: "600", letterSpacing: -0.3 },
-  subtitle: { fontSize: 17, fontWeight: "600" },
-  body: { fontSize: 15 },
-  muted: { fontSize: 14 },
-  subtle: { fontSize: 12 },
-  label: { fontSize: 13, fontWeight: "500" },
-  mono: { fontVariant: ["tabular-nums"] },
+  title: { fontSize: 24, fontFamily: fonts.headingBold, letterSpacing: -0.3 },
+  subtitle: { fontSize: 17, fontFamily: fonts.headingSemibold },
+  body: { fontSize: 15, fontFamily: fonts.body },
+  muted: { fontSize: 14, fontFamily: fonts.body },
+  subtle: { fontSize: 12, fontFamily: fonts.body },
+  label: { fontSize: 13, fontFamily: fonts.bodyMedium },
+  mono: { fontVariant: ["tabular-nums"], fontFamily: fonts.headingSemibold },
 };
 
 export function ThemedText({ variant = "body", style, ...props }: TextProps & { variant?: Variant }) {

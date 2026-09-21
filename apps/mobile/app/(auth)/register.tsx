@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
-      <View pointerEvents="none" style={[styles.glowTop, { backgroundColor: colors.brandGlow }]} />
+      <AmbientOrbs />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
@@ -106,15 +107,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: 24 },
   centerText: { textAlign: "center" },
-  glowTop: {
-    position: "absolute",
-    top: -120,
-    alignSelf: "center",
-    width: 320,
-    height: 320,
-    borderRadius: radius.full,
-    opacity: 0.5,
-  },
   logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 20 },
   iconTile: {
     width: 64,
