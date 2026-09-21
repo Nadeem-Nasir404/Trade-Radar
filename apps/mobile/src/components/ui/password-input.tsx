@@ -4,8 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Input } from "./input";
 import { useTheme } from "@/lib/use-theme";
 
+interface PasswordInputProps extends Omit<TextInputProps, "secureTextEntry"> {
+  icon?: keyof typeof Ionicons.glyphMap;
+}
+
 /** An Input with a show/hide eye toggle - factored out so login and register can't drift apart. */
-export function PasswordInput(props: Omit<TextInputProps, "secureTextEntry">) {
+export function PasswordInput(props: PasswordInputProps) {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
 

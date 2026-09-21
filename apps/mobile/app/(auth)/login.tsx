@@ -3,6 +3,7 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "re
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
@@ -33,14 +34,21 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
+      <View pointerEvents="none" style={[styles.glowTop, { backgroundColor: colors.brandGlow }]} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <View style={[styles.glow, { backgroundColor: colors.brandGlow }]} />
-            <Logo />
+            <LinearGradient
+              colors={[colors.brand, colors.brandGradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.iconTile}
+            >
+              <Ionicons name="pulse" size={30} color={colors.brandForeground} />
+            </LinearGradient>
           </View>
 
-          <ThemedText variant="title" style={styles.centerText}>
+          <ThemedText variant="title" style={[styles.centerText, styles.heading]}>
             Welcome back
           </ThemedText>
           <ThemedText variant="muted" style={[styles.subtitle, styles.centerText]}>
@@ -51,11 +59,19 @@ export default function LoginScreen() {
             <View style={styles.form}>
               <View style={styles.field}>
                 <ThemedText variant="label">Email</ThemedText>
-                <Input value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+                <Input
+                  icon="mail-outline"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                />
               </View>
               <View style={styles.field}>
                 <ThemedText variant="label">Password</ThemedText>
-                <PasswordInput value={password} onChangeText={setPassword} autoComplete="password" />
+                <PasswordInput icon="lock-closed-outline" value={password} onChangeText={setPassword} autoComplete="password" placeholder="••••••••" />
               </View>
 
               {error && (
@@ -85,9 +101,30 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: 24 },
   centerText: { textAlign: "center" },
-  logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 28 },
-  glow: { position: "absolute", width: 140, height: 140, borderRadius: radius.full },
-  subtitle: { marginTop: 4, marginBottom: 24 },
+  glowTop: {
+    position: "absolute",
+    top: -120,
+    alignSelf: "center",
+    width: 320,
+    height: 320,
+    borderRadius: radius.full,
+    opacity: 0.5,
+  },
+  logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  iconTile: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#a855f7",
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  heading: { fontSize: 28 },
+  subtitle: { marginTop: 6, marginBottom: 28 },
   card: { padding: 20, marginTop: 4 },
   form: { gap: 16 },
   field: { gap: 6 },

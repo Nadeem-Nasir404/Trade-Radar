@@ -3,12 +3,12 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "re
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/logo";
 import { useRegister } from "@/lib/api/hooks/use-auth";
 import { ApiError } from "@/lib/api/client";
 import { useTheme } from "@/lib/use-theme";
@@ -34,14 +34,21 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
+      <View pointerEvents="none" style={[styles.glowTop, { backgroundColor: colors.brandGlow }]} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <View style={[styles.glow, { backgroundColor: colors.brandGlow }]} />
-            <Logo />
+            <LinearGradient
+              colors={[colors.brand, colors.brandGradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.iconTile}
+            >
+              <Ionicons name="rocket" size={28} color={colors.brandForeground} />
+            </LinearGradient>
           </View>
 
-          <ThemedText variant="title" style={styles.centerText}>
+          <ThemedText variant="title" style={[styles.centerText, styles.heading]}>
             Start tracking free
           </ThemedText>
           <ThemedText variant="muted" style={[styles.subtitle, styles.centerText]}>
@@ -52,15 +59,23 @@ export default function RegisterScreen() {
             <View style={styles.form}>
               <View style={styles.field}>
                 <ThemedText variant="label">Name</ThemedText>
-                <Input value={name} onChangeText={setName} autoComplete="name" />
+                <Input icon="person-outline" value={name} onChangeText={setName} autoComplete="name" placeholder="Your name" />
               </View>
               <View style={styles.field}>
                 <ThemedText variant="label">Email</ThemedText>
-                <Input value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+                <Input
+                  icon="mail-outline"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                />
               </View>
               <View style={styles.field}>
                 <ThemedText variant="label">Password</ThemedText>
-                <PasswordInput value={password} onChangeText={setPassword} autoComplete="password-new" />
+                <PasswordInput icon="lock-closed-outline" value={password} onChangeText={setPassword} autoComplete="password-new" placeholder="••••••••" />
                 <ThemedText variant="subtle">At least 8 characters.</ThemedText>
               </View>
 
@@ -91,9 +106,30 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: 24 },
   centerText: { textAlign: "center" },
-  logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 28 },
-  glow: { position: "absolute", width: 140, height: 140, borderRadius: radius.full },
-  subtitle: { marginTop: 4, marginBottom: 24 },
+  glowTop: {
+    position: "absolute",
+    top: -120,
+    alignSelf: "center",
+    width: 320,
+    height: 320,
+    borderRadius: radius.full,
+    opacity: 0.5,
+  },
+  logoWrap: { alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  iconTile: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#a855f7",
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  heading: { fontSize: 28 },
+  subtitle: { marginTop: 6, marginBottom: 28 },
   card: { padding: 20, marginTop: 4 },
   form: { gap: 16 },
   field: { gap: 6 },

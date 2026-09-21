@@ -159,7 +159,7 @@ function buildChartHtml(): string {
       function init() {
         var container = document.getElementById('chart');
         chart = LightweightCharts.createChart(container, {
-          layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#9598a3', fontSize: 11 },
+          layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#9598a3', fontSize: 11, attributionLogo: false },
           grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
           rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
           timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true },
