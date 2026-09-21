@@ -26,7 +26,10 @@ export interface PriceSnapshot {
 }
 
 const TRACKED_INSTRUMENTS_KEY = "md:tracked-instruments";
-export const STALE_AFTER_MS = 45_000;
+// Must comfortably exceed the slowest real provider's update cadence - Twelve Data's REST
+// polling (see TwelveDataProvider.POLL_INTERVAL_MS) only refreshes every 120s, so anything
+// tighter than that flags it "stale" for most of every cycle even while perfectly healthy.
+export const STALE_AFTER_MS = 150_000;
 
 function priceKey(instrumentId: string) {
   return `price:${instrumentId}`;
