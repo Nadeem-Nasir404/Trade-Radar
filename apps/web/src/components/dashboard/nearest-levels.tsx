@@ -20,13 +20,25 @@ export function NearestLevels() {
   const symbols = [...grouped.entries()].slice(0, 3);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Radar className="size-4 text-brand" /> Nearest Levels
+    <Card className="glass-panel">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between text-base">
+          <div className="flex items-center gap-2">
+            <div className="relative flex size-6 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Radar className="size-3.5" />
+              <span className="absolute -top-0.5 -right-0.5 flex size-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex size-2 rounded-full bg-indigo-500"></span>
+              </span>
+            </div>
+            <span className="font-semibold text-foreground">Nearest Levels</span>
+          </div>
+          <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-400 border border-indigo-500/20">
+            Radar Active
+          </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+      <CardContent className="flex flex-col gap-5 pt-1">
         {isLoading && <Skeleton className="h-40 w-full" />}
 
         {!isLoading && symbols.length === 0 && (
@@ -37,12 +49,14 @@ export function NearestLevels() {
           const above = group.alerts!.filter((a) => (a.distancePct ?? 0) < 0).slice(0, 2);
           const below = group.alerts!.filter((a) => (a.distancePct ?? 0) >= 0).slice(0, 2);
           return (
-            <div key={symbol}>
-              <div className="flex items-baseline justify-between">
-                <p className="font-medium">{symbol}</p>
-                <p className="font-tabular text-sm text-foreground-muted">Current: {formatCompactPrice(group.currentPrice)}</p>
+            <div key={symbol} className="rounded-xl border border-glass-border bg-background-elevated/40 p-3.5 transition-colors hover:border-glass-border-strong">
+              <div className="flex items-baseline justify-between border-b border-glass-border/60 pb-2">
+                <p className="font-bold tracking-tight text-foreground">{symbol}</p>
+                <p className="font-tabular text-xs text-foreground-muted">
+                  Spot: <span className="font-medium text-foreground">{formatCompactPrice(group.currentPrice)}</span>
+                </p>
               </div>
-              <div className="mt-2 flex flex-col gap-1.5">
+              <div className="mt-2.5 flex flex-col gap-2">
                 {above.map((a) => (
                   <LevelRow key={a.id} alert={a} up />
                 ))}
@@ -59,13 +73,27 @@ export function NearestLevels() {
 }
 
 function LevelRow({ alert, up }: { alert: NonNullable<ReturnType<typeof useAlerts>["data"]>[number]; up: boolean }) {
+  const distPct = Math.abs(alert.distancePct ?? 0);
+  const barWidth = Math.min(100, Math.max(12, 100 - distPct * 15));
+
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className={cn("flex items-center gap-1.5 font-tabular", up ? "text-positive" : "text-negative")}>
-        {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-        {formatCompactPrice(alert.targetValue)}
-      </span>
-      <span className="font-tabular text-foreground-subtle">{formatPct(alert.distancePct)}</span>
+    <div className="group/row flex flex-col gap-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className={cn("flex items-center gap-1 font-tabular font-medium transition-colors", up ? "text-emerald-400 group-hover/row:text-emerald-300" : "text-rose-400 group-hover/row:text-rose-300")}>
+          {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+          {formatCompactPrice(alert.targetValue)}
+        </span>
+        <span className="font-tabular text-[11px] font-semibold text-foreground-muted">
+          {formatPct(alert.distancePct)}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", up ? "bg-gradient-to-r from-emerald-500/40 to-emerald-400" : "bg-gradient-to-r from-rose-500/40 to-rose-400")}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
     </div>
   );
 }
+

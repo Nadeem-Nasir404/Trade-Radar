@@ -96,6 +96,7 @@ export function AlertRow({ alert, autoPeek = false }: { alert: Alert; autoPeek?:
           <CoinLogo uri={alert.iconUrl} symbol={alert.symbol} />
           <View style={styles.left}>
             <View style={styles.symbolRow}>
+              <Ionicons name={up ? "arrow-up-circle" : "arrow-down-circle"} size={16} color={up ? colors.positive : colors.negative} />
               <ThemedText numberOfLines={1} style={styles.symbol}>
                 {alert.symbol}
               </ThemedText>
@@ -107,16 +108,17 @@ export function AlertRow({ alert, autoPeek = false }: { alert: Alert; autoPeek?:
             </ThemedText>
           </View>
           <View style={styles.right}>
-            <ThemedText variant="mono" numberOfLines={1} style={{ color: up ? colors.positive : colors.negative }}>
+            <ThemedText variant="mono" numberOfLines={1} style={{ color: up ? colors.positive : colors.negative, fontWeight: "700" }}>
               {formatAlertTarget(alert)}
             </ThemedText>
             {alert.status === "ACTIVE" && distancePct !== null ? (
               <Badge label={formatPct(distancePct)} variant={distancePct >= 0 ? "positive" : "negative"} />
             ) : (
-              <Badge label={statusLabel(alert.status)} variant={statusBadgeVariant(alert.status)} />
+              <Badge label={`● ${statusLabel(alert.status)}`} variant={statusBadgeVariant(alert.status)} />
             )}
           </View>
         </View>
+
       </PressableScale>
     </Swipeable>
   );

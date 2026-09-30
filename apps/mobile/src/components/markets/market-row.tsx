@@ -6,6 +6,7 @@ import { PressableScale } from "@/components/ui/pressable-scale";
 import { PriceText } from "@/components/ui/price-text";
 import { Badge } from "@/components/ui/badge";
 import { CoinLogo } from "@/components/coin-logo";
+import { MiniSparkline } from "@/components/charts/mini-sparkline";
 import { formatPct } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { useLivePrice } from "@/lib/ws/use-live-price";
@@ -13,8 +14,21 @@ import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists
 import { haptics } from "@/lib/haptics";
 import type { Instrument } from "@/lib/api/types";
 
-// Flat row - the enclosing Surface panel (see markets/index.tsx) supplies the "Level 1" glass
-// boundary and FlatList's ItemSeparatorComponent supplies the dividers, so this stays plain.
+function generateMockTrend(currentPrice: number | null, positive: boolean): number[] {
+  const base = currentPrice || 100;
+  const delta = base * 0.02 * (positive ? 1 : -1);
+  return [
+    base - delta * 0.9,
+    base - delta * 0.7 + Math.random() * delta * 0.2,
+    base - delta * 0.4 - Math.random() * delta * 0.2,
+    base - delta * 0.2,
+    base + delta * 0.1,
+    base + delta * 0.5,
+    base + delta * 0.8,
+    base,
+  ];
+}
+
 export function MarketRow({ instrument }: { instrument: Instrument }) {
   const { colors } = useTheme();
   const live = useLivePrice(instrument.id, { price: instrument.price, changePct24h: instrument.changePct24h });
@@ -24,6 +38,8 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
 
   const isFavorite = useIsFavorite(instrument.id);
   const toggleFavorite = useToggleFavorite();
+
+  const trendData = generateMockTrend(price, positive);
 
   return (
     <PressableScale onPress={() => router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: instrument.symbol } })}>
@@ -41,6 +57,11 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
             </ThemedText>
           </View>
         </View>
+
+        <View style={styles.centerChart}>
+          <MiniSparkline data={trendData} width={52} height={20} positive={positive} />
+        </View>
+
         <View style={styles.right}>
           <PriceText value={price} />
           <Badge label={formatPct(changePct)} variant={positive ? "positive" : "negative"} />
@@ -60,6 +81,7 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
   );
 }
 
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
@@ -72,6 +94,8 @@ const styles = StyleSheet.create({
   left: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 },
   nameCol: { flexShrink: 1, gap: 2 },
   symbol: { fontWeight: "600", fontSize: 15 },
+  centerChart: { paddingHorizontal: 6, justifyContent: "center", alignItems: "center" },
   right: { alignItems: "flex-end", gap: 4 },
   favoriteButton: { paddingLeft: 2, paddingVertical: 4 },
 });
+

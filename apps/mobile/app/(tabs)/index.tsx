@@ -1,4 +1,5 @@
-import { View, StyleSheet, FlatList, RefreshControl, Pressable } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, Pressable, ScrollView } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,28 +15,37 @@ import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { MiniSparkline } from "@/components/charts/mini-sparkline";
+import { CoinLogo } from "@/components/coin-logo";
+import { PriceText } from "@/components/ui/price-text";
+import { Badge } from "@/components/ui/badge";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
+import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getGreeting } from "@/lib/format";
+import { getGreeting, formatPct } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
 import { withAlpha } from "@/lib/color";
-import type { Alert } from "@/lib/api/types";
+import type { Alert, Instrument } from "@/lib/api/types";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
   const { data: recentAlerts } = useAlerts({ sort: "recent" });
+  const { data: markets } = useMarkets({ limit: 6 });
   const triggeredCount = (recentAlerts ?? []).filter((a) => a.status === "TRIGGERED").length;
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+      queryClient.invalidateQueries({ queryKey: ["markets"] }),
+    ]);
     setRefreshing(false);
   }, [queryClient]);
 
@@ -53,7 +63,13 @@ export default function HomeScreen() {
           <Animated.View entering={FadeInDown.duration(320).easing(Easing.out(Easing.quad))} style={styles.header}>
             <View style={styles.greetingRow}>
               <View>
-                <ThemedText variant="muted">{getGreeting()}</ThemedText>
+                <View style={styles.greetingHeaderLine}>
+                  <ThemedText variant="muted">{getGreeting()}</ThemedText>
+                  <View style={[styles.liveBadge, { backgroundColor: withAlpha(colors.positive, 0.15), borderColor: withAlpha(colors.positive, 0.3) }]}>
+                    <View style={[styles.liveDot, { backgroundColor: colors.positive }]} />
+                    <ThemedText style={[styles.liveBadgeText, { color: colors.positive }]}>Live Feed</ThemedText>
+                  </View>
+                </View>
                 <ThemedText variant="title" style={styles.greetingName}>
                   {firstName}
                 </ThemedText>
@@ -65,6 +81,18 @@ export default function HomeScreen() {
               <Stat icon="pulse" tint={colors.brand} label="Active Alerts" value={activeAlerts?.length ?? 0} />
               <Stat icon="checkmark-done" tint={colors.positive} label="Triggered" value={triggeredCount} />
             </View>
+
+            {/* Featured Markets Ticker Horizontal Carousel */}
+            {markets && markets.length > 0 && (
+              <View style={styles.carouselSection}>
+                <ThemedText variant="label" style={styles.carouselLabel}>Featured Markets</ThemedText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselScroll}>
+                  {markets.map((m) => (
+                    <FeaturedMarketCard key={m.id} instrument={m} />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <View style={styles.quickActions}>
               <Pressable
@@ -126,6 +154,43 @@ export default function HomeScreen() {
   );
 }
 
+function FeaturedMarketCard({ instrument }: { instrument: Instrument }) {
+  const { colors } = useTheme();
+  const positive = (instrument.changePct24h ?? 0) >= 0;
+  const basePrice = instrument.price ?? 100;
+  const mockPoints = [
+    basePrice * 0.98,
+    basePrice * 0.99,
+    basePrice * 0.985,
+    basePrice * 1.01,
+    basePrice * 1.005,
+    basePrice,
+  ];
+
+
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.selection();
+        router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: instrument.symbol } });
+      }}
+    >
+      <Surface style={styles.marketCard}>
+        <View style={styles.marketCardHeader}>
+          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={24} />
+          <Badge label={formatPct(instrument.changePct24h)} variant={positive ? "positive" : "negative"} />
+        </View>
+        <ThemedText style={styles.marketCardSymbol}>{instrument.displaySymbol}</ThemedText>
+        <PriceText value={instrument.price} style={styles.marketCardPrice} />
+        <View style={styles.marketCardChart}>
+          <MiniSparkline data={mockPoints} width={110} height={26} positive={positive} />
+        </View>
+      </Surface>
+    </Pressable>
+  );
+}
+
+
 function SettingsButton() {
   const { colors } = useTheme();
   const rotate = useSharedValue(0);
@@ -185,19 +250,32 @@ function Stat({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { paddingHorizontal: 20, paddingBottom: 110 },
-  header: { gap: 24, marginBottom: 12, paddingTop: 4 },
+  header: { gap: 20, marginBottom: 12, paddingTop: 4 },
   greetingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  greetingHeaderLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.full, borderWidth: 1 },
+  liveDot: { width: 6, height: 6, borderRadius: radius.full },
+  liveBadgeText: { fontSize: 10, fontWeight: "600" },
   settingsButton: { width: 44, height: 44, borderRadius: radius.lg, alignItems: "center", justifyContent: "center" },
   greetingName: { fontSize: 30, marginTop: 2 },
   statsGrid: { flexDirection: "row", gap: 12 },
   stat: { flex: 1, padding: 16, gap: 6 },
   statIcon: { width: 30, height: 30, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   statValue: { fontSize: 26 },
+  carouselSection: { gap: 8 },
+  carouselLabel: { marginBottom: 2 },
+  carouselScroll: { gap: 10, paddingRight: 8 },
+  marketCard: { width: 138, padding: 12, gap: 4, borderRadius: radius.lg },
+  marketCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  marketCardSymbol: { fontSize: 13, fontWeight: "700", marginTop: 4 },
+  marketCardPrice: { fontSize: 14, fontWeight: "600" },
+  marketCardChart: { marginTop: 4, alignItems: "center" },
   quickActions: { flexDirection: "row", gap: 10 },
   primaryActionWrap: { flex: 1, borderRadius: radius.md, overflow: "hidden" },
   primaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 48, borderRadius: radius.md },
   secondaryAction: { flex: 1, borderWidth: 1 },
   actionText: { fontSize: 14, fontWeight: "600" },
   sectionLabel: { marginTop: 4 },
-  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: -8 },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: -4 },
 });
+

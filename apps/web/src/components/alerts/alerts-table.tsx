@@ -46,69 +46,84 @@ export function AlertsTable({ alerts, isLoading }: { alerts?: Alert[]; isLoading
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-glass-border">
+    <div className="overflow-hidden rounded-xl border border-glass-border bg-glass backdrop-blur-xl shadow-lg">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-glass-border bg-glass text-left text-xs uppercase tracking-wide text-foreground-subtle">
-            <th className="px-4 py-3 font-medium">Asset</th>
-            <th className="px-4 py-3 font-medium">Condition</th>
-            <th className="px-4 py-3 font-medium">Target</th>
-            <th className="hidden px-4 py-3 font-medium sm:table-cell">Distance</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3" />
+          <tr className="border-b border-glass-border bg-background-elevated/60 text-left text-xs uppercase tracking-wider text-foreground-subtle">
+            <th className="px-4 py-3.5 font-semibold">Asset</th>
+            <th className="px-4 py-3.5 font-semibold">Condition</th>
+            <th className="px-4 py-3.5 font-semibold">Target Level</th>
+            <th className="hidden px-4 py-3.5 font-semibold sm:table-cell">Distance to Target</th>
+            <th className="px-4 py-3.5 font-semibold">Status</th>
+            <th className="px-4 py-3.5 text-right font-semibold">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-glass-border/40">
           {alerts.map((alert) => {
             const up = isUpwardCondition(alert.conditionType);
             return (
-              <tr key={alert.id} className="border-b border-glass-border/60 last:border-0 hover:bg-glass/50">
-                <td className="px-4 py-3">
-                  <Link href={`/markets/${alert.symbol.replace("/", "")}`} className="font-medium hover:text-brand">
-                    {alert.symbol}
-                  </Link>
-                  <p className="text-xs text-foreground-subtle">{alert.provider}</p>
+              <tr key={alert.id} className="group transition-colors hover:bg-white/[0.03]">
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-lg border border-glass-border bg-background-elevated font-mono font-bold text-foreground text-xs group-hover:border-brand/40 group-hover:text-brand transition-colors">
+                      {alert.symbol.substring(0, 3)}
+                    </div>
+                    <div>
+                      <Link href={`/markets/${alert.symbol.replace("/", "")}`} className="font-semibold text-foreground hover:text-brand transition-colors">
+                        {alert.symbol}
+                      </Link>
+                      <p className="text-[11px] font-medium text-foreground-subtle uppercase">{alert.provider}</p>
+                    </div>
+                  </div>
                 </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 text-foreground-muted">
-                    {up ? <ArrowUp className="size-3.5 text-positive" /> : <ArrowDown className="size-3.5 text-negative" />}
+                <td className="px-4 py-3.5">
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium border",
+                    up ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                  )}>
+                    {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                     {formatConditionLabel(alert.conditionType)}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-tabular">{formatAlertTarget(alert)}</td>
-                <td className="hidden px-4 py-3 font-tabular sm:table-cell">
+                <td className="px-4 py-3.5 font-tabular font-semibold text-foreground">{formatAlertTarget(alert)}</td>
+                <td className="hidden px-4 py-3.5 font-tabular sm:table-cell">
                   {alert.distancePct !== null ? (
-                    <span className={cn(alert.distancePct >= 0 ? "text-positive" : "text-negative")}>{formatPct(alert.distancePct)}</span>
+                    <span className={cn(
+                      "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold font-tabular border",
+                      alert.distancePct >= 0 ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                    )}>
+                      {formatPct(alert.distancePct)}
+                    </span>
                   ) : (
-                    "--"
+                    <span className="text-foreground-subtle">--</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3.5">
                   <AlertStatusBadge status={alert.status} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3.5 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
+                      <Button variant="ghost" size="icon-sm" className="opacity-70 group-hover:opacity-100 hover:bg-white/10">
                         <MoreHorizontal className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="w-40">
                       {alert.status === "ACTIVE" && (
-                        <DropdownMenuItem onSelect={() => pause.mutate(alert.id)}>
-                          <Pause /> Pause
+                        <DropdownMenuItem onSelect={() => pause.mutate(alert.id)} className="gap-2">
+                          <Pause className="size-3.5" /> Pause Alert
                         </DropdownMenuItem>
                       )}
                       {alert.status === "PAUSED" && (
-                        <DropdownMenuItem onSelect={() => resume.mutate(alert.id)}>
-                          <Play /> Resume
+                        <DropdownMenuItem onSelect={() => resume.mutate(alert.id)} className="gap-2">
+                          <Play className="size-3.5" /> Resume Alert
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem onSelect={() => clone.mutate(alert.id)}>
-                        <Copy /> Duplicate
+                      <DropdownMenuItem onSelect={() => clone.mutate(alert.id)} className="gap-2">
+                        <Copy className="size-3.5" /> Duplicate
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate(alert.id)}>
-                        <Trash2 /> Delete
+                      <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate(alert.id)} className="gap-2 text-rose-400 focus:text-rose-300">
+                        <Trash2 className="size-3.5" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -120,4 +135,5 @@ export function AlertsTable({ alerts, isLoading }: { alerts?: Alert[]; isLoading
       </table>
     </div>
   );
+
 }

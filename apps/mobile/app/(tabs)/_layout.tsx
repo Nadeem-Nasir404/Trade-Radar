@@ -123,19 +123,29 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
         <Animated.View
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(120)}
-          style={[styles.activePill, { backgroundColor: withAlpha(colors.brand, 0.16) }]}
+          style={[styles.activePill, { backgroundColor: withAlpha(colors.brand, 0.18) }]}
         />
       )}
       <Ionicons name={iconName} size={22} color={focused ? colors.brand : colors.foregroundSubtle} />
+      {focused && (
+        <Animated.View
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(120)}
+          style={[styles.activeDot, { backgroundColor: colors.brand }]}
+        />
+      )}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   barBackground: { borderRadius: radius.full, overflow: "hidden" },
   tabIconWrap: { alignItems: "center", justifyContent: "center", width: "100%", height: "100%" },
   activePill: { position: "absolute", width: 40, height: 40, borderRadius: radius.full },
+  activeDot: { position: "absolute", bottom: 6, width: 4, height: 4, borderRadius: radius.full },
   tabButton: { flex: 1, alignItems: "center", justifyContent: "center" },
+
   // Full-width, centered content - true screen-center regardless of the tab bar's own slot count/split.
   fabOverlay: { position: "absolute", left: 0, right: 0, height: BAR_HEIGHT, alignItems: "center", justifyContent: "center" },
   fabPressable: { alignItems: "center", justifyContent: "center" },

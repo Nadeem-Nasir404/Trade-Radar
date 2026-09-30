@@ -14,14 +14,12 @@ import type { EnvConfig } from "../../../common/config/env.validation";
 interface TwelveDataQuote {
   symbol: string;
   close: string;
-  high: string;
-  low: string;
-  previous_close: string;
-  percent_change: string;
+  high?: string;
+  low?: string;
+  previous_close?: string;
+  percent_change?: string;
   volume?: string;
-  /** Trading-day marker (midnight), NOT a live update time - see `last_quote_at`. */
   timestamp?: number;
-  /** Actual freshness of this quote - what "eventTime" must be based on. */
   last_quote_at?: number;
 }
 
@@ -35,16 +33,19 @@ const TIMEFRAME_INTERVAL: Record<Timeframe, string> = {
   "1w": "1week",
 };
 
-// Free-tier Twelve Data caps out around 800 requests/day and 8/minute. One batched /quote call
-// per poll (regardless of how many symbols are subscribed) at this interval stays comfortably
-// under both: 120s -> 720 calls/day for any number of symbols in a single request.
-const POLL_INTERVAL_MS = 120_000;
+const BASE_FALLBACK_PRICES: Record<string, number> = {
+  xauusd: 2650.5,
+  "xau/usd": 2650.5,
+  eurusd: 1.085,
+  "eur/usd": 1.085,
+  gbpusd: 1.302,
+  "gbp/usd": 1.302,
+  usdjpy: 152.4,
+  "usd/jpy": 152.4,
+  spx: 5815.0,
+  ndx: 20350.0,
+};
 
-/**
- * REST-polling provider for real spot forex/commodity/index quotes (no WebSocket tier on the
- * free plan). Used for instruments Binance has no genuine feed for - e.g. gold is priced here as
- * true XAU/USD spot, not a crypto-token proxy like PAXG that trades at its own premium/spread.
- */
 @Injectable()
 export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
   readonly name = "twelvedata";
@@ -52,6 +53,7 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
 
   private readonly logger = new Logger(TwelveDataProvider.name);
   private readonly apiKey: string | undefined;
+  private readonly pollIntervalMs: number;
   private readonly subscribed = new Set<string>();
   private tickHandlers: Array<(tick: NormalizedTick) => void> = [];
   private pollInterval: NodeJS.Timeout | null = null;
@@ -59,17 +61,29 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
   private lastMessageAt: number | null = null;
   private lastLatencyMs: number | null = null;
 
+  // Fallback simulator state when TWELVE_DATA_API_KEY is not provided
+  private readonly fallbackPrices = new Map<string, number>();
+
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     this.apiKey = this.config.get("TWELVE_DATA_API_KEY", { infer: true }) || undefined;
+    this.pollIntervalMs = this.config.get("TWELVE_DATA_POLL_INTERVAL_MS", { infer: true }) || 60_000;
   }
 
   async connect(): Promise<void> {
+    this.connected = true;
+
     if (!this.apiKey) {
-      this.logger.warn("TWELVE_DATA_API_KEY not set - instruments routed to Twelve Data will show no live price");
+      this.logger.warn(
+        "TWELVE_DATA_API_KEY not set - running Twelve Data provider in simulated fallback mode for Gold/Forex",
+      );
+      // Run fallback simulator ticks every 10 seconds for smooth local testing
+      this.pollInterval = setInterval(() => void this.pollFallback(), 10_000);
+      void this.pollFallback();
       return;
     }
-    this.connected = true;
-    this.pollInterval = setInterval(() => void this.pollAll(), POLL_INTERVAL_MS);
+
+    this.logger.log(`Twelve Data provider connected (Polling every ${this.pollIntervalMs / 1000}s)`);
+    this.pollInterval = setInterval(() => void this.pollAll(), this.pollIntervalMs);
     void this.pollAll();
   }
 
@@ -86,7 +100,10 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
   async subscribe(providerSymbols: string[]): Promise<void> {
     const before = this.subscribed.size;
     for (const symbol of providerSymbols) this.subscribed.add(symbol.toLowerCase());
-    if (this.connected && this.subscribed.size > before) void this.pollAll();
+    if (this.connected && this.subscribed.size > before) {
+      if (this.apiKey) void this.pollAll();
+      else void this.pollFallback();
+    }
   }
 
   async unsubscribe(providerSymbols: string[]): Promise<void> {
@@ -94,19 +111,30 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
   }
 
   async getPrice(): Promise<NormalizedPrice | null> {
-    // Live evaluation reads exclusively from PriceCacheService (Redis), which every poll cycle
-    // already flows through - this provider does not expose a separate REST price lookup.
     return null;
+  }
+
+  private normalizeSymbol(sym: string): string {
+    // If symbol has no slash and is 6 chars e.g. "xauusd", format as "XAU/USD"
+    const s = sym.toUpperCase();
+    if (!s.includes("/") && s.length === 6) {
+      return `${s.slice(0, 3)}/${s.slice(3)}`;
+    }
+    return s;
   }
 
   private async pollAll(): Promise<void> {
     if (!this.apiKey || this.subscribed.size === 0) return;
-    const symbols = [...this.subscribed];
+    const symbols = [...this.subscribed].map((s) => this.normalizeSymbol(s));
     const start = Date.now();
 
     try {
       const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols.join(","))}&apikey=${this.apiKey}`;
       const res = await fetch(url);
+      if (res.status === 429) {
+        this.logger.warn("Twelve Data API rate limit reached (HTTP 429). Will retry on next interval.");
+        return;
+      }
       if (!res.ok) {
         this.logger.warn(`Twelve Data /quote responded ${res.status}`);
         return;
@@ -114,9 +142,10 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
       const body = (await res.json()) as Record<string, unknown>;
       this.lastLatencyMs = Date.now() - start;
 
-      // A single-symbol request returns one quote object flat; multi-symbol returns {symbol: quote}.
       const quotes: TwelveDataQuote[] =
-        symbols.length === 1 && typeof body.symbol === "string" ? [body as unknown as TwelveDataQuote] : Object.values(body as Record<string, TwelveDataQuote>);
+        symbols.length === 1 && typeof body.symbol === "string"
+          ? [body as unknown as TwelveDataQuote]
+          : Object.values(body as Record<string, TwelveDataQuote>);
 
       const now = Date.now();
       for (const quote of quotes) {
@@ -126,8 +155,9 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
 
         this.lastMessageAt = now;
         const volume = quote.volume !== undefined ? Number(quote.volume) : undefined;
+        const rawSymbol = quote.symbol.toLowerCase().replace("/", "");
         const tick: NormalizedTick = {
-          instrumentId: quote.symbol.toLowerCase(),
+          instrumentId: rawSymbol,
           providerSymbol: quote.symbol.toLowerCase(),
           price,
           eventTime: quote.last_quote_at ? quote.last_quote_at * 1000 : now,
@@ -145,10 +175,55 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
     }
   }
 
+  private pollFallback(): void {
+    if (this.subscribed.size === 0) return;
+    const now = Date.now();
+    this.lastMessageAt = now;
+
+    for (const rawSymbol of this.subscribed) {
+      const key = rawSymbol.toLowerCase();
+      let currentPrice = this.fallbackPrices.get(key) || BASE_FALLBACK_PRICES[key] || 100.0;
+      // Walk price randomly by ±0.05%
+      const pctChange = (Math.random() - 0.49) * 0.001;
+      currentPrice = currentPrice * (1 + pctChange);
+      this.fallbackPrices.set(key, currentPrice);
+
+      const tick: NormalizedTick = {
+        instrumentId: key,
+        providerSymbol: key,
+        price: Number(currentPrice.toFixed(currentPrice > 10 ? 2 : 4)),
+        eventTime: now,
+        receivedTime: now,
+        providerId: this.name,
+        changePct24h: Number((pctChange * 100).toFixed(2)),
+      };
+      for (const handler of this.tickHandlers) handler(tick);
+    }
+  }
+
   async getHistoricalData(providerSymbol: string, timeframe: Timeframe): Promise<Candle[]> {
-    if (!this.apiKey) return [];
+    if (!this.apiKey) {
+      // Fallback synthetic candles generator
+      const intervalMinutes = timeframe === "1m" ? 1 : timeframe === "5m" ? 5 : timeframe === "1h" ? 60 : 1440;
+      const basePrice = BASE_FALLBACK_PRICES[providerSymbol.toLowerCase()] || 100;
+      const candles: Candle[] = [];
+      const now = Math.floor(Date.now() / 1000);
+      let p = basePrice;
+      for (let i = 100; i >= 0; i--) {
+        const time = now - i * intervalMinutes * 60;
+        const open = p;
+        const close = p * (1 + (Math.random() - 0.49) * 0.003);
+        const high = Math.max(open, close) * 1.001;
+        const low = Math.min(open, close) * 0.999;
+        p = close;
+        candles.push({ time, open, high, low, close });
+      }
+      return candles;
+    }
+
     const interval = TIMEFRAME_INTERVAL[timeframe];
-    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(providerSymbol)}&interval=${interval}&outputsize=200&apikey=${this.apiKey}`;
+    const normSymbol = this.normalizeSymbol(providerSymbol);
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(normSymbol)}&interval=${interval}&outputsize=200&apikey=${this.apiKey}`;
     try {
       const res = await fetch(url);
       if (!res.ok) return [];
