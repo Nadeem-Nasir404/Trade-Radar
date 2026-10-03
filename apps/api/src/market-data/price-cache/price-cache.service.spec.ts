@@ -1,5 +1,5 @@
 import Redis from "ioredis-mock";
-import { PriceCacheService } from "./price-cache.service";
+import { PriceCacheService, STALE_AFTER_MS } from "./price-cache.service";
 
 describe("PriceCacheService.applyTick (tick-guard)", () => {
   let redis: InstanceType<typeof Redis>;
@@ -77,9 +77,9 @@ describe("PriceCacheService.applyTick (tick-guard)", () => {
     const fresh = await service.getSnapshot("BTC");
     expect(fresh?.feedStatus).toBe("LIVE");
 
-    await service.applyTick(tick({ eventTime: now - 100_000 - 1, price: 200 })); // won't be accepted (older), just proves rejection path is safe
+    await service.applyTick(tick({ eventTime: now - STALE_AFTER_MS - 1, price: 200 })); // won't be accepted (older), just proves rejection path is safe
     const staleCheckInstrument = "OLD";
-    await service.applyTick(tick({ instrumentId: staleCheckInstrument, eventTime: now - 100_000 }));
+    await service.applyTick(tick({ instrumentId: staleCheckInstrument, eventTime: now - STALE_AFTER_MS - 1_000 }));
     const stale = await service.getSnapshot(staleCheckInstrument);
     expect(stale?.feedStatus).toBe("STALE");
   });
