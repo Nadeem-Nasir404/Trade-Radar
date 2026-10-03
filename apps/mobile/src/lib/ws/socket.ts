@@ -13,11 +13,19 @@ let socket: Socket | null = null;
  */
 export async function getSocket(): Promise<Socket> {
   if (!socket) {
-    const accessToken = await tokenStore.getAccessToken();
     socket = io(`${WS_URL}/ws`, {
       autoConnect: true,
       transports: ["websocket"],
-      auth: { token: accessToken },
+      // Callback form: re-read the token on every (re)connect. A static token expires after
+      // 15 minutes, and every reconnect would then be rejected, silently freezing live prices.
+      auth: (cb) => {
+        tokenStore.getAccessToken().then((token) => cb({ token }));
+      },
+    });
+    // A server-initiated disconnect (e.g. rejected handshake) is never auto-retried by socket.io,
+    // so reconnect manually - the auth callback above picks up whatever token is current by then.
+    socket.on("disconnect", (reason) => {
+      if (reason === "io server disconnect") setTimeout(() => socket?.connect(), 1000);
     });
   }
   return socket;
