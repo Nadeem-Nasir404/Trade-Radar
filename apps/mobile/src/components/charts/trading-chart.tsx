@@ -185,6 +185,7 @@ function buildChartHtml(): string {
   </head>
   <body>
     <div id="chart"></div>
+    <svg id="overlay" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
     <div id="ohlc"></div>
     <div id="tapMarker">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
@@ -193,6 +194,7 @@ function buildChartHtml(): string {
     <script>
       var chart, candleSeries, volumeSeries, priceLines = [], theme = null;
       var drawMode = false, drawTool = 'trend', drawSeries = [], drawPriceLines = [], pendingPoint = null;
+      var rects = [], overlayRunning = false;
       var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)';
 
       function accent() { return theme ? theme.brand : '#a855f7'; }
@@ -269,15 +271,8 @@ function buildChartHtml(): string {
           if (drawTool === 'rect') {
             var t1 = Math.min(a.time, b.time), t2 = Math.max(a.time, b.time);
             if (t1 === t2) return;
-            var zone = chart.addSeries(LightweightCharts.BaselineSeries, {
-              baseValue: { type: 'price', price: b.price },
-              topLineColor: accent(), bottomLineColor: accent(), lineWidth: 1,
-              topFillColor1: accentAlpha(0.2), topFillColor2: accentAlpha(0.2),
-              bottomFillColor1: accentAlpha(0.2), bottomFillColor2: accentAlpha(0.2),
-              lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
-            });
-            zone.setData([{ time: t1, value: a.price }, { time: t2, value: a.price }]);
-            drawSeries.push(zone);
+            rects.push({ t1: t1, t2: t2, p1: a.price, p2: b.price });
+            ensureOverlayLoop();
             return;
           }
 
@@ -358,7 +353,33 @@ function buildChartHtml(): string {
         hideTapMarker();
       };
 
+      function drawOverlay() {
+        var svg = document.getElementById('overlay');
+        var ts = chart.timeScale();
+        var parts = [];
+        rects.forEach(function (r) {
+          var x1 = ts.timeToCoordinate(r.t1), x2 = ts.timeToCoordinate(r.t2);
+          var y1 = candleSeries.priceToCoordinate(r.p1), y2 = candleSeries.priceToCoordinate(r.p2);
+          if (x1 === null || x2 === null || y1 === null || y2 === null) return;
+          var x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+          parts.push('<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + accentAlpha(0.18) + '" stroke="' + accent() + '" stroke-width="1"/>');
+        });
+        svg.innerHTML = parts.join('');
+      }
+
+      function ensureOverlayLoop() {
+        if (overlayRunning) return;
+        overlayRunning = true;
+        (function frame() {
+          if (rects.length === 0) { overlayRunning = false; document.getElementById('overlay').innerHTML = ''; return; }
+          drawOverlay();
+          requestAnimationFrame(frame);
+        })();
+      }
+
       window.clearDrawings = function () {
+        rects = [];
+        document.getElementById('overlay').innerHTML = '';
         drawSeries.forEach(function (s) { chart.removeSeries(s); });
         drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
         drawSeries = [];

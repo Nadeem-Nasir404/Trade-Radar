@@ -1,4 +1,4 @@
-import { View, StyleSheet, FlatList, RefreshControl, Pressable, ScrollView } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,24 +13,20 @@ import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { CoinLogo } from "@/components/coin-logo";
-import { PriceText } from "@/components/ui/price-text";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
-import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getGreeting, formatPct } from "@/lib/format";
+import { getGreeting } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
-import type { Alert, Instrument } from "@/lib/api/types";
+import type { Alert } from "@/lib/api/types";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
   const { data: recentAlerts } = useAlerts({ sort: "recent" });
-  const { data: markets } = useMarkets({ limit: 8 });
   const triggeredCount = (recentAlerts ?? []).filter((a) => a.status === "TRIGGERED").length;
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -39,7 +35,6 @@ export default function HomeScreen() {
     setRefreshing(true);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["alerts"] }),
-      queryClient.invalidateQueries({ queryKey: ["markets"] }),
     ]);
     setRefreshing(false);
   }, [queryClient]);
@@ -96,20 +91,6 @@ export default function HomeScreen() {
               </LinearGradient>
             </Pressable>
 
-            {markets && markets.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeaderRow}>
-                  <ThemedText style={styles.sectionTitle}>Markets</ThemedText>
-                  <SeeAll onPress={() => router.push("/(tabs)/markets")} />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketsScroll}>
-                  {markets.map((m) => (
-                    <MarketCard key={m.id} instrument={m} />
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
             <View style={styles.sectionHeaderRow}>
               <ThemedText style={styles.sectionTitle}>Recent alerts</ThemedText>
               {(recentAlerts?.length ?? 0) > 0 && <SeeAll onPress={() => router.push("/(tabs)/alerts")} />}
@@ -143,32 +124,6 @@ function SeeAll({ onPress }: { onPress: () => void }) {
     <Pressable hitSlop={8} onPress={onPress} style={styles.seeAll}>
       <ThemedText style={[styles.seeAllText, { color: colors.brand }]}>See all</ThemedText>
       <Ionicons name="chevron-forward" size={14} color={colors.brand} />
-    </Pressable>
-  );
-}
-
-function MarketCard({ instrument }: { instrument: Instrument }) {
-  const { colors } = useTheme();
-  const positive = (instrument.changePct24h ?? 0) >= 0;
-  return (
-    <Pressable
-      onPress={() => {
-        haptics.selection();
-        router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: instrument.symbol } });
-      }}
-    >
-      <Surface style={styles.marketCard}>
-        <View style={styles.marketCardTop}>
-          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={26} />
-          <ThemedText style={styles.marketSymbol} numberOfLines={1}>
-            {instrument.displaySymbol.split("/")[0]}
-          </ThemedText>
-        </View>
-        <PriceText value={instrument.price} style={styles.marketPrice} />
-        <ThemedText style={[styles.marketChange, { color: positive ? colors.positive : colors.negative }]}>
-          {formatPct(instrument.changePct24h)}
-        </ThemedText>
-      </Surface>
     </Pressable>
   );
 }
@@ -265,10 +220,4 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "600" },
   seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
   seeAllText: { fontSize: 13, fontWeight: "600" },
-  marketsScroll: { gap: 10, paddingRight: 4 },
-  marketCard: { width: 132, padding: 14, gap: 6, borderRadius: radius.lg },
-  marketCardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  marketSymbol: { fontSize: 14, fontWeight: "600", flexShrink: 1 },
-  marketPrice: { fontSize: 15, fontWeight: "600", marginTop: 4 },
-  marketChange: { fontSize: 12, fontWeight: "600" },
 });
