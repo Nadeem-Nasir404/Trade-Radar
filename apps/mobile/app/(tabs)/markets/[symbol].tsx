@@ -149,6 +149,7 @@ export default function MarketDetailScreen() {
             alertLevels={chartLevels}
             drawMode={drawMode}
             onDrawStage={setDrawStage}
+            timeframe={timeframe}
             onPriceTap={(p) => {
               haptics.light();
               setTappedPrice(p);

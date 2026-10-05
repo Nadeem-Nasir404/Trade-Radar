@@ -82,6 +82,7 @@ export default function FullscreenChartScreen() {
           livePrice={price}
           drawMode={drawMode}
           onDrawStage={setDrawStage}
+          timeframe={timeframe}
         />
       </View>
 

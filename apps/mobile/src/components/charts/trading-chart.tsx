@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import type { Candle } from "@/lib/api/types";
+import { bucketStart } from "@/lib/timeframe";
 
 export interface ChartAlertLevel {
   price: number;
@@ -21,6 +22,7 @@ interface TradingChartProps {
   height?: number;
   onPriceTap?: (price: number) => void;
   onDrawStage?: (stage: "start" | "end") => void;
+  timeframe?: string;
   drawMode?: boolean;
 }
 
@@ -32,13 +34,14 @@ interface TradingChartProps {
  * so the native side knows the chart finished initializing before pushing data at it.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, drawMode = false },
+  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, drawMode = false, timeframe = "1h" },
   ref,
 ) {
   const { colors, mode } = useTheme();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const lastCandleRef = useRef<Candle | null>(null);
+  const livePriceRef = useRef<number | null>(null);
 
   const html = useMemo(() => buildChartHtml(), []);
 
@@ -87,19 +90,27 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     webviewRef.current?.injectJavaScript(`window.setAlertLevels(${JSON.stringify(alertLevels)}); true;`);
   }, [ready, alertLevels]);
 
+  livePriceRef.current = livePrice ?? null;
+
   useEffect(() => {
-    if (!ready || livePrice == null) return;
-    const last = lastCandleRef.current;
-    if (!last) return;
-    const updated: Candle = {
-      ...last,
-      close: livePrice,
-      high: Math.max(last.high, livePrice),
-      low: Math.min(last.low, livePrice),
+    if (!ready) return;
+    const pushLive = () => {
+      const price = livePriceRef.current;
+      const last = lastCandleRef.current;
+      if (price == null || !last) return;
+      const currentBucket = bucketStart(Math.floor(Date.now() / 1000), timeframe);
+      if (currentBucket === last.time && price === last.close) return;
+      const updated: Candle =
+        currentBucket > last.time
+          ? { time: currentBucket, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price, volume: 0 }
+          : { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+      lastCandleRef.current = updated;
+      webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}); true;`);
     };
-    lastCandleRef.current = updated;
-    webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}); true;`);
-  }, [ready, livePrice]);
+    pushLive();
+    const id = setInterval(pushLive, 1000);
+    return () => clearInterval(id);
+  }, [ready, timeframe, livePrice]);
 
   useEffect(() => {
     if (!ready) return;
