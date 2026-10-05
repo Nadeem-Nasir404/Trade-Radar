@@ -33,7 +33,13 @@ export class NotificationDispatchService {
       this.prisma.notificationChannel.findMany({ where: { userId: payload.userId, isEnabled: true } }),
     ]);
 
+    // Email needs no setup - every account has a verified address - so it's on unless the user
+    // has explicitly turned it off (which leaves a disabled row). Without this, users who never
+    // touched the toggle silently never got email.
+    const emailRowExists = connectedChannels.some((c) => c.type === NotificationChannelType.EMAIL) ||
+      (await this.prisma.notificationChannel.count({ where: { userId: payload.userId, type: NotificationChannelType.EMAIL } })) > 0;
     const connectedTypes = new Set(connectedChannels.map((c) => c.type));
+    if (!emailRowExists) connectedTypes.add(NotificationChannelType.EMAIL);
     const channelsToNotify = alertChannelPrefs.filter((p) => connectedTypes.has(p.channelType)).map((p) => p.channelType);
 
     if (channelsToNotify.length === 0) {
