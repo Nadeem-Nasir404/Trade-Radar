@@ -62,8 +62,8 @@ export const lightTheme: ThemeColors = {
 
   glass: "rgba(255,255,255,0.55)",
   glassHover: "rgba(255,255,255,0.7)",
-  glassBorder: "rgba(255,255,255,0.75)",
-  glassBorderStrong: "rgba(255,255,255,0.9)",
+  glassBorder: "rgba(88,28,135,0.12)",
+  glassBorderStrong: "rgba(88,28,135,0.2)",
 
   brand: "#7C3AED",
   brandForeground: "#ffffff",
