@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { ThemedText } from "@/components/ui/themed-text";
 import { PressableScale } from "@/components/ui/pressable-scale";
-import { Badge } from "@/components/ui/badge";
 import { CoinLogo } from "@/components/coin-logo";
 import { computeDistancePct, formatAlertTarget, formatConditionLabel, formatPct, formatTime, isUpwardCondition } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
@@ -17,14 +16,14 @@ import { useToastStore } from "@/lib/stores/toast-store";
 import { haptics } from "@/lib/haptics";
 import type { Alert } from "@/lib/api/types";
 
-function statusBadgeVariant(status: string): "positive" | "warning" | "default" {
+function statusTone(status: string, colors: { positive: string; warning: string; foregroundMuted: string }): string {
   switch (status) {
     case "ACTIVE":
-      return "positive";
+      return colors.positive;
     case "PAUSED":
-      return "warning";
+      return colors.warning;
     default:
-      return "default";
+      return colors.foregroundMuted;
   }
 }
 
@@ -112,9 +111,13 @@ export function AlertRow({ alert, autoPeek = false }: { alert: Alert; autoPeek?:
               {formatAlertTarget(alert)}
             </ThemedText>
             {alert.status === "ACTIVE" && distancePct !== null ? (
-              <Badge label={formatPct(distancePct)} variant={distancePct >= 0 ? "positive" : "negative"} />
+              <ThemedText variant="subtle" style={{ color: distancePct >= 0 ? colors.positive : colors.negative, fontWeight: "600" }}>
+                {formatPct(distancePct)} away
+              </ThemedText>
             ) : (
-              <Badge label={`● ${statusLabel(alert.status)}`} variant={statusBadgeVariant(alert.status)} />
+              <ThemedText variant="subtle" style={{ color: statusTone(alert.status, colors), fontWeight: "600" }}>
+                {statusLabel(alert.status)}
+              </ThemedText>
             )}
           </View>
         </View>

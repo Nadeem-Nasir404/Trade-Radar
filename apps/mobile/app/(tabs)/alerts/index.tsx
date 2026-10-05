@@ -3,6 +3,7 @@ import { View, FlatList, RefreshControl, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ui/themed-text";
+import { ScreenHeader } from "@/components/ui/screen-header";
 import { Surface } from "@/components/ui/surface";
 import { AlertRow } from "@/components/alerts/alert-row";
 import { EmptyState } from "@/components/empty-state";
@@ -50,7 +51,10 @@ export default function AlertsScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.header}>
-        <ThemedText variant="title">Alerts</ThemedText>
+        <ScreenHeader
+          title="Alerts"
+          subtitle={`${sections.find((s) => s.title === "Active")?.data.length ?? 0} active · ${(alerts ?? []).filter((a) => a.status === "TRIGGERED").length} triggered`}
+        />
       </View>
 
       {isLoading ? (
@@ -84,7 +88,7 @@ export default function AlertsScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 110 },
   cardGap: { marginTop: 20 },
   sectionTitle: { letterSpacing: 0.6, marginBottom: 8, marginLeft: 4 },

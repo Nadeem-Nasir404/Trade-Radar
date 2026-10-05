@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/themed-text";
+import { ScreenHeader } from "@/components/ui/screen-header";
 import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,19 +69,22 @@ export default function WatchlistsScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <ThemedText variant="title">Watchlists</ThemedText>
-          <Pressable
-            hitSlop={10}
-            onPress={() => {
-              haptics.light();
-              setComposing((v) => !v);
-            }}
-            style={[styles.newButton, { backgroundColor: withAlpha(colors.brand, composing ? 0.22 : 0.14) }]}
-          >
-            <Ionicons name={composing ? "close" : "add"} size={20} color={colors.brand} />
-          </Pressable>
-        </View>
+        <ScreenHeader
+          title="Watchlists"
+          subtitle="Group the markets you follow"
+          action={
+            <Pressable
+              hitSlop={10}
+              onPress={() => {
+                haptics.light();
+                setComposing((v) => !v);
+              }}
+              style={[styles.newButton, { backgroundColor: withAlpha(colors.brand, composing ? 0.22 : 0.14) }]}
+            >
+              <Ionicons name={composing ? "close" : "add"} size={20} color={colors.brand} />
+            </Pressable>
+          }
+        />
 
         {composing && (
           <View style={styles.createRow}>

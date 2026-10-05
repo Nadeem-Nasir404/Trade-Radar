@@ -10,10 +10,12 @@ import { EmptyState } from "@/components/empty-state";
 import { FadeInItem } from "@/components/ui/fade-in-item";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { ScreenHeader } from "@/components/ui/screen-header";
 import { MarketRow } from "@/components/markets/market-row";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useWatchlists } from "@/lib/api/hooks/use-watchlists";
 import { useTheme } from "@/lib/use-theme";
+import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
 
 const FILTERS = ["ALL", "CRYPTO", "FAVORITES"] as const;
@@ -50,16 +52,24 @@ export default function MarketsScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.header}>
-        <ThemedText variant="title">Markets</ThemedText>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.foregroundSubtle} style={styles.searchIcon} />
-          <Input value={search} onChangeText={setSearch} placeholder="Search markets" style={styles.search} />
+        <ScreenHeader title="Markets" subtitle={`${filtered.length} instruments`} />
+
+        <Surface style={styles.searchCard}>
+          <Ionicons name="search" size={16} color={colors.foregroundSubtle} />
+          <Input
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search BTC, ETH, gold…"
+            style={styles.searchInput}
+            autoCorrect={false}
+          />
           {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")} hitSlop={8} style={styles.clearButton}>
+            <Pressable onPress={() => setSearch("")} hitSlop={8}>
               <Ionicons name="close-circle" size={18} color={colors.foregroundSubtle} />
             </Pressable>
           )}
-        </View>
+        </Surface>
+
         <SegmentedTabs tabs={FILTERS} value={filter} onChange={setFilter} getLabel={(t) => FILTER_LABELS[t]} />
       </View>
 
@@ -69,22 +79,21 @@ export default function MarketsScreen() {
         <EmptyState
           icon="search-outline"
           title={filter === "FAVORITES" ? "No favorites yet" : "No markets found"}
-          description={filter === "FAVORITES" ? "Add markets to a watchlist to see them here." : "Try a different symbol or name."}
+          description={filter === "FAVORITES" ? "Tap the star on any market to save it here." : "Try a different symbol or name."}
         />
       ) : (
-        <Surface style={styles.panel}>
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
-            ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.glassBorder }]} />}
-            renderItem={({ item, index }: { item: Instrument; index: number }) => (
-              <FadeInItem index={index}>
-                <MarketRow instrument={item} />
-              </FadeInItem>
-            )}
-          />
-        </Surface>
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
+          ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.glassBorder }]} />}
+          renderItem={({ item, index }: { item: Instrument; index: number }) => (
+            <FadeInItem index={index}>
+              <MarketRow instrument={item} />
+            </FadeInItem>
+          )}
+        />
       )}
     </SafeAreaView>
   );
@@ -92,11 +101,16 @@ export default function MarketsScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, gap: 14 },
-  searchWrap: { position: "relative", justifyContent: "center" },
-  searchIcon: { position: "absolute", left: 14, zIndex: 1 },
-  search: { paddingLeft: 38, paddingRight: 38 },
-  clearButton: { position: "absolute", right: 14 },
-  panel: { flex: 1, marginHorizontal: 20, marginBottom: 110, padding: 2 },
-  separator: { height: StyleSheet.hairlineWidth, marginLeft: 62 },
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 14 },
+  searchCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    height: 48,
+    borderRadius: radius.lg,
+  },
+  searchInput: { flex: 1, height: 46, borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0 },
+  list: { paddingHorizontal: 20, paddingBottom: 120 },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: 48 },
 });
