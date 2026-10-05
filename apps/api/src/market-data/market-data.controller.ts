@@ -4,7 +4,7 @@ import { MarketDataService } from "./market-data.service";
 import { InstrumentsService } from "../instruments/instruments.service";
 import { Public } from "../common/decorators/public.decorator";
 
-const VALID_TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
+const VALID_TIMEFRAMES: Timeframe[] = ["1m", "3m", "5m", "15m", "1h", "4h", "1d", "1w"];
 
 @Controller("markets")
 export class MarketDataController {

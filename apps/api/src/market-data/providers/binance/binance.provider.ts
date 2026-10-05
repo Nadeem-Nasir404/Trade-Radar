@@ -33,6 +33,7 @@ const STALE_THRESHOLD_MS = 30_000;
 const KLINE_INTERVAL_MAP: Record<Timeframe, string> = {
   "1m": "1m",
   "5m": "5m",
+  "3m": "3m",
   "15m": "15m",
   "1h": "1h",
   "4h": "4h",

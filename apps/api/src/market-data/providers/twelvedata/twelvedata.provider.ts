@@ -23,9 +23,21 @@ interface TwelveDataQuote {
   last_quote_at?: number;
 }
 
+const TIMEFRAME_MINUTES: Partial<Record<Timeframe, number>> = {
+  "1m": 1,
+  "3m": 3,
+  "5m": 5,
+  "15m": 15,
+  "1h": 60,
+  "4h": 240,
+  "1d": 1440,
+  "1w": 10080,
+};
+
 const TIMEFRAME_INTERVAL: Record<Timeframe, string> = {
   "1m": "1min",
   "5m": "5min",
+  "3m": "3min",
   "15m": "15min",
   "1h": "1h",
   "4h": "4h",
@@ -204,7 +216,7 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
   async getHistoricalData(providerSymbol: string, timeframe: Timeframe): Promise<Candle[]> {
     if (!this.apiKey) {
       // Fallback synthetic candles generator
-      const intervalMinutes = timeframe === "1m" ? 1 : timeframe === "5m" ? 5 : timeframe === "1h" ? 60 : 1440;
+      const intervalMinutes = TIMEFRAME_MINUTES[timeframe] ?? 1440;
       const basePrice = BASE_FALLBACK_PRICES[providerSymbol.toLowerCase()] || 100;
       const candles: Candle[] = [];
       const now = Math.floor(Date.now() / 1000);

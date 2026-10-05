@@ -40,7 +40,7 @@ export class CreateAlertDto {
   secondaryValue?: number;
 
   @IsOptional()
-  @IsIn(["1m", "5m", "15m", "1h", "4h", "1d", "1w"])
+  @IsIn(["1m", "3m", "5m", "15m", "1h", "4h", "1d", "1w"])
   timeframe?: string;
 
   @IsOptional()

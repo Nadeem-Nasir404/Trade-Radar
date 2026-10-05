@@ -28,7 +28,7 @@ import {
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 
-const TIMEFRAMES = ["15m", "1h", "4h", "1d"] as const;
+const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 export default function MarketDetailScreen() {
   const { colors } = useTheme();
@@ -102,6 +102,30 @@ export default function MarketDetailScreen() {
           onTouchEnd={() => scrollRef.current?.setNativeProps({ scrollEnabled: true })}
           onTouchCancel={() => scrollRef.current?.setNativeProps({ scrollEnabled: true })}
         >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentWrap} style={styles.segmentScroll}>
+            <View style={[styles.segment, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+              {TIMEFRAMES.map((tf) => {
+                const active = tf === timeframe;
+                return (
+                  <Pressable
+                    key={tf}
+                    onPress={() => {
+                      haptics.selection();
+                      setTimeframe(tf);
+                    }}
+                    style={[styles.segmentItem, active && { backgroundColor: colors.brand }]}
+                  >
+                    <ThemedText
+                      style={[styles.segmentText, { color: active ? colors.brandForeground : colors.foregroundMuted }]}
+                    >
+                      {tf}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+
           <TradingChart
             ref={chartRef}
             candles={candles ?? []}
@@ -179,26 +203,15 @@ export default function MarketDetailScreen() {
             </Animated.View>
           )}
 
-          <View style={styles.timeframeRow}>
-            {TIMEFRAMES.map((tf) => (
-              <Pressable
-                key={tf}
-                onPress={() => setTimeframe(tf)}
-                style={[styles.tfChip, { backgroundColor: colors.glass }, tf === timeframe && { backgroundColor: colors.brand }]}
-              >
-                <ThemedText style={[styles.tfText, { color: colors.foregroundMuted }, tf === timeframe && { color: colors.foreground }]}>
-                  {tf}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
         </Surface>
 
-        <View style={styles.statsGrid}>
+        <Surface style={styles.statsCard}>
           <Stat label="24h High" value={formatCompactPrice(instrument.high24h)} />
+          <View style={[styles.statDivider, { backgroundColor: colors.glassBorder }]} />
           <Stat label="24h Low" value={formatCompactPrice(instrument.low24h)} />
+          <View style={[styles.statDivider, { backgroundColor: colors.glassBorder }]} />
           <Stat label="24h Volume" value={instrument.volume24h != null ? `$${formatCompactNumber(instrument.volume24h)}` : "--"} />
-        </View>
+        </Surface>
 
         <Button
           title="Create Alert"
@@ -263,12 +276,12 @@ export default function MarketDetailScreen() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <Surface style={styles.stat}>
+    <View style={styles.stat}>
       <ThemedText variant="subtle">{label}</ThemedText>
-      <ThemedText variant="mono" style={styles.statValue}>
+      <ThemedText variant="mono" style={styles.statValue} numberOfLines={1}>
         {value}
       </ThemedText>
-    </Surface>
+    </View>
   );
 }
 
@@ -309,12 +322,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   toolButtonText: { fontSize: 12, fontWeight: "600" },
-  timeframeRow: { flexDirection: "row", gap: 6, marginTop: 10 },
-  tfChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.full },
-  tfText: { fontSize: 12 },
-  statsGrid: { flexDirection: "row", gap: 10, marginTop: 16 },
-  stat: { flex: 1, padding: 12, gap: 4 },
-  statValue: { fontSize: 15 },
+  segmentScroll: { marginBottom: 12, flexGrow: 0 },
+  segmentWrap: { paddingRight: 4 },
+  segment: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    gap: 2,
+  },
+  segmentItem: {
+    minWidth: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    alignItems: "center",
+  },
+  segmentText: { fontSize: 12, fontWeight: "600" },
+  statsCard: { flexDirection: "row", marginTop: 16, paddingVertical: 14, paddingHorizontal: 4 },
+  stat: { flex: 1, paddingHorizontal: 10, gap: 6, alignItems: "center" },
+  statDivider: { width: StyleSheet.hairlineWidth, marginVertical: 4 },
+  statValue: { fontSize: 14, fontWeight: "600" },
   createButton: { marginTop: 20 },
   sectionLabel: { marginTop: 28, marginBottom: 10 },
   alertRow: {

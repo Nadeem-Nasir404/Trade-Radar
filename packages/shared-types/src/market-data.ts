@@ -43,7 +43,7 @@ export interface Candle {
   volume?: number;
 }
 
-export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
+export type Timeframe = "1m" | "3m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
 
 export interface ProviderHealth {
   provider: string;

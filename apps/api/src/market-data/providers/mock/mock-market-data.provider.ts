@@ -166,6 +166,8 @@ function timeframeToSeconds(tf: Timeframe): number {
   switch (tf) {
     case "1m":
       return 60;
+    case "3m":
+      return 180;
     case "5m":
       return 300;
     case "15m":
