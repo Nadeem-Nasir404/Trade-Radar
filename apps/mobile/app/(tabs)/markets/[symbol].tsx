@@ -30,6 +30,11 @@ import { radius } from "@/lib/theme";
 
 const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
 
+function withTint(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
 export default function MarketDetailScreen() {
   const { colors } = useTheme();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
@@ -38,6 +43,7 @@ export default function MarketDetailScreen() {
   const chartRef = useRef<TradingChartHandle>(null);
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1h");
   const [drawMode, setDrawMode] = useState(false);
+  const [drawStage, setDrawStage] = useState<"start" | "end">("start");
 
   const { data: instrument, isLoading } = useMarket(symbol);
   const { data: candles } = useMarketHistory(symbol, timeframe);
@@ -142,16 +148,27 @@ export default function MarketDetailScreen() {
             livePrice={price}
             alertLevels={chartLevels}
             drawMode={drawMode}
+            onDrawStage={setDrawStage}
             onPriceTap={(p) => {
               haptics.light();
               setTappedPrice(p);
             }}
           />
 
+          {drawMode && (
+            <View style={[styles.drawHint, { backgroundColor: withTint(colors.brand, 0.12) }]}>
+              <Ionicons name="hand-left-outline" size={14} color={colors.brand} />
+              <ThemedText style={[styles.drawHintText, { color: colors.brand }]}>
+                {drawStage === "start" ? "Tap a point to start your line" : "Tap a second point to finish"}
+              </ThemedText>
+            </View>
+          )}
+
           <View style={styles.chartToolbar}>
             <Pressable
               onPress={() => {
                 haptics.selection();
+                setDrawStage("start");
                 setDrawMode((v) => !v);
               }}
               style={[
@@ -170,6 +187,7 @@ export default function MarketDetailScreen() {
                 onPress={() => {
                   haptics.light();
                   chartRef.current?.clearDrawings();
+                  setDrawStage("start");
                 }}
                 style={[styles.toolButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
               >
@@ -177,6 +195,21 @@ export default function MarketDetailScreen() {
                 <ThemedText style={[styles.toolButtonText, { color: colors.foregroundMuted }]}>Clear</ThemedText>
               </Pressable>
             )}
+            <View style={styles.toolSpacer} />
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                haptics.medium();
+                router.push({
+                  pathname: "/fullscreen-chart",
+                  params: { symbol, displaySymbol: instrument.displaySymbol, timeframe },
+                });
+              }}
+              style={[styles.toolButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            >
+              <Ionicons name="expand-outline" size={14} color={colors.foregroundMuted} />
+              <ThemedText style={[styles.toolButtonText, { color: colors.foregroundMuted }]}>Full screen</ThemedText>
+            </Pressable>
           </View>
 
           {tappedPrice !== null && (
@@ -333,7 +366,10 @@ const styles = StyleSheet.create({
   },
   tapPillText: { flex: 1, fontSize: 13 },
   tapPillButton: { width: 26, height: 26, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
-  chartToolbar: { flexDirection: "row", gap: 6, marginTop: 10 },
+  chartToolbar: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
+  toolSpacer: { flex: 1 },
+  drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginBottom: 8 },
+  drawHintText: { fontSize: 12, fontWeight: "600" },
   toolButton: {
     flexDirection: "row",
     alignItems: "center",

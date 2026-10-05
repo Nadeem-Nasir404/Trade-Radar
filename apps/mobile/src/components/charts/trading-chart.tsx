@@ -20,6 +20,7 @@ interface TradingChartProps {
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
+  onDrawStage?: (stage: "start" | "end") => void;
   drawMode?: boolean;
 }
 
@@ -31,7 +32,7 @@ interface TradingChartProps {
  * so the native side knows the chart finished initializing before pushing data at it.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, drawMode = false },
+  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, drawMode = false },
   ref,
 ) {
   const { colors, mode } = useTheme();
@@ -62,6 +63,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === "ready") setReady(true);
       else if (msg.type === "priceTap") onPriceTap?.(msg.price);
+      else if (msg.type === "drawHint") onDrawStage?.(msg.stage);
     } catch {
       // ignore malformed messages
     }
@@ -193,33 +195,29 @@ function buildChartHtml(): string {
           ohlcEl.style.opacity = 1;
         });
 
-        chart.subscribeClick(function (param) {
-          if (!param.point) return;
-
-          if (drawMode) {
-            var time = chart.timeScale().coordinateToTime(param.point.x);
-            var linePrice = candleSeries.coordinateToPrice(param.point.y);
-            if (time === null || linePrice === null) return;
-            if (!pendingPoint) {
-              pendingPoint = { time: time, price: linePrice };
-              showTapMarker(param.point.x, param.point.y);
-            } else {
-              var line = chart.addSeries(LightweightCharts.LineSeries, {
-                color: theme ? theme.brand : '#a855f7',
-                lineWidth: 2,
-                lastValueVisible: false,
-                priceLineVisible: false,
-                crosshairMarkerVisible: false,
-              });
-              line.setData([pendingPoint, { time: time, price: linePrice }].sort(function (a, b) { return a.time - b.time; }));
-              drawLines.push(line);
-              pendingPoint = null;
-              hideTapMarker();
-            }
+        function handleDrawTap(x, y) {
+          var time = chart.timeScale().coordinateToTime(x);
+          var linePrice = candleSeries.coordinateToPrice(y);
+          if (time === null || linePrice === null) return;
+          if (!pendingPoint) {
+            pendingPoint = { time: time, price: linePrice };
+            showTapMarker(x, y);
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'drawHint', stage: 'end' }));
             return;
           }
-
-        });
+          var line = chart.addSeries(LightweightCharts.LineSeries, {
+            color: theme ? theme.brand : '#a855f7',
+            lineWidth: 2,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
+          });
+          line.setData([pendingPoint, { time: time, price: linePrice }].sort(function (a, b) { return a.time - b.time; }));
+          drawLines.push(line);
+          pendingPoint = null;
+          hideTapMarker();
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'drawHint', stage: 'start' }));
+        }
 
         var pressTimer = null;
         var pressStart = null;
@@ -227,7 +225,6 @@ function buildChartHtml(): string {
         var MOVE_TOLERANCE_PX = 8;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
-          if (drawMode) return;
           var rect = chartEl.getBoundingClientRect();
           pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
           clearTimeout(pressTimer);
@@ -247,7 +244,15 @@ function buildChartHtml(): string {
             pressStart = null;
           }
         });
-        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (type) {
+        chartEl.addEventListener('pointerup', function (e) {
+          clearTimeout(pressTimer);
+          var start = pressStart;
+          pressStart = null;
+          if (!drawMode || !start) return;
+          if (Math.abs(e.clientX - start.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - start.cy) > MOVE_TOLERANCE_PX) return;
+          handleDrawTap(start.x, start.y);
+        });
+        ['pointercancel', 'pointerleave'].forEach(function (type) {
           chartEl.addEventListener(type, function () {
             clearTimeout(pressTimer);
             pressStart = null;

@@ -102,6 +102,7 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="create-alert" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="fullscreen-chart" options={{ presentation: "fullScreenModal", headerShown: false }} />
     </Stack>
   );
 }
