@@ -1,5 +1,4 @@
 import { View, StyleSheet, FlatList, RefreshControl, Pressable, ScrollView } from "react-native";
-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,15 +9,12 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, FadeInD
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
-import { Button } from "@/components/ui/button";
 import { FadeInItem } from "@/components/ui/fade-in-item";
 import { AlertRow } from "@/components/alerts/alert-row";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { MiniSparkline } from "@/components/charts/mini-sparkline";
 import { CoinLogo } from "@/components/coin-logo";
 import { PriceText } from "@/components/ui/price-text";
-import { Badge } from "@/components/ui/badge";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -27,7 +23,6 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
-import { withAlpha } from "@/lib/color";
 import type { Alert, Instrument } from "@/lib/api/types";
 
 export default function HomeScreen() {
@@ -35,7 +30,7 @@ export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
   const { data: recentAlerts } = useAlerts({ sort: "recent" });
-  const { data: markets } = useMarkets({ limit: 6 });
+  const { data: markets } = useMarkets({ limit: 8 });
   const triggeredCount = (recentAlerts ?? []).filter((a) => a.status === "TRIGGERED").length;
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -60,76 +55,64 @@ export default function HomeScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
         ListHeaderComponent={
-          <Animated.View entering={FadeInDown.duration(320).easing(Easing.out(Easing.quad))} style={styles.header}>
+          <Animated.View entering={FadeInDown.duration(300).easing(Easing.out(Easing.quad))} style={styles.header}>
             <View style={styles.greetingRow}>
-              <View>
-                <View style={styles.greetingHeaderLine}>
-                  <ThemedText variant="muted">{getGreeting()}</ThemedText>
-                  <View style={[styles.liveBadge, { backgroundColor: withAlpha(colors.positive, 0.15), borderColor: withAlpha(colors.positive, 0.3) }]}>
-                    <View style={[styles.liveDot, { backgroundColor: colors.positive }]} />
-                    <ThemedText style={[styles.liveBadgeText, { color: colors.positive }]}>Live Feed</ThemedText>
-                  </View>
-                </View>
+              <View style={styles.greetingText}>
+                <ThemedText variant="muted" style={styles.greetingLabel}>
+                  {getGreeting()}
+                </ThemedText>
                 <ThemedText variant="title" style={styles.greetingName}>
                   {firstName}
                 </ThemedText>
+                <View style={styles.liveRow}>
+                  <View style={[styles.liveDot, { backgroundColor: colors.positive }]} />
+                  <ThemedText style={[styles.liveText, { color: colors.foregroundMuted }]}>Live prices</ThemedText>
+                </View>
               </View>
               <SettingsButton />
             </View>
 
-            <View style={styles.statsGrid}>
-              <Stat icon="pulse" tint={colors.brand} label="Active Alerts" value={activeAlerts?.length ?? 0} />
-              <Stat icon="checkmark-done" tint={colors.positive} label="Triggered" value={triggeredCount} />
-            </View>
+            <Surface style={styles.summary}>
+              <SummaryStat label="Active" value={activeAlerts?.length ?? 0} icon="pulse" tint={colors.brand} />
+              <View style={[styles.summaryDivider, { backgroundColor: colors.glassBorder }]} />
+              <SummaryStat label="Triggered" value={triggeredCount} icon="checkmark-done" tint={colors.positive} />
+            </Surface>
 
-            {/* Featured Markets Ticker Horizontal Carousel */}
+            <Pressable
+              style={styles.createWrap}
+              onPress={() => {
+                haptics.light();
+                router.push("/create-alert");
+              }}
+            >
+              <LinearGradient
+                colors={[colors.brand, colors.brandGradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.createButton}
+              >
+                <Ionicons name="add" size={20} color={colors.brandForeground} />
+                <ThemedText style={[styles.createText, { color: colors.brandForeground }]}>Create alert</ThemedText>
+              </LinearGradient>
+            </Pressable>
+
             {markets && markets.length > 0 && (
-              <View style={styles.carouselSection}>
-                <ThemedText variant="label" style={styles.carouselLabel}>Featured Markets</ThemedText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselScroll}>
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <ThemedText style={styles.sectionTitle}>Markets</ThemedText>
+                  <SeeAll onPress={() => router.push("/(tabs)/markets")} />
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketsScroll}>
                   {markets.map((m) => (
-                    <FeaturedMarketCard key={m.id} instrument={m} />
+                    <MarketCard key={m.id} instrument={m} />
                   ))}
                 </ScrollView>
               </View>
             )}
 
-            <View style={styles.quickActions}>
-              <Pressable
-                style={styles.primaryActionWrap}
-                onPress={() => {
-                  haptics.light();
-                  router.push("/create-alert");
-                }}
-              >
-                <LinearGradient
-                  colors={[colors.brand, colors.brandGradientEnd]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.primaryAction}
-                >
-                  <Ionicons name="add" size={18} color={colors.brandForeground} />
-                  <ThemedText style={[styles.actionText, { color: colors.brandForeground }]}>Create Alert</ThemedText>
-                </LinearGradient>
-              </Pressable>
-              <Button
-                variant="ghost"
-                title="Browse Markets"
-                icon={<Ionicons name="compass-outline" size={17} color={colors.foreground} />}
-                onPress={() => router.push("/(tabs)/markets")}
-                style={[styles.secondaryAction, { borderColor: colors.glassBorder }]}
-              />
-            </View>
-
             <View style={styles.sectionHeaderRow}>
-              <ThemedText variant="label" style={styles.sectionLabel}>
-                Recent alerts
-              </ThemedText>
-              {(recentAlerts?.length ?? 0) > 0 && (
-                <Pressable hitSlop={8} onPress={() => router.push("/(tabs)/alerts")}>
-                  <ThemedText style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>See all</ThemedText>
-                </Pressable>
-              )}
+              <ThemedText style={styles.sectionTitle}>Recent alerts</ThemedText>
+              {(recentAlerts?.length ?? 0) > 0 && <SeeAll onPress={() => router.push("/(tabs)/alerts")} />}
             </View>
           </Animated.View>
         }
@@ -154,20 +137,19 @@ export default function HomeScreen() {
   );
 }
 
-function FeaturedMarketCard({ instrument }: { instrument: Instrument }) {
+function SeeAll({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable hitSlop={8} onPress={onPress} style={styles.seeAll}>
+      <ThemedText style={[styles.seeAllText, { color: colors.brand }]}>See all</ThemedText>
+      <Ionicons name="chevron-forward" size={14} color={colors.brand} />
+    </Pressable>
+  );
+}
+
+function MarketCard({ instrument }: { instrument: Instrument }) {
   const { colors } = useTheme();
   const positive = (instrument.changePct24h ?? 0) >= 0;
-  const basePrice = instrument.price ?? 100;
-  const mockPoints = [
-    basePrice * 0.98,
-    basePrice * 0.99,
-    basePrice * 0.985,
-    basePrice * 1.01,
-    basePrice * 1.005,
-    basePrice,
-  ];
-
-
   return (
     <Pressable
       onPress={() => {
@@ -176,20 +158,20 @@ function FeaturedMarketCard({ instrument }: { instrument: Instrument }) {
       }}
     >
       <Surface style={styles.marketCard}>
-        <View style={styles.marketCardHeader}>
-          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={24} />
-          <Badge label={formatPct(instrument.changePct24h)} variant={positive ? "positive" : "negative"} />
+        <View style={styles.marketCardTop}>
+          <CoinLogo uri={instrument.iconUrl} symbol={instrument.displaySymbol} size={26} />
+          <ThemedText style={styles.marketSymbol} numberOfLines={1}>
+            {instrument.displaySymbol.split("/")[0]}
+          </ThemedText>
         </View>
-        <ThemedText style={styles.marketCardSymbol}>{instrument.displaySymbol}</ThemedText>
-        <PriceText value={instrument.price} style={styles.marketCardPrice} />
-        <View style={styles.marketCardChart}>
-          <MiniSparkline data={mockPoints} width={110} height={26} positive={positive} />
-        </View>
+        <PriceText value={instrument.price} style={styles.marketPrice} />
+        <ThemedText style={[styles.marketChange, { color: positive ? colors.positive : colors.negative }]}>
+          {formatPct(instrument.changePct24h)}
+        </ThemedText>
       </Surface>
     </Pressable>
   );
 }
-
 
 function SettingsButton() {
   const { colors } = useTheme();
@@ -216,7 +198,7 @@ function SettingsButton() {
   );
 }
 
-function Stat({
+function SummaryStat({
   icon,
   tint,
   label,
@@ -230,52 +212,63 @@ function Stat({
   const { colors } = useTheme();
   const animated = useCountUp(value);
   return (
-    <Surface style={styles.stat}>
-      <LinearGradient
-        colors={[withAlpha(tint, 0.28), withAlpha(tint, 0.08)]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.statIcon}
-      >
+    <View style={styles.summaryStat}>
+      <View style={[styles.summaryIcon, { backgroundColor: withTint(tint, 0.14) }]}>
         <Ionicons name={icon} size={16} color={tint} />
-      </LinearGradient>
-      <ThemedText variant="title" style={styles.statValue}>
-        {Math.round(animated)}
-      </ThemedText>
-      <ThemedText variant="subtle">{label}</ThemedText>
-    </Surface>
+      </View>
+      <View>
+        <ThemedText variant="title" style={styles.summaryValue}>
+          {Math.round(animated)}
+        </ThemedText>
+        <ThemedText variant="subtle" style={{ color: colors.foregroundMuted }}>
+          {label} alerts
+        </ThemedText>
+      </View>
+    </View>
   );
+}
+
+function withTint(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { paddingHorizontal: 20, paddingBottom: 110 },
-  header: { gap: 20, marginBottom: 12, paddingTop: 4 },
-  greetingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  greetingHeaderLine: { flexDirection: "row", alignItems: "center", gap: 8 },
-  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.full, borderWidth: 1 },
+  header: { gap: 22, paddingTop: 8, marginBottom: 8 },
+  greetingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  greetingText: { gap: 2 },
+  greetingLabel: { fontSize: 14 },
+  greetingName: { fontSize: 30, lineHeight: 36 },
+  liveRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   liveDot: { width: 6, height: 6, borderRadius: radius.full },
-  liveBadgeText: { fontSize: 10, fontWeight: "600" },
+  liveText: { fontSize: 12 },
   settingsButton: { width: 44, height: 44, borderRadius: radius.lg, alignItems: "center", justifyContent: "center" },
-  greetingName: { fontSize: 30, marginTop: 2 },
-  statsGrid: { flexDirection: "row", gap: 12 },
-  stat: { flex: 1, padding: 16, gap: 6 },
-  statIcon: { width: 30, height: 30, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  statValue: { fontSize: 26 },
-  carouselSection: { gap: 8 },
-  carouselLabel: { marginBottom: 2 },
-  carouselScroll: { gap: 10, paddingRight: 8 },
-  marketCard: { width: 138, padding: 12, gap: 4, borderRadius: radius.lg },
-  marketCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  marketCardSymbol: { fontSize: 13, fontWeight: "700", marginTop: 4 },
-  marketCardPrice: { fontSize: 14, fontWeight: "600" },
-  marketCardChart: { marginTop: 4, alignItems: "center" },
-  quickActions: { flexDirection: "row", gap: 10 },
-  primaryActionWrap: { flex: 1, borderRadius: radius.md, overflow: "hidden" },
-  primaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 48, borderRadius: radius.md },
-  secondaryAction: { flex: 1, borderWidth: 1 },
-  actionText: { fontSize: 14, fontWeight: "600" },
-  sectionLabel: { marginTop: 4 },
-  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: -4 },
+  summary: { flexDirection: "row", alignItems: "center", paddingVertical: 18, paddingHorizontal: 18 },
+  summaryStat: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  summaryIcon: { width: 36, height: 36, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  summaryValue: { fontSize: 24, lineHeight: 28 },
+  summaryDivider: { width: StyleSheet.hairlineWidth, height: 36, marginHorizontal: 14 },
+  createWrap: { borderRadius: radius.lg, overflow: "hidden" },
+  createButton: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radius.lg,
+  },
+  createText: { fontSize: 15, fontWeight: "600" },
+  section: { gap: 12 },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionTitle: { fontSize: 17, fontWeight: "600" },
+  seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
+  seeAllText: { fontSize: 13, fontWeight: "600" },
+  marketsScroll: { gap: 10, paddingRight: 4 },
+  marketCard: { width: 132, padding: 14, gap: 6, borderRadius: radius.lg },
+  marketCardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  marketSymbol: { fontSize: 14, fontWeight: "600", flexShrink: 1 },
+  marketPrice: { fontSize: 15, fontWeight: "600", marginTop: 4 },
+  marketChange: { fontSize: 12, fontWeight: "600" },
 });
-
