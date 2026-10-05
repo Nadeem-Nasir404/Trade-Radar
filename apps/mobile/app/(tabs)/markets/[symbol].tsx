@@ -41,6 +41,7 @@ export default function MarketDetailScreen() {
 
   const { data: instrument, isLoading } = useMarket(symbol);
   const { data: candles } = useMarketHistory(symbol, timeframe);
+  const lastCandle = candles && candles.length > 0 ? candles[candles.length - 1] : null;
   const { data: alerts } = useAlerts({ search: symbol });
   const deleteAlert = useDeleteAlert();
   const [tappedPrice, setTappedPrice] = useState<number | null>(null);
@@ -125,6 +126,15 @@ export default function MarketDetailScreen() {
               })}
             </View>
           </ScrollView>
+
+          {lastCandle && (
+            <View style={styles.legend}>
+              <LegendItem label="O" value={lastCandle.open} />
+              <LegendItem label="H" value={lastCandle.high} />
+              <LegendItem label="L" value={lastCandle.low} />
+              <LegendItem label="C" value={lastCandle.close} tone={lastCandle.close >= lastCandle.open ? colors.positive : colors.negative} />
+            </View>
+          )}
 
           <TradingChart
             ref={chartRef}
@@ -274,6 +284,18 @@ export default function MarketDetailScreen() {
   );
 }
 
+function LegendItem({ label, value, tone }: { label: string; value: number; tone?: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.legendItem}>
+      <ThemedText style={[styles.legendLabel, { color: colors.foregroundSubtle }]}>{label}</ThemedText>
+      <ThemedText variant="mono" style={[styles.legendValue, { color: tone ?? colors.foreground }]}>
+        {formatCompactPrice(value)}
+      </ThemedText>
+    </View>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.stat}>
@@ -322,6 +344,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   toolButtonText: { fontSize: 12, fontWeight: "600" },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8, paddingHorizontal: 4 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendLabel: { fontSize: 11, fontWeight: "600" },
+  legendValue: { fontSize: 12 },
   segmentScroll: { marginBottom: 12, flexGrow: 0 },
   segmentWrap: { paddingRight: 4 },
   segment: {

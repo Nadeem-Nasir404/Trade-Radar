@@ -219,10 +219,39 @@ function buildChartHtml(): string {
             return;
           }
 
-          var price = candleSeries.coordinateToPrice(param.point.y);
-          if (price === null) return;
-          showTapMarker(param.point.x, param.point.y);
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'priceTap', price: Number(fmt(price)) }));
+        });
+
+        var pressTimer = null;
+        var pressStart = null;
+        var PRESS_MS = 450;
+        var MOVE_TOLERANCE_PX = 8;
+        var chartEl = document.getElementById('chart');
+        chartEl.addEventListener('pointerdown', function (e) {
+          if (drawMode) return;
+          var rect = chartEl.getBoundingClientRect();
+          pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
+          clearTimeout(pressTimer);
+          pressTimer = setTimeout(function () {
+            if (!pressStart || drawMode) return;
+            var price = candleSeries.coordinateToPrice(pressStart.y);
+            if (price === null) return;
+            showTapMarker(pressStart.x, pressStart.y);
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'priceTap', price: Number(fmt(price)) }));
+            pressStart = null;
+          }, PRESS_MS);
+        });
+        chartEl.addEventListener('pointermove', function (e) {
+          if (!pressStart) return;
+          if (Math.abs(e.clientX - pressStart.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - pressStart.cy) > MOVE_TOLERANCE_PX) {
+            clearTimeout(pressTimer);
+            pressStart = null;
+          }
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (type) {
+          chartEl.addEventListener(type, function () {
+            clearTimeout(pressTimer);
+            pressStart = null;
+          });
         });
 
         chart.timeScale().subscribeVisibleTimeRangeChange(hideTapMarker);

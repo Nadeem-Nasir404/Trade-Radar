@@ -28,24 +28,24 @@ export interface ThemeColors {
 }
 
 export const darkTheme: ThemeColors = {
-  background: "#120E1B",
-  backgroundElevated: "#1A1428",
-  foreground: "#F5F3FA",
-  foregroundMuted: "#A79FBD",
-  foregroundSubtle: "#7A7390",
+  background: "#0A0912",
+  backgroundElevated: "#131120",
+  foreground: "#F4F2FB",
+  foregroundMuted: "#9C95B5",
+  foregroundSubtle: "#6B6485",
 
-  glass: "rgba(255,255,255,0.055)",
-  glassHover: "rgba(255,255,255,0.09)",
-  glassBorder: "rgba(255,255,255,0.10)",
-  glassBorderStrong: "rgba(255,255,255,0.16)",
+  glass: "rgba(255,255,255,0.045)",
+  glassHover: "rgba(255,255,255,0.08)",
+  glassBorder: "rgba(255,255,255,0.08)",
+  glassBorderStrong: "rgba(255,255,255,0.14)",
 
   brand: "#A78BFA",
   brandForeground: "#ffffff",
-  brandGlow: "rgba(167,139,250,0.40)",
+  brandGlow: "rgba(139,92,246,0.35)",
   brandGradientEnd: "#7C3AED",
 
-  positive: "#4ADE80",
-  negative: "#F87171",
+  positive: "#34D399",
+  negative: "#FB7185",
   warning: "#FBBF24",
   neutral: "#A79FBD",
 
