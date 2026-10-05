@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
-import { TradingChart, type TradingChartHandle } from "@/components/charts/trading-chart";
+import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
+import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
 import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists";
@@ -44,6 +45,7 @@ export default function MarketDetailScreen() {
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1h");
   const [drawMode, setDrawMode] = useState(false);
   const [drawStage, setDrawStage] = useState<"start" | "end">("start");
+  const [drawTool, setDrawTool] = useState<DrawTool>("trend");
 
   const { data: instrument, isLoading } = useMarket(symbol);
   const { data: candles } = useMarketHistory(symbol, timeframe);
@@ -150,6 +152,8 @@ export default function MarketDetailScreen() {
             drawMode={drawMode}
             onDrawStage={setDrawStage}
             timeframe={timeframe}
+            drawTool={drawTool}
+            viewKey={`${symbol}|${timeframe}`}
             onPriceTap={(p) => {
               haptics.light();
               setTappedPrice(p);
@@ -165,53 +169,33 @@ export default function MarketDetailScreen() {
             </View>
           )}
 
-          <View style={styles.chartToolbar}>
-            <Pressable
-              onPress={() => {
-                haptics.selection();
-                setDrawStage("start");
-                setDrawMode((v) => !v);
-              }}
-              style={[
-                styles.toolButton,
-                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                drawMode && { backgroundColor: colors.brandGlow, borderColor: colors.brand },
-              ]}
-            >
-              <Ionicons name="pencil-outline" size={14} color={drawMode ? colors.brand : colors.foregroundMuted} />
-              <ThemedText style={[styles.toolButtonText, { color: drawMode ? colors.brand : colors.foregroundMuted }]}>
-                {drawMode ? "Drawing" : "Draw"}
-              </ThemedText>
-            </Pressable>
-            {drawMode && (
+          <ChartToolbar
+            drawMode={drawMode}
+            drawTool={drawTool}
+            onToggleDraw={() => {
+              haptics.selection();
+              setDrawStage("start");
+              setDrawMode((v) => !v);
+            }}
+            onSelectTool={setDrawTool}
+            onClear={() => {
+              haptics.light();
+              chartRef.current?.clearDrawings();
+              setDrawStage("start");
+            }}
+            trailing={
               <Pressable
+                hitSlop={8}
                 onPress={() => {
-                  haptics.light();
-                  chartRef.current?.clearDrawings();
-                  setDrawStage("start");
+                  haptics.medium();
+                  router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } });
                 }}
-                style={[styles.toolButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                style={[styles.fullscreenPill, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
               >
-                <Ionicons name="trash-outline" size={14} color={colors.foregroundMuted} />
-                <ThemedText style={[styles.toolButtonText, { color: colors.foregroundMuted }]}>Clear</ThemedText>
+                <Ionicons name="expand-outline" size={16} color={colors.foregroundMuted} />
               </Pressable>
-            )}
-            <View style={styles.toolSpacer} />
-            <Pressable
-              hitSlop={8}
-              onPress={() => {
-                haptics.medium();
-                router.push({
-                  pathname: "/fullscreen-chart",
-                  params: { symbol, displaySymbol: instrument.displaySymbol, timeframe },
-                });
-              }}
-              style={[styles.toolButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-            >
-              <Ionicons name="expand-outline" size={14} color={colors.foregroundMuted} />
-              <ThemedText style={[styles.toolButtonText, { color: colors.foregroundMuted }]}>Full screen</ThemedText>
-            </Pressable>
-          </View>
+            }
+          />
 
           {tappedPrice !== null && (
             <Animated.View
@@ -369,6 +353,7 @@ const styles = StyleSheet.create({
   tapPillButton: { width: 26, height: 26, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
   chartToolbar: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   toolSpacer: { flex: 1 },
+  fullscreenPill: { width: 30, height: 30, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginBottom: 8 },
   drawHintText: { fontSize: 12, fontWeight: "600" },
   toolButton: {

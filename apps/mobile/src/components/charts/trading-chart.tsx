@@ -5,11 +5,14 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import type { Candle } from "@/lib/api/types";
 import { bucketStart } from "@/lib/timeframe";
+import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-store";
 
 export interface ChartAlertLevel {
   price: number;
   up: boolean;
 }
+
+export type DrawTool = "trend" | "horizontal" | "rect";
 
 export interface TradingChartHandle {
   clearDrawings: () => void;
@@ -23,25 +26,29 @@ interface TradingChartProps {
   onPriceTap?: (price: number) => void;
   onDrawStage?: (stage: "start" | "end") => void;
   timeframe?: string;
+  /** Changes when the instrument or timeframe changes, so the view resets instead of preserving zoom. */
+  viewKey?: string;
   drawMode?: boolean;
+  drawTool?: DrawTool;
 }
 
 /**
- * Mirrors the web app's lightweight-charts (TradingView's engine) setup - same series colors,
- * grid, and crosshair config - inside a WebView, rather than a lesser native-only charting
- * library. RN->chart is one-directional (injectJavaScript calling globals the page exposes);
- * the page only ever posts back messages ("ready" once at init, "priceTap" on each chart tap)
- * so the native side knows the chart finished initializing before pushing data at it.
+ * TradingView's lightweight-charts engine inside a WebView. React drives the chart through
+ * injected calls to globals the page exposes; the page posts back only taps, draw-stage hints,
+ * and readiness. Candles refresh without resetting the user's zoom, and live ticks roll into a
+ * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, drawMode = false, timeframe = "1h" },
+  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend" },
   ref,
 ) {
   const { colors, mode } = useTheme();
+  const settings = useChartSettings();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const lastCandleRef = useRef<Candle | null>(null);
   const livePriceRef = useRef<number | null>(null);
+  const loadedViewKeyRef = useRef<string | null>(null);
 
   const html = useMemo(() => buildChartHtml(), []);
 
@@ -54,8 +61,6 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     textColor: colors.foregroundSubtle,
     gridColor: mode === "light" ? "rgba(0,0,0,0.045)" : "rgba(255,255,255,0.045)",
     borderColor: colors.glassBorder,
-    upColor: colors.positive,
-    downColor: colors.negative,
     crosshairColor: colors.foregroundMuted,
     brand: colors.brand,
     brandForeground: colors.brandForeground,
@@ -80,10 +85,26 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   }, [ready, colors, mode]);
 
   useEffect(() => {
+    if (!ready) return;
+    const palette = CANDLE_PALETTES[settings.palette];
+    const payload = {
+      up: palette.up,
+      down: palette.down,
+      grid: settings.showGrid,
+      volume: settings.showVolume,
+      wicks: settings.showWicks,
+      scale: settings.priceScale,
+    };
+    webviewRef.current?.injectJavaScript(`window.applySettings(${JSON.stringify(payload)}); true;`);
+  }, [ready, settings.palette, settings.showGrid, settings.showVolume, settings.showWicks, settings.priceScale]);
+
+  useEffect(() => {
     if (!ready || candles.length === 0) return;
+    const keepView = loadedViewKeyRef.current === (viewKey ?? timeframe);
+    loadedViewKeyRef.current = viewKey ?? timeframe;
     lastCandleRef.current = candles[candles.length - 1] ?? null;
-    webviewRef.current?.injectJavaScript(`window.setCandles(${JSON.stringify(candles)}); true;`);
-  }, [ready, candles]);
+    webviewRef.current?.injectJavaScript(`window.setCandles(${JSON.stringify(candles)}, ${keepView}); true;`);
+  }, [ready, candles, viewKey, timeframe]);
 
   useEffect(() => {
     if (!ready) return;
@@ -116,6 +137,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     if (!ready) return;
     webviewRef.current?.injectJavaScript(`window.setDrawMode(${drawMode}); true;`);
   }, [ready, drawMode]);
+
+  useEffect(() => {
+    if (!ready) return;
+    webviewRef.current?.injectJavaScript(`window.setDrawTool(${JSON.stringify(drawTool)}); true;`);
+  }, [ready, drawTool]);
 
   return (
     <View style={[styles.wrap, { height }]}>
@@ -166,19 +192,30 @@ function buildChartHtml(): string {
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
     <script>
       var chart, candleSeries, volumeSeries, priceLines = [], theme = null;
-      var drawMode = false, drawLines = [], pendingPoint = null;
-      var tapMarkerTimer = null;
+      var drawMode = false, drawTool = 'trend', drawSeries = [], drawPriceLines = [], pendingPoint = null;
+      var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)';
+
+      function accent() { return theme ? theme.brand : '#a855f7'; }
+      function accentAlpha(a) {
+        var h = accent().replace('#', '');
+        var n = parseInt(h.length === 3 ? h.split('').map(function (c) { return c + c; }).join('') : h, 16);
+        return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+      }
+      function post(obj) { window.ReactNativeWebView.postMessage(JSON.stringify(obj)); }
 
       function init() {
         var container = document.getElementById('chart');
         chart = LightweightCharts.createChart(container, {
           layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#9598a3', fontSize: 11, attributionLogo: false },
-          grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+          grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
           rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
-          timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true },
+          timeScale: {
+            borderColor: 'rgba(255,255,255,0.08)', timeVisible: true,
+            rightOffset: 6, barSpacing: 7, minBarSpacing: 2, fixLeftEdge: false,
+          },
           crosshair: { mode: 0 },
-          handleScroll: { horzTouchDrag: true, vertTouchDrag: true },
-          handleScale: { pinch: true, axisPressedMouseMove: true },
+          handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+          handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
           kineticScroll: { touch: true, mouse: false },
           autoSize: true,
         });
@@ -207,33 +244,51 @@ function buildChartHtml(): string {
         });
 
         function handleDrawTap(x, y) {
-          var time = chart.timeScale().coordinateToTime(x);
-          var linePrice = candleSeries.coordinateToPrice(y);
-          if (time === null || linePrice === null) return;
-          if (!pendingPoint) {
-            pendingPoint = { time: time, price: linePrice };
-            showTapMarker(x, y);
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'drawHint', stage: 'end' }));
+          var p = candleSeries.coordinateToPrice(y);
+          if (p === null) return;
+          if (drawTool === 'horizontal') {
+            drawPriceLines.push(candleSeries.createPriceLine({
+              price: p, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '',
+            }));
+            post({ type: 'drawHint', stage: 'start' });
             return;
           }
-          var line = chart.addSeries(LightweightCharts.LineSeries, {
-            color: theme ? theme.brand : '#a855f7',
-            lineWidth: 2,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            crosshairMarkerVisible: false,
-          });
-          line.setData([pendingPoint, { time: time, price: linePrice }].sort(function (a, b) { return a.time - b.time; }));
-          drawLines.push(line);
+          var time = chart.timeScale().coordinateToTime(x);
+          if (time === null) return;
+          if (!pendingPoint) {
+            pendingPoint = { time: time, price: p };
+            showTapMarker(x, y);
+            post({ type: 'drawHint', stage: 'end' });
+            return;
+          }
+          var a = pendingPoint, b = { time: time, price: p };
           pendingPoint = null;
           hideTapMarker();
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'drawHint', stage: 'start' }));
+          post({ type: 'drawHint', stage: 'start' });
+
+          if (drawTool === 'rect') {
+            var t1 = Math.min(a.time, b.time), t2 = Math.max(a.time, b.time);
+            if (t1 === t2) return;
+            var zone = chart.addSeries(LightweightCharts.BaselineSeries, {
+              baseValue: { type: 'price', price: b.price },
+              topLineColor: accent(), bottomLineColor: accent(), lineWidth: 1,
+              topFillColor1: accentAlpha(0.2), topFillColor2: accentAlpha(0.2),
+              bottomFillColor1: accentAlpha(0.2), bottomFillColor2: accentAlpha(0.2),
+              lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+            });
+            zone.setData([{ time: t1, value: a.price }, { time: t2, value: a.price }]);
+            drawSeries.push(zone);
+            return;
+          }
+
+          var line = chart.addSeries(LightweightCharts.LineSeries, {
+            color: accent(), lineWidth: 2, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+          });
+          line.setData([a, b].sort(function (x1, x2) { return x1.time - x2.time; }));
+          drawSeries.push(line);
         }
 
-        var pressTimer = null;
-        var pressStart = null;
-        var PRESS_MS = 450;
-        var MOVE_TOLERANCE_PX = 8;
+        var pressTimer = null, pressStart = null, PRESS_MS = 450, MOVE_TOLERANCE_PX = 8;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
           var rect = chartEl.getBoundingClientRect();
@@ -244,7 +299,7 @@ function buildChartHtml(): string {
             var price = candleSeries.coordinateToPrice(pressStart.y);
             if (price === null) return;
             showTapMarker(pressStart.x, pressStart.y);
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'priceTap', price: Number(fmt(price)) }));
+            post({ type: 'priceTap', price: Number(fmt(price)) });
             pressStart = null;
           }, PRESS_MS);
         });
@@ -271,14 +326,14 @@ function buildChartHtml(): string {
         });
 
         chart.timeScale().subscribeVisibleTimeRangeChange(hideTapMarker);
-
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
+        post({ type: 'ready' });
       }
 
       function showTapMarker(x, y) {
         var el = document.getElementById('tapMarker');
         el.style.left = x + 'px';
         el.style.top = y + 'px';
+        el.style.backgroundColor = accent();
         el.style.opacity = 1;
         el.style.transform = 'scale(1)';
         if (tapMarkerTimer) clearTimeout(tapMarkerTimer);
@@ -297,9 +352,17 @@ function buildChartHtml(): string {
         if (!on) hideTapMarker();
       };
 
+      window.setDrawTool = function (tool) {
+        drawTool = tool;
+        pendingPoint = null;
+        hideTapMarker();
+      };
+
       window.clearDrawings = function () {
-        drawLines.forEach(function (l) { chart.removeSeries(l); });
-        drawLines = [];
+        drawSeries.forEach(function (s) { chart.removeSeries(s); });
+        drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
+        drawSeries = [];
+        drawPriceLines = [];
         pendingPoint = null;
         hideTapMarker();
       };
@@ -309,18 +372,22 @@ function buildChartHtml(): string {
       }
 
       function volColor(c) {
-        var base = c.close >= c.open ? '#22c55e' : '#f43f5e';
-        return base + '55';
+        var up = c.close >= c.open;
+        return (up ? upHex : downHex) + '55';
       }
+      var upHex = '#22c55e', downHex = '#f43f5e';
 
-      window.setCandles = function (candles) {
+      window.setCandles = function (candles, keepView) {
+        var range = keepView && hasData ? chart.timeScale().getVisibleLogicalRange() : null;
         candleSeries.setData(candles.map(function (c) {
           return { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close };
         }));
         volumeSeries.setData(candles.filter(function (c) { return c.volume != null; }).map(function (c) {
           return { time: c.time, value: c.volume, color: volColor(c) };
         }));
-        chart.timeScale().fitContent();
+        if (range) chart.timeScale().setVisibleLogicalRange(range);
+        else chart.timeScale().fitContent();
+        hasData = true;
       };
 
       window.updateLastCandle = function (c) {
@@ -342,10 +409,26 @@ function buildChartHtml(): string {
         });
       };
 
+      window.applySettings = function (s) {
+        upHex = s.up; downHex = s.down;
+        candleSeries.applyOptions({
+          upColor: s.up, downColor: s.down,
+          wickUpColor: s.up, wickDownColor: s.down,
+          wickVisible: s.wicks,
+        });
+        volumeSeries.applyOptions({ visible: s.volume });
+        chart.applyOptions({
+          grid: {
+            vertLines: { visible: s.grid, color: gridColor },
+            horzLines: { visible: s.grid, color: gridColor },
+          },
+        });
+        chart.priceScale('right').applyOptions({ mode: s.scale === 'log' ? 1 : s.scale === 'percent' ? 2 : 0 });
+      };
+
       window.applyTheme = function (t) {
         theme = t;
-        var tapEl = document.getElementById('tapMarker');
-        tapEl.style.backgroundColor = t.brand;
+        gridColor = t.gridColor;
         chart.applyOptions({
           layout: { textColor: t.textColor },
           grid: { vertLines: { color: t.gridColor }, horzLines: { color: t.gridColor } },

@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/themed-text";
-import { TradingChart, type TradingChartHandle } from "@/components/charts/trading-chart";
+import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
+import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { PriceText } from "@/components/ui/price-text";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useLivePrice } from "@/lib/ws/use-live-price";
@@ -14,6 +15,7 @@ import { haptics } from "@/lib/haptics";
 import { formatPct } from "@/lib/format";
 
 const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
+type Timeframe = (typeof TIMEFRAMES)[number];
 
 export default function FullscreenChartScreen() {
   const { colors } = useTheme();
@@ -21,10 +23,11 @@ export default function FullscreenChartScreen() {
   const { height } = useWindowDimensions();
   const params = useLocalSearchParams<{ symbol: string; displaySymbol?: string; timeframe?: string }>();
   const symbol = params.symbol;
-  const initialTf = (TIMEFRAMES as readonly string[]).includes(params.timeframe ?? "") ? params.timeframe! : "1h";
+  const initialTf: Timeframe = (TIMEFRAMES as readonly string[]).includes(params.timeframe ?? "") ? (params.timeframe as Timeframe) : "1h";
 
-  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>(initialTf as (typeof TIMEFRAMES)[number]);
+  const [timeframe, setTimeframe] = useState<Timeframe>(initialTf);
   const [drawMode, setDrawMode] = useState(false);
+  const [drawTool, setDrawTool] = useState<DrawTool>("trend");
   const [drawStage, setDrawStage] = useState<"start" | "end">("start");
   const chartRef = useRef<TradingChartHandle>(null);
 
@@ -35,7 +38,7 @@ export default function FullscreenChartScreen() {
   const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
   const positive = (changePct ?? 0) >= 0;
 
-  const chartHeight = height - 190;
+  const chartHeight = height - 230;
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
@@ -80,54 +83,35 @@ export default function FullscreenChartScreen() {
           height={chartHeight}
           candles={candles ?? []}
           livePrice={price}
-          drawMode={drawMode}
-          onDrawStage={setDrawStage}
           timeframe={timeframe}
+          viewKey={`${symbol}|${timeframe}`}
+          drawMode={drawMode}
+          drawTool={drawTool}
+          onDrawStage={setDrawStage}
         />
       </View>
 
       <View style={styles.footer}>
-        {drawMode ? (
-          <ThemedText style={[styles.hint, { color: colors.brand }]}>
-            {drawStage === "start" ? "Tap a point to start your line" : "Tap a second point to finish"}
-          </ThemedText>
-        ) : (
-          <ThemedText variant="subtle" style={styles.hint}>
-            Hold a price level to set an alert
-          </ThemedText>
-        )}
-        <View style={styles.footerButtons}>
-          <Pressable
-            onPress={() => {
-              haptics.selection();
-              setDrawStage("start");
-              setDrawMode((v) => !v);
-            }}
-            style={[
-              styles.footerButton,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              drawMode && { backgroundColor: colors.brandGlow, borderColor: colors.brand },
-            ]}
-          >
-            <Ionicons name="pencil-outline" size={16} color={drawMode ? colors.brand : colors.foregroundMuted} />
-            <ThemedText style={[styles.footerButtonText, { color: drawMode ? colors.brand : colors.foregroundMuted }]}>
-              {drawMode ? "Drawing" : "Draw"}
-            </ThemedText>
-          </Pressable>
-          {drawMode && (
-            <Pressable
-              onPress={() => {
-                haptics.light();
-                chartRef.current?.clearDrawings();
-                setDrawStage("start");
-              }}
-              style={[styles.footerButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-            >
-              <Ionicons name="trash-outline" size={16} color={colors.foregroundMuted} />
-              <ThemedText style={[styles.footerButtonText, { color: colors.foregroundMuted }]}>Clear</ThemedText>
-            </Pressable>
-          )}
-        </View>
+        <ChartToolbar
+          drawMode={drawMode}
+          drawTool={drawTool}
+          onToggleDraw={() => {
+            haptics.selection();
+            setDrawStage("start");
+            setDrawMode((v) => !v);
+          }}
+          onSelectTool={setDrawTool}
+          onClear={() => {
+            haptics.light();
+            chartRef.current?.clearDrawings();
+            setDrawStage("start");
+          }}
+        />
+        <ThemedText variant="subtle" style={[styles.hint, drawMode && { color: colors.brand }]}>
+          {drawMode
+            ? drawStage === "start" ? "Tap a point to start your drawing" : "Tap a second point to finish"
+            : "Hold a price level to set an alert"}
+        </ThemedText>
       </View>
     </SafeAreaView>
   );
@@ -146,9 +130,6 @@ const styles = StyleSheet.create({
   segmentItem: { minWidth: 44, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, alignItems: "center" },
   segmentText: { fontSize: 12, fontWeight: "600" },
   chartWrap: { paddingHorizontal: 8 },
-  footer: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  footer: { paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   hint: { textAlign: "center", fontSize: 12 },
-  footerButtons: { flexDirection: "row", justifyContent: "center", gap: 10 },
-  footerButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, height: 40, borderRadius: radius.full, borderWidth: 1 },
-  footerButtonText: { fontSize: 13, fontWeight: "600" },
 });
