@@ -8,9 +8,9 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";
-import { PnlCard } from "@/components/trade/pnl-card";
+import { PnlCard, CARD_STYLE_LABELS } from "@/components/trade/pnl-card";
 import { useLivePrice } from "@/lib/ws/use-live-price";
-import { useTradesStore, type TradeSide } from "@/lib/stores/trades-store";
+import { useTradesStore, type TradeSide, type CardStyle } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -42,6 +42,8 @@ export default function AlertTriggeredScreen() {
   const trades = useTradesStore((s) => s.trades);
   const open = useTradesStore((s) => s.open);
   const close = useTradesStore((s) => s.close);
+  const cardStyle = useTradesStore((s) => s.cardStyle);
+  const setCardStyle = useTradesStore((s) => s.setCardStyle);
   const activeTrade = useMemo(() => trades.find((t) => t.symbol === symbol && t.closedAt === null), [trades, symbol]);
 
   const start = (side: TradeSide) => {
@@ -69,7 +71,24 @@ export default function AlertTriggeredScreen() {
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {activeTrade ? (
           <>
-            <PnlCard trade={activeTrade} livePrice={price} />
+            <View style={styles.styleRow}>
+              {(Object.keys(CARD_STYLE_LABELS) as CardStyle[]).map((st) => {
+                const active = st === cardStyle;
+                return (
+                  <Pressable
+                    key={st}
+                    onPress={() => {
+                      haptics.selection();
+                      setCardStyle(st);
+                    }}
+                    style={[styles.styleChip, { backgroundColor: active ? colors.brand : colors.glass, borderColor: colors.glassBorder }]}
+                  >
+                    <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "600", fontSize: 12 }}>{CARD_STYLE_LABELS[st]}</ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <PnlCard trade={activeTrade} livePrice={price} style={cardStyle} />
             <Pressable onPress={endTrade} style={styles.primaryWrap}>
               <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primary}>
                 <Ionicons name="stop-circle-outline" size={18} color="#FFFFFF" />
@@ -141,6 +160,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: "700" },
   spacer: { width: 40 },
   body: { padding: 20, gap: 16, paddingBottom: 40 },
+  styleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  styleChip: { paddingHorizontal: 14, height: 32, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   hero: { padding: 22, alignItems: "center", gap: 8 },
   symbolLine: { marginTop: 12, letterSpacing: 1 },
   headline: { fontSize: 17, fontWeight: "700", textAlign: "center" },
