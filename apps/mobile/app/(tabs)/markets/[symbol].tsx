@@ -78,18 +78,22 @@ export default function MarketDetailScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.iconButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+          <Ionicons name="chevron-back" size={20} color={colors.foreground} />
         </Pressable>
-        <ThemedText variant="subtitle">{instrument.displaySymbol}</ThemedText>
+        <View style={styles.headerCenter}>
+          <ThemedText style={styles.headerSymbol}>{instrument.displaySymbol}</ThemedText>
+          <ThemedText variant="subtle">{instrument.name ?? instrument.provider}</ThemedText>
+        </View>
         <Pressable
           hitSlop={12}
           onPress={() => {
             haptics.light();
             toggleFavorite.mutate(instrument.id);
           }}
+          style={[styles.iconButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
         >
-          <Ionicons name={isFavorite ? "star" : "star-outline"} size={22} color={isFavorite ? colors.warning : colors.foreground} />
+          <Ionicons name={isFavorite ? "star" : "star-outline"} size={18} color={isFavorite ? colors.warning : colors.foreground} />
         </Pressable>
       </View>
 
@@ -294,6 +298,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  iconButton: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  headerCenter: { alignItems: "center", gap: 2 },
+  headerSymbol: { fontSize: 17, fontWeight: "600" },
   header: {
     flexDirection: "row",
     alignItems: "center",
