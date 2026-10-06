@@ -6,6 +6,7 @@ import { radius } from "@/lib/theme";
 import type { Candle } from "@/lib/api/types";
 import { bucketStart } from "@/lib/timeframe";
 import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-store";
+import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
 
 export interface ChartAlertLevel {
   price: number;
@@ -30,6 +31,8 @@ interface TradingChartProps {
   viewKey?: string;
   drawMode?: boolean;
   drawTool?: DrawTool;
+  /** Drawings are stored per instrument, so every chart for that symbol shows the same ones. */
+  drawingsKey?: string;
 }
 
 /**
@@ -39,7 +42,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend" },
+  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   const { colors, mode } = useTheme();
@@ -52,8 +55,12 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   const html = useMemo(() => buildChartHtml(), []);
 
+  const drawings = useDrawingsStore((st) => st.bySymbol[drawingsKey] ?? EMPTY_DRAWINGS);
+
   useImperativeHandle(ref, () => ({
-    clearDrawings: () => webviewRef.current?.injectJavaScript("window.clearDrawings(); true;"),
+    clearDrawings: () => {
+      useDrawingsStore.getState().clear(drawingsKey);
+    },
   }));
 
   const theme = {
@@ -72,6 +79,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
       if (msg.type === "ready") setReady(true);
       else if (msg.type === "priceTap") onPriceTap?.(msg.price);
       else if (msg.type === "drawHint") onDrawStage?.(msg.stage);
+      else if (msg.type === "drawingAdded") useDrawingsStore.getState().add(drawingsKey, msg.drawing as Drawing);
     } catch {
       // ignore malformed messages
     }
@@ -135,6 +143,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   useEffect(() => {
     if (!ready) return;
+    webviewRef.current?.injectJavaScript(`window.setDrawings(${JSON.stringify(drawings)}); true;`);
+  }, [ready, drawings]);
+
+  useEffect(() => {
+    if (!ready) return;
     webviewRef.current?.injectJavaScript(`window.setDrawMode(${drawMode}); true;`);
   }, [ready, drawMode]);
 
@@ -161,6 +174,8 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     </View>
   );
 });
+
+const EMPTY_DRAWINGS: Drawing[] = [];
 
 function buildChartHtml(): string {
   return `<!doctype html>
@@ -249,9 +264,7 @@ function buildChartHtml(): string {
           var p = candleSeries.coordinateToPrice(y);
           if (p === null) return;
           if (drawTool === 'horizontal') {
-            drawPriceLines.push(candleSeries.createPriceLine({
-              price: p, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '',
-            }));
+            addDrawing({ id: uid(), type: 'horizontal', price: p }, true);
             post({ type: 'drawHint', stage: 'start' });
             return;
           }
@@ -271,16 +284,11 @@ function buildChartHtml(): string {
           if (drawTool === 'rect') {
             var t1 = Math.min(a.time, b.time), t2 = Math.max(a.time, b.time);
             if (t1 === t2) return;
-            rects.push({ t1: t1, t2: t2, p1: a.price, p2: b.price });
-            ensureOverlayLoop();
+            addDrawing({ id: uid(), type: 'rect', a: { time: a.time, price: a.price }, b: { time: b.time, price: b.price } }, true);
             return;
           }
 
-          var line = chart.addSeries(LightweightCharts.LineSeries, {
-            color: accent(), lineWidth: 2, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
-          });
-          line.setData([a, b].sort(function (x1, x2) { return x1.time - x2.time; }));
-          drawSeries.push(line);
+          addDrawing({ id: uid(), type: 'trend', a: a, b: b }, true);
         }
 
         var pressTimer = null, pressStart = null, PRESS_MS = 450, MOVE_TOLERANCE_PX = 8;
@@ -377,13 +385,39 @@ function buildChartHtml(): string {
         })();
       }
 
-      window.clearDrawings = function () {
+      var drawingList = [];
+      function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+      function renderDrawing(d) {
+        if (d.type === horizontal) {
+          drawPriceLines.push(candleSeries.createPriceLine({ price: d.price, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title:  }));
+        } else if (d.type === rect) {
+          rects.push({ t1: Math.min(d.a.time, d.b.time), t2: Math.max(d.a.time, d.b.time), p1: d.a.price, p2: d.b.price });
+          ensureOverlayLoop();
+        } else {
+          var line = chart.addSeries(LightweightCharts.LineSeries, {
+            color: accent(), lineWidth: 2, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+          });
+          line.setData([d.a, d.b].sort(function (x1, x2) { return x1.time - x2.time; }));
+          drawSeries.push(line);
+        }
+      }
+      function addDrawing(d, report) {
+        drawingList.push(d);
+        renderDrawing(d);
+        if (report) post({ type: drawingAdded, drawing: d });
+      }
+      window.setDrawings = function (list) {
         rects = [];
-        document.getElementById('overlay').innerHTML = '';
+        document.getElementById(overlay).innerHTML = ;
         drawSeries.forEach(function (s) { chart.removeSeries(s); });
         drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
         drawSeries = [];
         drawPriceLines = [];
+        drawingList = [];
+        (list || []).forEach(function (d) { addDrawing(d, false); });
+      };
+      window.clearDrawings = function () {
+        window.setDrawings([]);
         pendingPoint = null;
         hideTapMarker();
       };

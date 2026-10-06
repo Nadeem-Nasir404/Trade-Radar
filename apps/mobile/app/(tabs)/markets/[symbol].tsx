@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
 import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists";
@@ -153,6 +154,7 @@ export default function MarketDetailScreen() {
             onDrawStage={setDrawStage}
             timeframe={timeframe}
             drawTool={drawTool}
+            drawingsKey={symbol}
             viewKey={`${symbol}|${timeframe}`}
             onPriceTap={(p) => {
               haptics.light();
@@ -197,41 +199,10 @@ export default function MarketDetailScreen() {
             }
           />
 
-          {tappedPrice !== null && (
-            <Animated.View
-              entering={FadeInDown.duration(160)}
-              exiting={FadeOutDown.duration(120)}
-              style={[styles.tapPill, { backgroundColor: colors.glassHover, borderColor: colors.glassBorder }]}
-            >
-              <Ionicons name="pricetag-outline" size={14} color={colors.brand} />
-              <ThemedText variant="mono" style={styles.tapPillText}>
-                Alert at {formatCompactPrice(tappedPrice)}
-              </ThemedText>
-              <Pressable
-                hitSlop={8}
-                onPress={() => setTappedPrice(null)}
-                style={styles.tapPillButton}
-              >
-                <Ionicons name="close" size={16} color={colors.foregroundSubtle} />
-              </Pressable>
-              <Pressable
-                hitSlop={8}
-                onPress={() => {
-                  haptics.medium();
-                  router.push({
-                    pathname: "/create-alert",
-                    params: { instrumentId: instrument.id, symbol: instrument.displaySymbol, price: String(tappedPrice) },
-                  });
-                  setTappedPrice(null);
-                }}
-                style={[styles.tapPillButton, { backgroundColor: colors.brand }]}
-              >
-                <Ionicons name="checkmark" size={16} color={colors.brandForeground} />
-              </Pressable>
-            </Animated.View>
-          )}
 
         </Surface>
+
+        <PriceActionSheet price={tappedPrice} displaySymbol={instrument.displaySymbol} symbol={symbol} instrumentId={instrument.id} onClose={() => setTappedPrice(null)} />
 
         <Surface style={styles.statsCard}>
           <Stat label="24h High" value={formatCompactPrice(instrument.high24h)} />

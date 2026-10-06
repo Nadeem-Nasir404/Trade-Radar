@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useLivePrice } from "@/lib/ws/use-live-price";
@@ -30,6 +31,7 @@ export default function FullscreenChartScreen() {
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
   const [drawStage, setDrawStage] = useState<"start" | "end">("start");
   const chartRef = useRef<TradingChartHandle>(null);
+  const [tappedPrice, setTappedPrice] = useState<number | null>(null);
 
   const { data: instrument } = useMarket(symbol);
   const { data: candles } = useMarketHistory(symbol, timeframe);
@@ -87,9 +89,19 @@ export default function FullscreenChartScreen() {
           viewKey={`${symbol}|${timeframe}`}
           drawMode={drawMode}
           drawTool={drawTool}
+          drawingsKey={symbol}
+          onPriceTap={setTappedPrice}
           onDrawStage={setDrawStage}
         />
       </View>
+
+      <PriceActionSheet
+        price={tappedPrice}
+        displaySymbol={params.displaySymbol ?? instrument?.displaySymbol ?? symbol}
+        symbol={symbol}
+        instrumentId={instrument?.id ?? ""}
+        onClose={() => setTappedPrice(null)}
+      />
 
       <View style={styles.footer}>
         <ChartToolbar
