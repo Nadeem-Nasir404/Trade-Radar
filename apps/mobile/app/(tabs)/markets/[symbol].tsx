@@ -18,6 +18,7 @@ import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
 import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { haptics } from "@/lib/haptics";
+import { withAlpha } from "@/lib/color";
 import {
   computeDistancePct,
   formatAlertTarget,
@@ -31,11 +32,6 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 
 const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
-
-function withTint(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace("#", ""), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
-}
 
 export default function MarketDetailScreen() {
   const { colors } = useTheme();
@@ -163,7 +159,7 @@ export default function MarketDetailScreen() {
           />
 
           {drawMode && (
-            <View style={[styles.drawHint, { backgroundColor: withTint(colors.brand, 0.12) }]}>
+            <View style={[styles.drawHint, { backgroundColor: withAlpha(colors.brand, 0.12) }]}>
               <Ionicons name="hand-left-outline" size={14} color={colors.brand} />
               <ThemedText style={[styles.drawHintText, { color: colors.brand }]}>
                 {drawStage === "start" ? "Tap a point to start your line" : "Tap a second point to finish"}

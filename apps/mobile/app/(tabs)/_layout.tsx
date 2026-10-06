@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { View, Pressable, StyleSheet, type PressableProps, type GestureResponderEvent } from "react-native";
+import { View, Pressable, StyleSheet, Platform, type PressableProps, type GestureResponderEvent } from "react-native";
+import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
@@ -45,11 +46,16 @@ export default function TabsLayout() {
             shadowOpacity: 0.45,
             shadowRadius: 30,
           },
-          // A blurred backdrop here would sit directly under a fully opaque fill (needed to stop
-          // scrolled list content from showing through the pill), so it would never actually be
-          // visible - skip it rather than pay Android's BlurView cost for nothing.
           tabBarBackground: () => (
-            <View style={[StyleSheet.absoluteFill, styles.barBackground, { backgroundColor: colors.backgroundElevated }]} />
+            <View style={[StyleSheet.absoluteFill, styles.barBackground]}>
+              <BlurView
+                intensity={50}
+                tint={colors.blurTint}
+                style={StyleSheet.absoluteFill}
+                experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
+              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
+            </View>
           ),
         }}
       >

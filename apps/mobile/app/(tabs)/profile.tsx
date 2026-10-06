@@ -17,6 +17,7 @@ import { isExpoGo } from "@/lib/is-expo-go";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
+import { withAlpha } from "@/lib/color";
 import { useToastStore } from "@/lib/stores/toast-store";
 import type { ThemeMode } from "@/lib/stores/theme-store";
 
@@ -114,7 +115,7 @@ export default function ProfileScreen() {
               {user?.email}
             </ThemedText>
           </View>
-          <View style={[styles.planPill, { backgroundColor: withTint(colors.brand, 0.16) }]}>
+          <View style={[styles.planPill, { backgroundColor: withAlpha(colors.brand, 0.16) }]}>
             <ThemedText style={[styles.planText, { color: colors.brand }]}>{subscription?.plan ?? "FREE"}</ThemedText>
           </View>
         </Surface>
@@ -200,7 +201,7 @@ export default function ProfileScreen() {
             logout.mutate();
           }}
           disabled={logout.isPending}
-          style={[styles.logout, { borderColor: withTint(colors.negative, 0.4), backgroundColor: withTint(colors.negative, 0.1) }]}
+          style={[styles.logout, { borderColor: withAlpha(colors.negative, 0.4), backgroundColor: withAlpha(colors.negative, 0.1) }]}
         >
           <Ionicons name="log-out-outline" size={18} color={colors.negative} />
           <ThemedText style={[styles.logoutText, { color: colors.negative }]}>Log out</ThemedText>
@@ -228,7 +229,7 @@ function SettingRow({
   const { colors } = useTheme();
   return (
     <View style={styles.row}>
-      <View style={[styles.rowIcon, { backgroundColor: withTint(colors.brand, 0.12) }]}>
+      <View style={[styles.rowIcon, { backgroundColor: withAlpha(colors.brand, 0.12) }]}>
         <Ionicons name={icon} size={16} color={colors.brand} />
       </View>
       <View style={styles.rowText}>
@@ -243,11 +244,6 @@ function SettingRow({
 function Divider() {
   const { colors } = useTheme();
   return <View style={[styles.divider, { backgroundColor: colors.glassBorder }]} />;
-}
-
-function withTint(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace("#", ""), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 const styles = StyleSheet.create({

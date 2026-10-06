@@ -20,6 +20,7 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
+import { withAlpha } from "@/lib/color";
 import type { Alert } from "@/lib/api/types";
 
 export default function HomeScreen() {
@@ -168,7 +169,7 @@ function SummaryStat({
   const animated = useCountUp(value);
   return (
     <View style={styles.summaryStat}>
-      <View style={[styles.summaryIcon, { backgroundColor: withTint(tint, 0.14) }]}>
+      <View style={[styles.summaryIcon, { backgroundColor: withAlpha(tint, 0.14) }]}>
         <Ionicons name={icon} size={16} color={tint} />
       </View>
       <View>
@@ -181,11 +182,6 @@ function SummaryStat({
       </View>
     </View>
   );
-}
-
-function withTint(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace("#", ""), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 const styles = StyleSheet.create({
