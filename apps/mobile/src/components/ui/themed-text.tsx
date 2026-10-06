@@ -7,8 +7,8 @@ type Variant = "title" | "subtitle" | "body" | "muted" | "subtle" | "label" | "m
 // Space Grotesk carries headings and numbers (title/subtitle/mono - the latter is what price
 // displays use); Manrope carries everything read as prose, per the glassmorphic design pass.
 const VARIANT_STYLE: Record<Variant, TextStyle> = {
-  title: { fontSize: 24, fontFamily: fonts.headingBold, letterSpacing: -0.3 },
-  subtitle: { fontSize: 17, fontFamily: fonts.headingSemibold },
+  title: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.6 },
+  subtitle: { fontSize: 17, fontFamily: fonts.displaySemibold, letterSpacing: -0.2 },
   body: { fontSize: 15, fontFamily: fonts.body },
   muted: { fontSize: 14, fontFamily: fonts.body },
   subtle: { fontSize: 12, fontFamily: fonts.body },

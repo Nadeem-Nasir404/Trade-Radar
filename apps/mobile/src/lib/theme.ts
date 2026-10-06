@@ -13,6 +13,8 @@ export const spacing = (n: number) => n * 4;
 
 /** Space Grotesk for headings/prices (a little technical, numeric), Manrope for everything else. */
 export const fonts = {
+  display: "PlusJakartaSans_800ExtraBold",
+  displaySemibold: "PlusJakartaSans_700Bold",
   headingSemibold: "SpaceGrotesk_600SemiBold",
   headingBold: "SpaceGrotesk_700Bold",
   headingMedium: "SpaceGrotesk_500Medium",

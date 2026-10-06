@@ -10,7 +10,10 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
+import { Icon3D } from "@/components/ui/icon-3d";
 import { requestNotificationPermission } from "@/lib/safe-notifications";
+
+const BULLET_COLORS = ["#7C3AED", "#16A34A", "#F59E0B"];
 
 interface Step {
   icon: keyof typeof Ionicons.glyphMap;
@@ -130,14 +133,7 @@ export function Onboarding({ visible, onDone }: { visible: boolean; onDone: () =
           {STEPS.map((step, i) => (
             <View key={i} style={[styles.page, { width }]}>
               <View style={styles.hero}>
-                <LinearGradient
-                  colors={[colors.brand, colors.brandGradientEnd]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.heroIcon}
-                >
-                  <Ionicons name={step.icon} size={44} color={colors.brandForeground} />
-                </LinearGradient>
+                <Icon3D icon={step.icon} color={colors.brand} size={104} />
                 <View style={[styles.halo, { backgroundColor: colors.brandGlow }]} />
               </View>
 
@@ -151,11 +147,9 @@ export function Onboarding({ visible, onDone }: { visible: boolean; onDone: () =
                 </ThemedText>
 
                 <View style={styles.bullets}>
-                  {step.bullets.map((b) => (
+                  {step.bullets.map((b, bi) => (
                     <View key={b.text} style={styles.bullet}>
-                      <View style={[styles.bulletIcon, { backgroundColor: withAlpha(colors.brand, 0.14) }]}>
-                        <Ionicons name={b.icon} size={16} color={colors.brand} />
-                      </View>
+                      <Icon3D icon={b.icon} color={BULLET_COLORS[bi % BULLET_COLORS.length]} size={38} />
                       <ThemedText style={styles.bulletText}>{b.text}</ThemedText>
                     </View>
                   ))}
