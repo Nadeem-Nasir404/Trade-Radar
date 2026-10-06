@@ -4,7 +4,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import type { Candle } from "@/lib/api/types";
-import { bucketStart } from "@/lib/timeframe";
+import { bucketStart, TIMEFRAME_SECONDS } from "@/lib/timeframe";
 import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-store";
 import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
 
@@ -137,7 +137,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
       webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}); true;`);
     };
     pushLive();
-    const id = setInterval(pushLive, 1000);
+    const id = setInterval(pushLive, 250);
     return () => clearInterval(id);
   }, [ready, timeframe, livePrice]);
 
@@ -150,6 +150,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     if (!ready) return;
     webviewRef.current?.injectJavaScript(`window.setDrawMode(${drawMode}); true;`);
   }, [ready, drawMode]);
+
+  useEffect(() => {
+    if (!ready) return;
+    webviewRef.current?.injectJavaScript(`window.setTf(${TIMEFRAME_SECONDS[timeframe] ?? 3600}); true;`);
+  }, [ready, timeframe]);
 
   useEffect(() => {
     if (!ready) return;
@@ -196,12 +201,14 @@ function buildChartHtml(): string {
         transition: opacity 0.18s ease-out, transform 0.18s ease-out;
       }
       #tapMarker svg { display: block; }
+      #countdown { position: absolute; right: 2px; font: 600 11px -apple-system, Roboto, sans-serif; color: #9598a3; pointer-events: none; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
     </style>
   </head>
   <body>
     <div id="chart"></div>
     <svg id="overlay" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
     <div id="ohlc"></div>
+    <div id="countdown"></div>
     <div id="tapMarker">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
@@ -433,6 +440,8 @@ function buildChartHtml(): string {
       var upHex = '#22c55e', downHex = '#f43f5e';
 
       window.setCandles = function (candles, keepView) {
+        var lastC = candles[candles.length - 1];
+        if (lastC) { lastBarTime = lastC.time; lastBarClose = lastC.close; }
         var range = keepView && hasData ? chart.timeScale().getVisibleLogicalRange() : null;
         candleSeries.setData(candles.map(function (c) {
           return { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close };
@@ -445,7 +454,24 @@ function buildChartHtml(): string {
         hasData = true;
       };
 
+      var tfSeconds = 60, lastBarTime = null, lastBarClose = null;
+      window.setTf = function (sec) { tfSeconds = sec; };
+      function updateCountdown() {
+        var el = document.getElementById('countdown');
+        if (!candleSeries || lastBarTime === null || lastBarClose === null) { el.style.opacity = 0; return; }
+        var y = candleSeries.priceToCoordinate(lastBarClose);
+        if (y === null) { el.style.opacity = 0; return; }
+        var remaining = Math.max(0, lastBarTime + tfSeconds - Math.floor(Date.now() / 1000));
+        var h = Math.floor(remaining / 3600), m = Math.floor((remaining % 3600) / 60), sec = remaining % 60;
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        el.textContent = (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(sec);
+        el.style.top = (y + 14) + 'px';
+        el.style.opacity = 1;
+      }
+      setInterval(updateCountdown, 250);
+
       window.updateLastCandle = function (c) {
+        lastBarTime = c.time; lastBarClose = c.close;
         candleSeries.update({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close });
         if (c.volume != null) volumeSeries.update({ time: c.time, value: c.volume, color: volColor(c) });
       };
