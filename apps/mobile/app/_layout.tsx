@@ -90,7 +90,17 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
     let unsubscribe: (() => void) | undefined;
     subscribeNotificationTaps((data) => {
       const symbol = typeof data.symbol === "string" ? data.symbol : undefined;
-      if (symbol) router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol } });
+      if (!symbol) return;
+      router.push({
+        pathname: "/alert-triggered",
+        params: {
+          symbol,
+          instrumentId: typeof data.instrumentId === "string" ? data.instrumentId : "",
+          price: typeof data.price === "string" ? data.price : "",
+          condition: typeof data.condition === "string" ? data.condition : "",
+          target: typeof data.target === "string" ? data.target : "",
+        },
+      });
     }).then((unsub) => {
       unsubscribe = unsub;
     });
@@ -106,6 +116,7 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="create-alert" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="alert-triggered" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="fullscreen-chart" options={{ presentation: "fullScreenModal", headerShown: false }} />
     </Stack>
   );
