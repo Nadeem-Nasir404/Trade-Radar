@@ -395,9 +395,9 @@ function buildChartHtml(): string {
       var drawingList = [];
       function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
       function renderDrawing(d) {
-        if (d.type === horizontal) {
-          drawPriceLines.push(candleSeries.createPriceLine({ price: d.price, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title:  }));
-        } else if (d.type === rect) {
+        if (d.type === 'horizontal') {
+          drawPriceLines.push(candleSeries.createPriceLine({ price: d.price, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }));
+        } else if (d.type === 'rect') {
           rects.push({ t1: Math.min(d.a.time, d.b.time), t2: Math.max(d.a.time, d.b.time), p1: d.a.price, p2: d.b.price });
           ensureOverlayLoop();
         } else {
@@ -411,11 +411,11 @@ function buildChartHtml(): string {
       function addDrawing(d, report) {
         drawingList.push(d);
         renderDrawing(d);
-        if (report) post({ type: drawingAdded, drawing: d });
+        if (report) post({ type: 'drawingAdded', drawing: d });
       }
       window.setDrawings = function (list) {
         rects = [];
-        document.getElementById(overlay).innerHTML = ;
+        document.getElementById('overlay').innerHTML = '';
         drawSeries.forEach(function (s) { chart.removeSeries(s); });
         drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
         drawSeries = [];
