@@ -51,7 +51,7 @@ export default function RegisterScreen() {
             Start tracking free
           </ThemedText>
           <ThemedText variant="muted" style={[styles.subtitle, styles.centerText]}>
-            15 active alerts, no credit card.
+            50 active alerts, no credit card.
           </ThemedText>
 
           <Surface style={styles.card}>

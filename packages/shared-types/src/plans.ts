@@ -19,12 +19,12 @@ export const PLAN_LIMITS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.FREE]: {
     tier: PlanTier.FREE,
     label: "Free",
-    maxActiveAlerts: 15,
+    maxActiveAlerts: 50,
     maxWatchlists: 2,
     maxAlertGroups: 1,
     priceMonthlyUsd: 0,
     features: [
-      "Up to 15 active alerts",
+      "Up to 50 active alerts",
       "Basic price alerts (above/below/crosses)",
       "Browser notifications",
       "2 watchlists",

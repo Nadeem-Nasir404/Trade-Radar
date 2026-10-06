@@ -66,7 +66,7 @@ export default function LandingPage() {
                 <Link href="/markets">Explore Live Markets</Link>
               </Button>
             </div>
-            <p className="mt-4 text-xs text-foreground-subtle">No credit card required · Free plan includes 15 active alerts</p>
+            <p className="mt-4 text-xs text-foreground-subtle">No credit card required · Free plan includes 50 active alerts</p>
           </div>
           <HeroVisualization />
         </div>

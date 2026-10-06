@@ -35,7 +35,7 @@ export default function RegisterPage() {
     <Card>
       <CardHeader>
         <CardTitle className="text-xl">Start tracking free</CardTitle>
-        <CardDescription>15 active alerts, browser notifications, no credit card.</CardDescription>
+        <CardDescription>50 active alerts, browser notifications, no credit card.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <Button variant="glass" asChild>
