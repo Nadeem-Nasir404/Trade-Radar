@@ -47,17 +47,15 @@ export class NotificationDispatchService {
       return;
     }
 
-    for (const channelType of channelsToNotify) {
-      const delivery = await this.prisma.notificationDelivery.create({
-        data: { alertEventId: payload.alertEventId, userId: payload.userId, channelType },
-      });
-      const jobPayload: NotificationJobPayload = { alertEventId: payload.alertEventId, userId: payload.userId, deliveryId: delivery.id };
-      await this.queueFor(channelType).add(
-        "notify",
-        jobPayload,
-        { attempts: 5, backoff: { type: "exponential", delay: 2000 } },
-      );
-    }
+    await Promise.all(
+      channelsToNotify.map(async (channelType) => {
+        const delivery = await this.prisma.notificationDelivery.create({
+          data: { alertEventId: payload.alertEventId, userId: payload.userId, channelType },
+        });
+        const jobPayload: NotificationJobPayload = { alertEventId: payload.alertEventId, userId: payload.userId, deliveryId: delivery.id };
+        await this.queueFor(channelType).add("notify", jobPayload, { attempts: 5, backoff: { type: "exponential", delay: 2000 } });
+      }),
+    );
   }
 
   private queueFor(channelType: NotificationChannelType): Queue<NotificationJobPayload> {
