@@ -32,7 +32,7 @@ export const envSchema = z.object({
   COINGECKO_API_BASE_URL: z.string().default("https://api.coingecko.com/api/v3"),
   COINGECKO_API_KEY: z.string().optional(),
   TWELVE_DATA_API_KEY: z.string().optional(),
-  TWELVE_DATA_POLL_INTERVAL_MS: z.coerce.number().default(60000),
+  TWELVE_DATA_POLL_INTERVAL_MS: z.coerce.number().default(120000),
 
 
   SMTP_HOST: z.string().optional(),

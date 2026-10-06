@@ -78,7 +78,7 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     this.apiKey = this.config.get("TWELVE_DATA_API_KEY", { infer: true }) || undefined;
-    this.pollIntervalMs = this.config.get("TWELVE_DATA_POLL_INTERVAL_MS", { infer: true }) || 60_000;
+    this.pollIntervalMs = this.config.get("TWELVE_DATA_POLL_INTERVAL_MS", { infer: true }) || 120_000;
   }
 
   async connect(): Promise<void> {

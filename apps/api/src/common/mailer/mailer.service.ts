@@ -32,6 +32,8 @@ export class MailerService implements OnModuleInit {
         host,
         port: this.config.get("SMTP_PORT", { infer: true }) ?? 587,
         secure: false,
+        pool: true,
+        maxConnections: 3,
         auth: {
           user: this.config.get("SMTP_USER", { infer: true }),
           pass: this.config.get("SMTP_PASS", { infer: true }),
