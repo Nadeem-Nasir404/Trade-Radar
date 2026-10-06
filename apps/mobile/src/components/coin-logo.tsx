@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, View, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { ThemedText } from "./ui/themed-text";
 import { useTheme } from "@/lib/use-theme";
 
@@ -23,7 +24,7 @@ export function CoinLogo({ uri, symbol, size = 28 }: CoinLogoProps) {
     );
   }
 
-  return <Image source={{ uri }} style={dims} onError={() => setFailed(true)} />;
+  return <Image source={{ uri }} style={dims} cachePolicy="memory-disk" transition={120} onError={() => setFailed(true)} />;
 }
 
 const styles = StyleSheet.create({

@@ -1,7 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { View, Pressable, StyleSheet, Platform, type PressableProps, type GestureResponderEvent } from "react-native";
-import { BlurView } from "expo-blur";
+import { View, Pressable, StyleSheet, type PressableProps, type GestureResponderEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
@@ -47,15 +46,7 @@ export default function TabsLayout() {
             shadowRadius: 30,
           },
           tabBarBackground: () => (
-            <View style={[StyleSheet.absoluteFill, styles.barBackground]}>
-              <BlurView
-                intensity={50}
-                tint={colors.blurTint}
-                style={StyleSheet.absoluteFill}
-                experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
-              />
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
-            </View>
+            <View style={[StyleSheet.absoluteFill, styles.barBackground, { backgroundColor: colors.backgroundElevated, opacity: 0.94 }]} />
           ),
         }}
       >
