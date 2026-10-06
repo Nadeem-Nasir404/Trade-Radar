@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, FlatList, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -22,7 +22,15 @@ export default function CreateAlertScreen() {
     params.instrumentId ? { id: params.instrumentId, symbol: params.symbol ?? "", price: params.price ? Number(params.price) : null } : null,
   );
   const [search, setSearch] = useState("");
-  const { data: markets, isLoading } = useMarkets({ search: search || undefined, limit: search ? 50 : 250 });
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+  const { data: markets, isLoading } = useMarkets(
+    { search: debounced || undefined, limit: debounced ? 50 : 100 },
+    { enabled: !selected },
+  );
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
@@ -48,7 +56,7 @@ export default function CreateAlertScreen() {
             renderItem={({ item }: { item: Instrument }) => (
               <Pressable
                 style={styles.marketRow}
-                onPress={() => setSelected({ id: item.id, symbol: item.displaySymbol, price: item.price })}
+                onPress={() => router.replace({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: item.symbol } })}
               >
                 <CoinLogo uri={item.iconUrl} symbol={item.displaySymbol} size={36} />
                 <View style={styles.marketName}>

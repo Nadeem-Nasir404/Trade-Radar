@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, ScrollView, StyleSheet, Pressable, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
@@ -96,7 +97,14 @@ export function CreateAlertForm({
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <Surface style={styles.hero}>
-        <ThemedText variant="subtle">{symbol} · current</ThemedText>
+        <LinearGradient
+          colors={[colors.brandGlow, "transparent"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <ThemedText variant="subtle">{symbol} · current price</ThemedText>
         <ThemedText variant="mono" style={styles.heroPrice}>
           {currentPrice != null ? formatCompactPrice(currentPrice) : "--"}
         </ThemedText>
@@ -217,7 +225,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <ThemedText variant="label" style={styles.sectionTitle}>
         {title.toUpperCase()}
       </ThemedText>
-      {children}
+      <Surface style={styles.sectionCard}>{children}</Surface>
     </View>
   );
 }
@@ -233,9 +241,10 @@ function Preset({ label, onPress }: { label: string; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   container: { padding: 20, gap: 22, paddingBottom: 40 },
-  hero: { padding: 18, gap: 4 },
+  hero: { padding: 20, gap: 6, overflow: "hidden" },
   heroPrice: { fontSize: 30, fontWeight: "700" },
   section: { gap: 10 },
+  sectionCard: { padding: 14, gap: 12 },
   sectionTitle: { fontSize: 11, letterSpacing: 0.8 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   option: { flexGrow: 1, flexBasis: "47%", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, height: 44, borderRadius: radius.md, borderWidth: 1 },

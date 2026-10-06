@@ -9,7 +9,7 @@ export interface MarketFilters {
   limit?: number;
 }
 
-export function useMarkets(filters: MarketFilters = {}) {
+export function useMarkets(filters: MarketFilters = {}, options: { enabled?: boolean } = {}) {
   const params = new URLSearchParams();
   if (filters.assetType) params.set("assetType", filters.assetType);
   if (filters.search) params.set("search", filters.search);
@@ -19,6 +19,7 @@ export function useMarkets(filters: MarketFilters = {}) {
     queryKey: queryKeys.markets(filters),
     queryFn: () => api.get<Instrument[]>(`/markets?${params.toString()}`),
     staleTime: 30_000,
+    enabled: options.enabled ?? true,
   });
 }
 
