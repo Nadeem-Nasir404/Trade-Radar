@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { View, Pressable, StyleSheet, type PressableProps, type GestureResponderEvent } from "react-native";
@@ -10,6 +12,8 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { Onboarding } from "@/components/onboarding/onboarding";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const BAR_HEIGHT = 64;
@@ -17,6 +21,22 @@ const FAB_SIZE = 58;
 
 export default function TabsLayout() {
   useAlertTriggeredListener();
+  const user = useAuthStore((s) => s.user);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    AsyncStorage.getItem(`lp-onboarding-done:${user.id}`).then((done) => {
+      if (!cancelled && !done) setShowOnboarding(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+  const finishOnboarding = () => {
+    setShowOnboarding(false);
+    if (user) AsyncStorage.setItem(`lp-onboarding-done:${user.id}`, "1").catch(() => undefined);
+  };
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -67,6 +87,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="watchlists" options={{ tabBarIcon: ({ focused }) => <TabIcon name="star" focused={focused} /> }} />
         <Tabs.Screen name="profile" options={{ tabBarIcon: ({ focused }) => <TabIcon name="person" focused={focused} /> }} />
       </Tabs>
+
+      <Onboarding visible={showOnboarding} onDone={finishOnboarding} />
 
       <View pointerEvents="box-none" style={[styles.fabOverlay, { bottom: barBottom }]}>
         <Pressable
