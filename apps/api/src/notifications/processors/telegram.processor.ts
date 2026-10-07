@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../../queues/resilient-worker-host";
 import { ConfigService } from "@nestjs/config";
 import type { Job } from "bullmq";
 import { NotificationChannelType } from "@prisma/client";
@@ -10,7 +11,7 @@ import { DeliveryStatusService } from "../delivery-status.service";
 import type { EnvConfig } from "../../common/config/env.validation";
 
 @Processor(QUEUE_NAMES.NOTIFY_TELEGRAM, { concurrency: 10 })
-export class TelegramProcessor extends WorkerHost {
+export class TelegramProcessor extends ResilientWorkerHost {
   private readonly logger = new Logger(TelegramProcessor.name);
 
   constructor(

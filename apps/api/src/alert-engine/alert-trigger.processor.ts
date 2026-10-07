@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../queues/resilient-worker-host";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import type { Job } from "bullmq";
 import { AlertStatus, Prisma } from "@prisma/client";
@@ -16,7 +17,7 @@ import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "./alert-engin
 // Jobs are independent (idempotent per transition), so a burst of triggers on one level -
 // hundreds of users' alerts at the same round number - is persisted in parallel, not in a line.
 @Processor(QUEUE_NAMES.ALERT_TRIGGER, { concurrency: 25 })
-export class AlertTriggerProcessor extends WorkerHost {
+export class AlertTriggerProcessor extends ResilientWorkerHost {
   private readonly logger = new Logger(AlertTriggerProcessor.name);
 
   constructor(

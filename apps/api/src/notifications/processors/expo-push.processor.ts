@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../../queues/resilient-worker-host";
 import type { Job } from "bullmq";
 import { NotificationChannelType } from "@prisma/client";
 import { QUEUE_NAMES, type NotificationJobPayload } from "@levelpulse/shared-types";
@@ -22,7 +23,7 @@ interface ExpoPushTicket {
  * to EAS; without them Expo returns a DeviceNotRegistered/credentials error per-ticket.
  */
 @Processor(QUEUE_NAMES.NOTIFY_EXPO_PUSH, { concurrency: 25 })
-export class ExpoPushProcessor extends WorkerHost {
+export class ExpoPushProcessor extends ResilientWorkerHost {
   private readonly logger = new Logger(ExpoPushProcessor.name);
 
   constructor(

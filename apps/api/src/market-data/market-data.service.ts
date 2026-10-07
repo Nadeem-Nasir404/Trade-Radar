@@ -68,6 +68,7 @@ function lastGoodCandleKey(instrumentId: string, timeframe: Timeframe) {
 @Injectable()
 export class MarketDataService implements OnModuleInit {
   private readonly logger = new Logger(MarketDataService.name);
+  private lastTickErrorLog = 0;
   private readonly demoMode: boolean;
 
   /** providerSymbol (lowercase) -> Instrument row, one map per adapter */
@@ -174,8 +175,14 @@ export class MarketDataService implements OnModuleInit {
         where: { instrumentId, status: AlertStatus.ACTIVE },
         select: { id: true },
       });
-      for (const alert of alertsForInstrument) {
-        await this.registry.addAlertRef(instrumentId, alert.id);
+      // Ref-counting lives in Redis; if Redis is refusing connections the feed still subscribes,
+      // so prices and alerts keep flowing instead of the whole API failing to boot.
+      try {
+        for (const alert of alertsForInstrument) {
+          await this.registry.addAlertRef(instrumentId, alert.id);
+        }
+      } catch (err) {
+        this.logger.warn(`Startup: could not record alert refs for ${instrumentId} (${(err as Error).message})`);
       }
       await this.ensureSubscribedById(instrumentId);
     }
@@ -233,7 +240,14 @@ export class MarketDataService implements OnModuleInit {
     const providerId = this.providerIds[adapter];
     if (!providerId) return;
 
-    void this.handleResolvedTick(instrument, tick, providerId, isDemo, adapter);
+    // Fire-and-forget, so it must never reject: a Redis outage would otherwise surface as an
+    // unhandled rejection on every tick and kill the process.
+    this.handleResolvedTick(instrument, tick, providerId, isDemo, adapter).catch((err: Error) => {
+      const now = Date.now();
+      if (now - this.lastTickErrorLog < 10_000) return;
+      this.lastTickErrorLog = now;
+      this.logger.warn(`Tick for ${instrument.symbol} dropped: ${err.message}`);
+    });
   }
 
   private async handleResolvedTick(instrument: Instrument, tick: NormalizedTick, providerId: string, isDemo: boolean, adapter: AdapterName) {
