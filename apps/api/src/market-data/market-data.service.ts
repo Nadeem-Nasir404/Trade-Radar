@@ -3,7 +3,9 @@ import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { EventEmitter2, OnEvent } from "@nestjs/event-emitter";
 import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
-import type { NormalizedTick } from "@levelpulse/shared-types";
+import type { Candle, NormalizedTick, Timeframe } from "@levelpulse/shared-types";
+import type Redis from "ioredis";
+import { InjectRedis } from "../redis/inject-redis.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import type { EnvConfig } from "../common/config/env.validation";
 import { PriceCacheService } from "./price-cache/price-cache.service";
@@ -20,6 +22,29 @@ import {
 } from "./market-data.events";
 
 type AdapterName = "binance" | "twelvedata" | "mock";
+
+/**
+ * How long a fetched history stays fresh. Kept well under one bar, so a chart that refetches
+ * when a bar closes gets the provider's final OHLC for it; the live bar is drawn from ticks.
+ */
+const CANDLE_CACHE_SECONDS: Record<Timeframe, number> = {
+  "1m": 5,
+  "3m": 10,
+  "5m": 10,
+  "15m": 20,
+  "1h": 30,
+  "4h": 60,
+  "1d": 60,
+  "1w": 300,
+};
+const LAST_GOOD_CANDLE_SECONDS = 24 * 3600;
+
+function candleCacheKey(instrumentId: string, timeframe: Timeframe) {
+  return `candles:${instrumentId}:${timeframe}`;
+}
+function lastGoodCandleKey(instrumentId: string, timeframe: Timeframe) {
+  return `candles:lastgood:${instrumentId}:${timeframe}`;
+}
 
 @Injectable()
 export class MarketDataService implements OnModuleInit {
@@ -38,6 +63,7 @@ export class MarketDataService implements OnModuleInit {
   private providerIds: Record<AdapterName, string | null> = { binance: null, twelvedata: null, mock: null };
   private readonly lastKnownFeedStatus = new Map<string, "LIVE" | "STALE">();
   private readonly open24hById = new Map<string, number>();
+  private readonly candleRequests = new Map<string, Promise<Candle[]>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,6 +74,7 @@ export class MarketDataService implements OnModuleInit {
     private readonly mockProvider: MockMarketDataProvider,
     private readonly binanceProvider: BinanceProvider,
     private readonly twelveDataProvider: TwelveDataProvider,
+    @InjectRedis() private readonly redis: Redis,
   ) {
     this.demoMode = this.config.get("DEMO_MODE", { infer: true });
   }
@@ -108,7 +135,9 @@ export class MarketDataService implements OnModuleInit {
       if (instrument.providerId === this.providerIds.binance) adapter = "binance";
       else if (instrument.providerId === this.providerIds.twelvedata) adapter = "twelvedata";
     }
-    const isDemo = adapter === "mock";
+    // Without a Twelve Data key, gold/forex come from a local random walk - flag it, so
+    // simulated prices are never shown as real market data.
+    const isDemo = adapter === "mock" || (adapter === "twelvedata" && this.twelveDataProvider.isSimulated);
     this.symbolMaps[adapter].set(instrument.providerSymbol.toLowerCase(), instrument);
     this.instrumentAdapter.set(instrument.id, adapter);
     this.instrumentIsDemo.set(instrument.id, isDemo);
@@ -306,17 +335,46 @@ export class MarketDataService implements OnModuleInit {
     return [this.mockProvider.getHealth(), this.binanceProvider.getHealth(), this.twelveDataProvider.getHealth()];
   }
 
-  async getHistoricalCandles(instrumentId: string, timeframe: Parameters<MockMarketDataProvider["getHistoricalData"]>[1]) {
+  async getHistoricalCandles(instrumentId: string, timeframe: Timeframe): Promise<Candle[]> {
+    const fresh = await this.redis.get(candleCacheKey(instrumentId, timeframe));
+    if (fresh) return JSON.parse(fresh) as Candle[];
+
+    // Concurrent chart opens for the same series share one upstream request.
+    const key = `${instrumentId}:${timeframe}`;
+    const pending = this.candleRequests.get(key);
+    if (pending) return pending;
+    const request = this.loadHistoricalCandles(instrumentId, timeframe).finally(() => this.candleRequests.delete(key));
+    this.candleRequests.set(key, request);
+    return request;
+  }
+
+  /**
+   * Charts only ever show the provider's real candles. A failed fetch (rate limit, outage) serves
+   * the last good copy, or nothing - never synthetic candles passed off as market data. Only
+   * instruments already flagged isDemo use the simulator.
+   */
+  private async loadHistoricalCandles(instrumentId: string, timeframe: Timeframe): Promise<Candle[]> {
     const instrument = await this.getOrLoadInstrument(instrumentId);
     if (!instrument) return [];
     const adapter: AdapterName = this.instrumentAdapter.get(instrumentId) ?? "mock";
+
     const candles = await this.providerFor(adapter).getHistoricalData(instrument.providerSymbol, timeframe);
-    // Real providers' REST endpoints need no active subscription, but if one ever returns
-    // nothing (rate limit, symbol not listed, no API key), fall back to synthetic demo candles
-    // rather than showing an empty chart.
-    if (candles.length === 0 && adapter !== "mock") {
-      return this.mockProvider.getHistoricalData(instrument.providerSymbol, timeframe);
+    if (candles.length > 0) {
+      const body = JSON.stringify(candles);
+      await this.redis
+        .multi()
+        .set(candleCacheKey(instrumentId, timeframe), body, "EX", CANDLE_CACHE_SECONDS[timeframe])
+        .set(lastGoodCandleKey(instrumentId, timeframe), body, "EX", LAST_GOOD_CANDLE_SECONDS)
+        .exec();
+      return candles;
     }
-    return candles;
+
+    const lastGood = await this.redis.get(lastGoodCandleKey(instrumentId, timeframe));
+    if (lastGood) {
+      this.logger.warn(`Serving last good ${timeframe} candles for ${instrument.displaySymbol}: provider returned none`);
+      return JSON.parse(lastGood) as Candle[];
+    }
+    return [];
   }
+
 }
