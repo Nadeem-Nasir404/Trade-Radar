@@ -227,4 +227,42 @@ describe("AlertEngineService.evaluateTick (crossing logic)", () => {
 
     expect(queueAdd).not.toHaveBeenCalled();
   });
+
+  it("fires a recurring alert once when two crossing ticks are evaluated at the same moment inside its cooldown", async () => {
+    const alert = makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.ABOVE, targetValue: 100 as any, isRecurring: true, cooldownSeconds: 3600 });
+    await registry.register(alert, 100);
+
+    await Promise.all([
+      engine.evaluateTick(makeTick({ prevPrice: 99, price: 101, seq: 1 })),
+      engine.evaluateTick(makeTick({ prevPrice: 99.5, price: 102, seq: 2 })),
+    ]);
+
+    expect(queueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires a one-shot alert once when two crossing ticks are evaluated at the same moment", async () => {
+    const alert = makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.ABOVE, targetValue: 100 as any });
+    await registry.register(alert, 100);
+
+    await Promise.all([
+      engine.evaluateTick(makeTick({ prevPrice: 99, price: 101, seq: 1 })),
+      engine.evaluateTick(makeTick({ prevPrice: 99.5, price: 102, seq: 2 })),
+    ]);
+
+    expect(queueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a one-shot alert armed when its trigger job can't be enqueued, so the next crossing fires it", async () => {
+    const alert = makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.ABOVE, targetValue: 100 as any });
+    await registry.register(alert, 100);
+
+    queueAdd.mockRejectedValueOnce(new Error("queue unavailable"));
+    await engine.evaluateTick(makeTick({ prevPrice: 99, price: 101, seq: 1 }));
+    expect((await registry.getAlertHash("a1"))?.status).toBe("ACTIVE");
+
+    await engine.evaluateTick(makeTick({ prevPrice: 101, price: 99, seq: 2 }));
+    await engine.evaluateTick(makeTick({ prevPrice: 99, price: 101, seq: 3 }));
+    expect(queueAdd).toHaveBeenCalledTimes(2);
+    expect(queueAdd.mock.calls[1][1].transitionId).toBe("a1-3");
+  });
 });

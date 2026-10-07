@@ -102,27 +102,16 @@ export class AlertEngineService {
     const alert = preloaded ?? (await this.registry.getAlertHash(alertId));
     if (!alert) return; // race: deleted between ZRANGEBYSCORE and here
 
-    if (alert.status !== "ACTIVE") return; // race guard vs pause/delete/already-triggered
-    if (alert.expiresAt && Date.now() > alert.expiresAt) return;
-    if (alert.cooldownSeconds > 0 && alert.lastTriggeredAt) {
-      const secondsSinceLastTrigger = (Date.now() - alert.lastTriggeredAt) / 1000;
-      if (secondsSinceLastTrigger < alert.cooldownSeconds) return;
-    }
-
     // seq is a monotonic per-instrument accepted-tick counter (from PriceCacheService), so
     // {alertId, seq} is deterministic and unique per real crossing event - safe as an
     // idempotency key across reconnects and concurrent evaluator races. Dash-separated (not
     // colon-separated): BullMQ rejects colons in custom job IDs, and this same string is used
     // as the jobId below.
     const transitionId = `${alertId}-${seq}`;
-    const claimed = await this.registry.claimIdempotency(alertId, transitionId);
-    if (!claimed) return;
-
-    await this.registry.markTriggered(alertId, Date.now());
-    if (!alert.isRecurring) {
-      await this.registry.markStatus(alertId, "TRIGGERED");
-      await this.registry.unregister(alertId, alert.instrumentId, alert.conditionType);
-    }
+    // Status, expiry, cooldown and idempotency are checked and claimed in one atomic step, so
+    // concurrent ticks can't both fire the same alert (see AlertRegistryService.claimTrigger).
+    const claim = await this.registry.claimTrigger(alertId, transitionId, Date.now());
+    if (!claim.claimed) return;
 
     const payload: AlertTriggerJobPayload = {
       alertId,
@@ -138,7 +127,19 @@ export class AlertEngineService {
       transitionId,
     };
 
-    await this.triggerQueue.add("trigger", payload, { jobId: transitionId });
+    try {
+      await this.triggerQueue.add("trigger", payload, { jobId: transitionId });
+    } catch (err) {
+      // Undo the claim and keep the alert indexed, so a queue outage delays the alert to its
+      // next crossing instead of silently dropping it.
+      await this.registry
+        .releaseTrigger(alertId, transitionId, claim.previousLastTriggeredAt)
+        .catch(() => undefined); // Redis itself down: boot-time reconcile restores the index
+      this.logger.error(`Failed to enqueue trigger for alert ${alertId}: ${(err as Error).message}`);
+      return;
+    }
+    if (!alert.isRecurring) await this.registry.unregister(alertId, alert.instrumentId, alert.conditionType);
+
     this.logger.log(`Alert ${alertId} triggered: ${alert.conditionType} ${alert.targetValue} (observed ${curr})`);
   }
 }
