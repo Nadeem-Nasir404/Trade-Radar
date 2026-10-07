@@ -13,8 +13,11 @@ export const CARD_LAYOUT = {
   tagline: { x: 80, y: 612, fontSize: 28 },
   symbol: { x: 80, y: 660, fontSize: 56 },
   sidePill: { gap: 20, height: 64, fontSize: 32, radius: 14 },
-  pnlPercent: { x: 72, y: 736, fontSize: 158, tracking: -2 },
-  pnlUsd: { x: 80, y: 924, fontSize: 52 },
+  // With a position size the percent and the dollar amount are both headline numbers;
+  // without one the percent fills the space alone.
+  pnlPercent: { x: 72, y: 724, fontSize: 140, tracking: -2 },
+  pnlPercentSolo: { y: 770, fontSize: 160 },
+  pnlUsd: { x: 76, y: 886, fontSize: 104, tracking: -2 },
   // Same height as the rule in Noir's artwork, so on that card the two coincide.
   divider: { x: 80, y: 1020, thickness: 2 },
   // Third column starts at 720 so values clear the antenna in Moonlit's artwork.

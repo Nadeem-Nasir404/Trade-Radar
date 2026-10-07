@@ -41,8 +41,11 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   // Spot-style P&L: the position's USD notional moved by the same percentage.
   const usd = trade.sizeUsd != null ? (trade.sizeUsd * pct) / 100 : null;
   const pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
-  // Big moves (+1250.00%) would be truncated at full size, so shrink the hero number as it grows.
-  const pctSize = L.pnlPercent.fontSize * Math.min(1, 7.5 / pctText.length);
+  const usdText = usd != null ? `${usd >= 0 ? "+" : "-"}$${Math.abs(usd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
+  // Big numbers (+1250.00%, +$1,234,567.89) would be truncated at full size, so shrink them as they grow.
+  const pctY = usdText != null ? L.pnlPercent.y : L.pnlPercentSolo.y;
+  const pctSize = (usdText != null ? L.pnlPercent.fontSize : L.pnlPercentSolo.fontSize) * Math.min(1, 7.5 / pctText.length);
+  const usdSize = L.pnlUsd.fontSize * Math.min(1, 10 / (usdText?.length ?? 1));
   const tagline = pct >= 0 ? t.tagline.profit : t.tagline.loss;
 
   const at = (x: number, y: number) => ({ position: "absolute" as const, left: x * k, top: y * k });
@@ -94,7 +97,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
             numberOfLines={1}
             adjustsFontSizeToFit
             style={[
-              at(L.pnlPercent.x, L.pnlPercent.y),
+              at(L.pnlPercent.x, pctY),
               {
                 width: (W - 2 * L.pnlPercent.x) * k,
                 color: tone,
@@ -110,9 +113,25 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
             {pctText}
           </CardText>
 
-          {usd != null && (
-            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: number, fontVariant: NUMBER_VARIANT }, shadow]}>
-              {usd >= 0 ? "+" : "-"}${Math.abs(usd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {usdText != null && (
+            <CardText
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={[
+                at(L.pnlUsd.x, L.pnlUsd.y),
+                {
+                  width: (W - 2 * L.pnlUsd.x) * k,
+                  color: tone,
+                  fontSize: usdSize * k,
+                  fontFamily: number,
+                  letterSpacing: L.pnlUsd.tracking * k,
+                  fontVariant: NUMBER_VARIANT,
+                  lineHeight: usdSize * 1.12 * k,
+                },
+                shadow,
+              ]}
+            >
+              {usdText}
             </CardText>
           )}
 
