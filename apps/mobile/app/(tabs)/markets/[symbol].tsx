@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { View, ScrollView, Pressable, StyleSheet, Alert as RNAlert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,6 +18,9 @@ import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
 import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists";
 import { useLivePrice } from "@/lib/ws/use-live-price";
+import { useLivePriceStore } from "@/lib/ws/live-price-store";
+import { queryKeys } from "@/lib/api/query-keys";
+import type { Alert, Candle, Instrument } from "@/lib/api/types";
 import { haptics } from "@/lib/haptics";
 import { withAlpha } from "@/lib/color";
 import {
@@ -56,13 +60,20 @@ export default function MarketDetailScreen() {
     setDrawMode(false);
   }, [symbol]);
 
-  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
-  const price = live.price ?? instrument?.price ?? null;
-  const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
-  const positive = (changePct ?? 0) >= 0;
+  // Live prices are rendered by small components (LivePriceHeader, LiveLegend, AlertDistance) and
+  // drawn straight into the chart, so a price update never re-renders this whole screen.
+  const queryClient = useQueryClient();
+  const legendRef = useRef<LiveLegendHandle>(null);
+  const refetchHistory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.marketHistory(symbol, timeframe) });
+  }, [queryClient, symbol, timeframe]);
+  const onLiveBar = useCallback((bar: Candle) => legendRef.current?.update(bar), []);
 
-  const instrumentAlerts = (alerts ?? []).filter((a) => a.instrumentId === instrument?.id);
-  const chartLevels = instrumentAlerts.map((a) => ({ price: a.targetValue, up: isUpwardCondition(a.conditionType, a.targetValue) }));
+  const instrumentAlerts = useMemo(() => (alerts ?? []).filter((a) => a.instrumentId === instrument?.id), [alerts, instrument?.id]);
+  const chartLevels = useMemo(
+    () => instrumentAlerts.map((a) => ({ price: a.targetValue, up: isUpwardCondition(a.conditionType, a.targetValue) })),
+    [instrumentAlerts],
+  );
 
   const isFavorite = useIsFavorite(instrument?.id);
   const toggleFavorite = useToggleFavorite();
@@ -100,11 +111,10 @@ export default function MarketDetailScreen() {
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         <View style={styles.badges}>
           {instrument.isDemo && <Badge label="Demo data" variant="warning" />}
-          {live.feedStatus === "STALE" && <Badge label="Feed delayed" variant="negative" />}
+          <FeedDelayedBadge instrumentId={instrument.id} />
         </View>
 
-        <PriceText value={price} variant="title" style={styles.price} />
-        <ThemedText style={{ color: positive ? colors.positive : colors.negative }}>{formatPct(changePct)}</ThemedText>
+        <LivePriceHeader instrument={instrument} />
 
         <Surface
           style={styles.chartCard}
@@ -136,19 +146,14 @@ export default function MarketDetailScreen() {
             </View>
           </ScrollView>
 
-          {lastCandle && (
-            <View style={styles.legend}>
-              <LegendItem label="O" value={lastCandle.open} />
-              <LegendItem label="H" value={lastCandle.high} />
-              <LegendItem label="L" value={lastCandle.low} />
-              <LegendItem label="C" value={lastCandle.close} tone={lastCandle.close >= lastCandle.open ? colors.positive : colors.negative} />
-            </View>
-          )}
+          <LiveLegend key={timeframe} ref={legendRef} initial={lastCandle} />
 
           <TradingChart
             ref={chartRef}
             candles={candles ?? []}
-            livePrice={price}
+            instrumentId={instrument.id}
+            onBarClose={refetchHistory}
+            onLiveBar={onLiveBar}
             alertLevels={chartLevels}
             drawMode={drawMode}
             onDrawStage={setDrawStage}
@@ -217,7 +222,11 @@ export default function MarketDetailScreen() {
           onPress={() =>
             router.push({
               pathname: "/create-alert",
-              params: { instrumentId: instrument.id, symbol: instrument.displaySymbol, price: String(price ?? 0) },
+              params: {
+                instrumentId: instrument.id,
+                symbol: instrument.displaySymbol,
+                price: String(useLivePriceStore.getState().byId[instrument.id]?.price ?? instrument.price ?? 0),
+              },
             })
           }
           style={styles.createButton}
@@ -232,7 +241,6 @@ export default function MarketDetailScreen() {
           <View style={{ gap: 8 }}>
             {instrumentAlerts.map((alert) => {
               const up = isUpwardCondition(alert.conditionType, alert.targetValue);
-              const distancePct = computeDistancePct(price, alert) ?? alert.distancePct;
               return (
                 <Surface key={alert.id} style={styles.alertRow}>
                   <View style={styles.alertLeft}>
@@ -241,11 +249,7 @@ export default function MarketDetailScreen() {
                   </View>
                   <View style={styles.alertRight}>
                     <ThemedText variant="subtle">{formatConditionLabel(alert.conditionType)}</ThemedText>
-                    {distancePct !== null && (
-                      <ThemedText variant="subtle" style={{ color: distancePct >= 0 ? colors.positive : colors.negative }}>
-                        {formatPct(distancePct)}
-                      </ThemedText>
-                    )}
+                    <AlertDistance alert={alert} instrument={instrument} />
                   </View>
                   <Pressable
                     hitSlop={10}
@@ -272,6 +276,63 @@ export default function MarketDetailScreen() {
     </SafeAreaView>
   );
 }
+
+function LivePriceHeader({ instrument }: { instrument: Instrument }) {
+  const { colors } = useTheme();
+  const live = useLivePrice(instrument.id, { price: instrument.price ?? null, changePct24h: instrument.changePct24h ?? null });
+  const changePct = live.changePct24h ?? instrument.changePct24h ?? null;
+  return (
+    <>
+      <PriceText value={live.price ?? instrument.price ?? null} variant="title" style={styles.price} />
+      <ThemedText style={{ color: (changePct ?? 0) >= 0 ? colors.positive : colors.negative }}>{formatPct(changePct)}</ThemedText>
+    </>
+  );
+}
+
+function FeedDelayedBadge({ instrumentId }: { instrumentId: string }) {
+  const stale = useLivePriceStore((s) => s.byId[instrumentId]?.feedStatus === "STALE");
+  return stale ? <Badge label="Feed delayed" variant="negative" /> : null;
+}
+
+function AlertDistance({ alert, instrument }: { alert: Alert; instrument: Instrument }) {
+  const { colors } = useTheme();
+  const price = useLivePriceStore((s) => s.byId[instrument.id]?.price) ?? instrument.price ?? null;
+  const distancePct = computeDistancePct(price, alert) ?? alert.distancePct;
+  if (distancePct === null) return null;
+  return (
+    <ThemedText variant="subtle" style={{ color: distancePct >= 0 ? colors.positive : colors.negative }}>
+      {formatPct(distancePct)}
+    </ThemedText>
+  );
+}
+
+/** Newest of the fetched and live bar; for the same bar, the exchange's high/low with the live close. */
+function mergeBars(fetched: Candle | null, live: Candle | null): Candle | null {
+  if (!live || (fetched && fetched.time > live.time)) return fetched;
+  if (!fetched || live.time > fetched.time) return live;
+  return { ...fetched, high: Math.max(fetched.high, live.high), low: Math.min(fetched.low, live.low), close: live.close };
+}
+
+interface LiveLegendHandle {
+  update: (bar: Candle) => void;
+}
+
+/** O/H/L/C of the live bar, updated directly by the chart instead of from the last fetched bar. */
+const LiveLegend = forwardRef<LiveLegendHandle, { initial: Candle | null }>(function LiveLegend({ initial }, ref) {
+  const { colors } = useTheme();
+  const [liveBar, setLiveBar] = useState<Candle | null>(null);
+  useImperativeHandle(ref, () => ({ update: setLiveBar }), []);
+  const bar = mergeBars(initial, liveBar);
+  if (!bar) return null;
+  return (
+    <View style={styles.legend}>
+      <LegendItem label="O" value={bar.open} />
+      <LegendItem label="H" value={bar.high} />
+      <LegendItem label="L" value={bar.low} />
+      <LegendItem label="C" value={bar.close} tone={bar.close >= bar.open ? colors.positive : colors.negative} />
+    </View>
+  );
+});
 
 function LegendItem({ label, value, tone }: { label: string; value: number; tone?: string }) {
   const { colors } = useTheme();

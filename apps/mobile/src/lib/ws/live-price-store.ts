@@ -8,6 +8,8 @@ export interface LivePriceState {
   prevPrice: number | null;
   changePct24h: number | null;
   feedStatus: "LIVE" | "STALE" | "UNKNOWN";
+  /** Exchange time of the trade behind `price` (ms epoch), or null before the first live update. */
+  eventTime: number | null;
 }
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -22,10 +24,19 @@ export const useLivePriceStore = create<LiveStore>((set) => ({
   byId: {},
   patch: (id, next) =>
     set((s) => {
-      const prev = s.byId[id] ?? { price: null, prevPrice: null, changePct24h: null, feedStatus: "UNKNOWN" as const };
+      const prev = s.byId[id] ?? { price: null, prevPrice: null, changePct24h: null, feedStatus: "UNKNOWN" as const, eventTime: null };
       return { byId: { ...s.byId, [id]: { ...prev, ...next } } };
     }),
 }));
+
+// Exchange clock minus this device's clock, from the latest price update. Phones drift by
+// seconds; charts bucket live bars by exchange time so bars open and close when the exchange's do.
+let clockOffsetMs = 0;
+
+/** Current time on the exchange's clock (ms epoch). */
+export function exchangeNow(): number {
+  return Date.now() + clockOffsetMs;
+}
 
 // One socket listener, one heartbeat, and one subscription per instrument, shared by every
 // component that displays it - a 250-row list costs the same as a single row.
@@ -43,7 +54,9 @@ async function bind(): Promise<Socket> {
   boundSocket = socket;
 
   socket.on(WS_EVENTS.PRICE_UPDATE, (payload: PriceUpdateEvent) => {
+    if (payload.eventTime) clockOffsetMs = payload.eventTime - Date.now();
     useLivePriceStore.getState().patch(payload.instrumentId, {
+      eventTime: payload.eventTime ?? null,
       price: payload.price,
       prevPrice: payload.prevPrice,
       changePct24h: payload.changePct24h ?? useLivePriceStore.getState().byId[payload.instrumentId]?.changePct24h ?? null,

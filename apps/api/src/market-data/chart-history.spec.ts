@@ -121,7 +121,7 @@ describe("MarketDataService.getHistoricalCandles", () => {
     let fail = false;
     const { service, redis } = await makeService(async () => (fail ? [] : real));
     await service.getHistoricalCandles(instrument.id, "1m");
-    await redis.del("candles:inst-1:1m"); // fresh copy expired
+    for (const key of await redis.keys("candles:inst-1:1m:*")) await redis.del(key); // fresh copy expired
     fail = true;
     expect(await service.getHistoricalCandles(instrument.id, "1m")).toEqual(real);
   });

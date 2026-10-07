@@ -522,6 +522,9 @@ importers:
       eslint-config-expo:
         specifier: ~57.0.2
         version: 57.0.2(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      lightweight-charts:
+        specifier: 5.2.1
+        version: 5.2.1
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@24.13.5)

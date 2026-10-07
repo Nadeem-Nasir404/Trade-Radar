@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "eas-build-post-install": "pnpm --filter @levelpulse/shared-types build"
+    "eas-build-post-install": "pnpm --filter @levelpulse/shared-types build",
+    "chart-lib": "node scripts/bundle-chart-lib.js"
   },
   "dependencies": {
     "@expo-google-fonts/manrope": "^0.4.2",
@@ -56,6 +57,7 @@
     "babel-preset-expo": "~57.0.12",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
+    "lightweight-charts": "5.2.1",
     "sharp": "^0.35.4",
     "typescript": "~6.0.3"
   }

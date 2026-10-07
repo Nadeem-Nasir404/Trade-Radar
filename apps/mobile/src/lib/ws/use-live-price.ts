@@ -3,7 +3,7 @@ import { useLivePriceStore, subscribeLivePrice, unsubscribeLivePrice, type LiveP
 
 export type { LivePriceState };
 
-const EMPTY: LivePriceState = { price: null, prevPrice: null, changePct24h: null, feedStatus: "UNKNOWN" };
+const EMPTY: LivePriceState = { price: null, prevPrice: null, changePct24h: null, feedStatus: "UNKNOWN", eventTime: null };
 
 export function useLivePrice(instrumentId: string | undefined, initial?: { price: number | null; changePct24h: number | null }): LivePriceState {
   const entry = useLivePriceStore((s) => (instrumentId ? s.byId[instrumentId] : undefined));

@@ -6,6 +6,7 @@ import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
 import type { Candle, NormalizedTick, Timeframe } from "@levelpulse/shared-types";
 import type Redis from "ioredis";
 import { InjectRedis } from "../redis/inject-redis.decorator";
+import { TIMEFRAME_SECONDS } from "./providers/synthetic-candles";
 import { PrismaService } from "../prisma/prisma.service";
 import type { EnvConfig } from "../common/config/env.validation";
 import { PriceCacheService } from "./price-cache/price-cache.service";
@@ -24,8 +25,7 @@ import {
 type AdapterName = "binance" | "twelvedata" | "mock";
 
 /**
- * How long a fetched history stays fresh. Kept well under one bar, so a chart that refetches
- * when a bar closes gets the provider's final OHLC for it; the live bar is drawn from ticks.
+ * How long a fetched history stays fresh within one bar; the live bar itself is drawn from ticks.
  */
 const CANDLE_CACHE_SECONDS: Record<Timeframe, number> = {
   "1m": 5,
@@ -39,8 +39,10 @@ const CANDLE_CACHE_SECONDS: Record<Timeframe, number> = {
 };
 const LAST_GOOD_CANDLE_SECONDS = 24 * 3600;
 
+/** Keyed by the current bar too, so the first request after a bar closes always fetches its final OHLC. */
 function candleCacheKey(instrumentId: string, timeframe: Timeframe) {
-  return `candles:${instrumentId}:${timeframe}`;
+  const currentBar = Math.floor(Date.now() / 1000 / TIMEFRAME_SECONDS[timeframe]);
+  return `candles:${instrumentId}:${timeframe}:${currentBar}`;
 }
 function lastGoodCandleKey(instrumentId: string, timeframe: Timeframe) {
   return `candles:lastgood:${instrumentId}:${timeframe}`;

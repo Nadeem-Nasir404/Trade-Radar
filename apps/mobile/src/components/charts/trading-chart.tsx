@@ -7,6 +7,8 @@ import type { Candle } from "@/lib/api/types";
 import { bucketStart, TIMEFRAME_SECONDS } from "@/lib/timeframe";
 import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-store";
 import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
+import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore } from "@/lib/ws/live-price-store";
+import { LIGHTWEIGHT_CHARTS_SOURCE } from "./chart-lib.generated";
 
 export interface ChartAlertLevel {
   price: number;
@@ -21,7 +23,12 @@ export interface TradingChartHandle {
 
 interface TradingChartProps {
   candles: Candle[];
-  livePrice?: number | null;
+  /** Live prices for this instrument are read from the shared live-price store and drawn straight into the chart, without re-rendering the screen. */
+  instrumentId?: string;
+  /** Called shortly after a bar closes, so the screen can refetch history for the exchange's final OHLC. */
+  onBarClose?: () => void;
+  /** Called with the live (last) bar whenever it changes - e.g. for an O/H/L/C legend. */
+  onLiveBar?: (bar: Candle) => void;
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
@@ -42,7 +49,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, livePrice, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   const { colors, mode } = useTheme();
@@ -50,7 +57,12 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const lastCandleRef = useRef<Candle | null>(null);
-  const livePriceRef = useRef<number | null>(null);
+  const pushLiveRef = useRef<(() => void) | null>(null);
+  const onBarCloseRef = useRef(onBarClose);
+  const onLiveBarRef = useRef(onLiveBar);
+  onBarCloseRef.current = onBarClose;
+  onLiveBarRef.current = onLiveBar;
+  const sentAlertLevelsRef = useRef<string | null>(null);
   const loadedViewKeyRef = useRef<string | null>(null);
 
   const html = useMemo(() => buildChartHtml(), []);
@@ -111,34 +123,81 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     loadedViewKeyRef.current = viewKey ?? timeframe;
     lastCandleRef.current = candles[candles.length - 1] ?? null;
     webviewRef.current?.injectJavaScript(`window.setCandles(${JSON.stringify(candles)}, ${keepView}); true;`);
+    // History can lag the live price by a moment - re-apply it so the live bar never blinks out.
+    pushLiveRef.current?.();
   }, [ready, candles, viewKey, timeframe]);
 
   useEffect(() => {
     if (!ready) return;
-    webviewRef.current?.injectJavaScript(`window.setAlertLevels(${JSON.stringify(alertLevels)}); true;`);
+    // Callers often rebuild this array every render; only redraw the lines when they really change.
+    const serialized = JSON.stringify(alertLevels);
+    if (serialized === sentAlertLevelsRef.current) return;
+    sentAlertLevelsRef.current = serialized;
+    webviewRef.current?.injectJavaScript(`window.setAlertLevels(${serialized}); true;`);
   }, [ready, alertLevels]);
 
-  livePriceRef.current = livePrice ?? null;
+  // The chart keeps its own live-price subscription, so it stays live whatever the screen renders.
+  useEffect(() => {
+    if (!instrumentId) return;
+    subscribeLivePrice(instrumentId);
+    return () => {
+      unsubscribeLivePrice(instrumentId);
+    };
+  }, [instrumentId]);
 
   useEffect(() => {
-    if (!ready) return;
-    const pushLive = () => {
-      const price = livePriceRef.current;
+    if (!ready || !instrumentId) return;
+    let barCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Folds a price at an exchange time into the live bar, opening a new bar when the
+    // timeframe's bucket rolls over. Bars follow the exchange clock, not the phone's.
+    const apply = (price: number, atMs: number) => {
       const last = lastCandleRef.current;
-      if (price == null || !last) return;
-      const currentBucket = bucketStart(Math.floor(Date.now() / 1000), timeframe);
-      if (currentBucket === last.time && price === last.close) return;
-      const updated: Candle =
-        currentBucket > last.time
-          ? { time: currentBucket, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price, volume: 0 }
-          : { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+      if (!last) return;
+      const bucket = bucketStart(Math.floor(atMs / 1000), timeframe);
+      if (bucket < last.time) return; // older than the bar on screen
+      let updated: Candle;
+      if (bucket > last.time) {
+        // No volume on a bar opened from live prices: the real figure arrives with the refetch.
+        updated = { time: bucket, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price };
+        // The closed bar was drawn from sampled live prices; fetch the exchange's final OHLC.
+        if (barCloseTimer) clearTimeout(barCloseTimer);
+        barCloseTimer = setTimeout(() => onBarCloseRef.current?.(), BAR_CLOSE_REFETCH_DELAY_MS);
+      } else {
+        if (price === last.close && price <= last.high && price >= last.low) return;
+        updated = { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+      }
       lastCandleRef.current = updated;
-      webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}); true;`);
+      webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}, ${exchangeNow() - Date.now()}); true;`);
+      onLiveBarRef.current?.(updated);
     };
-    pushLive();
-    const id = setInterval(pushLive, 250);
-    return () => clearInterval(id);
-  }, [ready, timeframe, livePrice]);
+
+    const pushLatest = () => {
+      const entry = useLivePriceStore.getState().byId[instrumentId];
+      if (entry?.price != null) apply(entry.price, entry.eventTime ?? exchangeNow());
+    };
+    pushLiveRef.current = pushLatest;
+    pushLatest();
+
+    const unsubscribe = useLivePriceStore.subscribe((state, prev) => {
+      const entry = state.byId[instrumentId];
+      if (!entry || entry === prev.byId[instrumentId] || entry.price == null) return;
+      apply(entry.price, entry.eventTime ?? exchangeNow());
+    });
+
+    // Quiet markets: still open the next bar on time even when no trade arrives.
+    const rollover = setInterval(() => {
+      const last = lastCandleRef.current;
+      if (last && bucketStart(Math.floor(exchangeNow() / 1000), timeframe) > last.time) apply(last.close, exchangeNow());
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(rollover);
+      if (barCloseTimer) clearTimeout(barCloseTimer);
+      pushLiveRef.current = null;
+    };
+  }, [ready, instrumentId, timeframe]);
 
   useEffect(() => {
     if (!ready) return;
@@ -181,6 +240,9 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
 const EMPTY_DRAWINGS: Drawing[] = [];
 
+/** Wait after a bar closes before refetching, so the exchange has finalized that bar. */
+const BAR_CLOSE_REFETCH_DELAY_MS = 1500;
+
 function buildChartHtml(): string {
   return `<!doctype html>
 <html>
@@ -222,7 +284,7 @@ function buildChartHtml(): string {
     <div id="plusBadge">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script>${LIGHTWEIGHT_CHARTS_SOURCE}</script>
     <script>
       var chart, candleSeries, volumeSeries, priceLines = [], theme = null;
       var drawMode = false, drawTool = 'trend', drawSeries = [], drawPriceLines = [], pendingPoint = null;
@@ -262,6 +324,8 @@ function buildChartHtml(): string {
         volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
           priceFormat: { type: 'volume' },
           priceScaleId: 'volume',
+          lastValueVisible: false,
+          priceLineVisible: false,
         });
         chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
         candleSeries.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.22 } });
@@ -504,7 +568,7 @@ function buildChartHtml(): string {
         if (!candleSeries || lastBarTime === null || lastBarClose === null) { el.style.opacity = 0; return; }
         var y = candleSeries.priceToCoordinate(lastBarClose);
         if (y === null) { el.style.opacity = 0; return; }
-        var remaining = Math.max(0, lastBarTime + tfSeconds - Math.floor(Date.now() / 1000));
+        var remaining = Math.max(0, lastBarTime + tfSeconds - Math.floor((Date.now() + clockOffsetMs) / 1000));
         var h = Math.floor(remaining / 3600), m = Math.floor((remaining % 3600) / 60), sec = remaining % 60;
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
         el.textContent = (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(sec);
@@ -516,7 +580,9 @@ function buildChartHtml(): string {
         placePlus();
       }, 250);
 
-      window.updateLastCandle = function (c) {
+      var clockOffsetMs = 0;
+      window.updateLastCandle = function (c, offsetMs) {
+        if (typeof offsetMs === 'number') clockOffsetMs = offsetMs;
         lastBarTime = c.time; lastBarClose = c.close;
         candleSeries.update({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close });
         if (c.volume != null) volumeSeries.update({ time: c.time, value: c.volume, color: volColor(c) });

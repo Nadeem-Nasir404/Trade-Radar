@@ -1,4 +1,7 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/api/query-keys";
+import type { Instrument } from "@/lib/api/types";
 import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -35,10 +38,11 @@ export default function FullscreenChartScreen() {
 
   const { data: instrument } = useMarket(symbol);
   const { data: candles } = useMarketHistory(symbol, timeframe);
-  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
-  const price = live.price ?? instrument?.price ?? null;
-  const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
-  const positive = (changePct ?? 0) >= 0;
+  // Price and change render in their own small components, so live updates don't re-render the screen.
+  const queryClient = useQueryClient();
+  const refetchHistory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.marketHistory(symbol, timeframe) });
+  }, [queryClient, symbol, timeframe]);
 
   const chartHeight = height - 230;
 
@@ -50,12 +54,10 @@ export default function FullscreenChartScreen() {
         </Pressable>
         <View style={styles.headerCenter}>
           <ThemedText style={styles.symbol}>{params.displaySymbol ?? instrument?.displaySymbol ?? ""}</ThemedText>
-          <ThemedText style={{ color: positive ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
-            {formatPct(changePct)}
-          </ThemedText>
+          <LiveChange instrument={instrument} />
         </View>
         <View style={styles.iconButton}>
-          <PriceText value={price} variant="mono" style={styles.headerPrice} />
+          <LivePrice instrument={instrument} />
         </View>
       </View>
 
@@ -84,7 +86,8 @@ export default function FullscreenChartScreen() {
           ref={chartRef}
           height={chartHeight}
           candles={candles ?? []}
-          livePrice={price}
+          instrumentId={instrument?.id}
+          onBarClose={refetchHistory}
           timeframe={timeframe}
           viewKey={`${symbol}|${timeframe}`}
           drawMode={drawMode}
@@ -145,3 +148,19 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   hint: { textAlign: "center", fontSize: 12 },
 });
+
+function LiveChange({ instrument }: { instrument: Instrument | undefined }) {
+  const { colors } = useTheme();
+  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
+  const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
+  return (
+    <ThemedText style={{ color: (changePct ?? 0) >= 0 ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
+      {formatPct(changePct)}
+    </ThemedText>
+  );
+}
+
+function LivePrice({ instrument }: { instrument: Instrument | undefined }) {
+  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
+  return <PriceText value={live.price ?? instrument?.price ?? null} variant="mono" style={styles.headerPrice} />;
+}
