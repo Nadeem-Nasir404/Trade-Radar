@@ -5,7 +5,7 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
 import { pnlPct, type Trade } from "@/lib/stores/trades-store";
 import { useMinuteClock } from "@/lib/hooks/use-minute-clock";
-import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, type CardStyle } from "@/lib/card-layout";
+import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, DEFAULT_CARD_STYLE, type CardStyle } from "@/lib/card-layout";
 
 export { CARD_STYLE_LABELS, CARD_STYLES };
 
@@ -22,27 +22,14 @@ function CardText(props: ComponentProps<typeof ThemedText>) {
   return <ThemedText allowFontScaling={false} {...props} />;
 }
 
-// Base gradient for each style. Decorations are drawn on top in Backdrop.
-const BASE: Record<CardStyle, [string, string]> = {
-  minimal: ["#FFFFFF", "#EEF0F7"],
-  bold: ["#0A0A0A", "#0A0A0A"],
-  neon: ["#06060F", "#140D3A"],
-  gradient: ["#6D28D9", "#DB2777"],
-  grid: ["#0F172A", "#0B1224"],
-  noir: ["#1C1C1E", "#141415"],
-  blush: ["#F4D3D2", "#D9B0AF"],
-  moonlit: ["#0A0618", "#1B0F3D"],
-  gigachad: ["#0A0A0A", "#0A0A0A"],
-};
-
 /** Shareable P&L card. Layout is fixed on a 1080x1350 canvas and scaled to the rendered width. */
 export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null; style?: CardStyle }>(function PnlCard(
-  { trade, livePrice, style = "neon" },
+  { trade, livePrice, style = DEFAULT_CARD_STYLE },
   ref,
 ) {
   const [width, setWidth] = useState(0);
   const k = width / W;
-  const t = CARD_THEMES[style] ?? CARD_THEMES.neon;
+  const t = CARD_THEMES[style] ?? CARD_THEMES[DEFAULT_CARD_STYLE];
 
   const closed = trade.exitPrice != null;
   const current = closed ? (trade.exitPrice as number) : livePrice ?? trade.entryPrice;
@@ -156,9 +143,6 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
   const ring = (x: number, y: number, r: number, color: string, opacity = 1) => (
     <View key={`ring-${x}-${y}-${r}`} style={{ position: "absolute", left: s(x - r), top: s(y - r), width: s(2 * r), height: s(2 * r), borderRadius: s(r), borderWidth: Math.max(1, 2 * k), borderColor: color, opacity }} />
   );
-  const line = (x: number, y: number, w: number, h: number, color: string, opacity = 1, rotate?: string) => (
-    <View key={`l-${x}-${y}-${w}-${h}`} style={{ position: "absolute", left: s(x), top: s(y), width: s(w), height: s(h), backgroundColor: color, opacity, transform: rotate ? [{ rotate }] : undefined }} />
-  );
 
   if (background) {
     return (
@@ -169,26 +153,12 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
     );
   }
 
-  const shapes = (() => {
-    switch (style) {
-      case "minimal":
-        return [blob(900, 120, 320, "#C4B5FD", 0.35), blob(120, 1200, 260, "#DDD6FE", 0.35), ring(W - 40, H - 60, 300, "#C9CCD8"), ring(W - 40, H - 60, 420, "#D6D8E2")];
-      case "bold":
-        return [line(W - 430, -180, 700, 260, "#C6F432", 1, "35deg"), line(W - 300, 60, 520, 40, "#C6F432", 0.7, "35deg"), line(-220, H - 170, 900, 80, "#C6F432", 0.9, "-18deg")];
-      case "neon":
-        return [blob(900, 170, 300, "#7C3AED", 0.4), blob(160, 620, 230, "#22D3EE", 0.18), blob(W / 2, H + 40, 560, "#A855F7", 0.28), line(0, H * 0.78, W, 2, "#22D3EE", 0.35), line(0, H * 0.86, W, 1.5, "#22D3EE", 0.2)];
-      case "gradient":
-        return [ring(880, 1040, 170, "#FFFFFF", 0.4), blob(880, 1040, 170, "#FFFFFF", 0.1), ring(700, 1220, 80, "#FFFFFF", 0.4), blob(960, 120, 95, "#FFFFFF", 0.14), ring(960, 120, 95, "#FFFFFF", 0.4)];
-      case "grid":
-        return gridAndCandles(s);
-      default:
-        return [];
-    }
-  })();
+  // Minimal is the one theme without artwork: a light gradient with soft shapes.
+  const shapes = [blob(900, 120, 320, "#C4B5FD", 0.35), blob(120, 1200, 260, "#DDD6FE", 0.35), ring(W - 40, H - 60, 300, "#C9CCD8"), ring(W - 40, H - 60, 420, "#D6D8E2")];
 
   return (
     <>
-      <LinearGradient colors={BASE[style]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[...CARD_THEMES[style].fallback]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
         {shapes}
       </View>
@@ -231,28 +201,6 @@ function CornerBrackets({ k, color }: { k: number; color: string }) {
     </View>
   );
 }
-
-/** Faint grid, plus a row of candles along the bottom third. */
-function gridAndCandles(s: (v: number) => number) {
-  const items: ReactNode[] = [];
-  for (let i = 1; i < 36; i++) items.push(<View key={`h${i}`} style={{ position: "absolute", left: 0, right: 0, top: s(i * 37.5), height: StyleSheet.hairlineWidth, backgroundColor: "rgba(148,163,184,0.12)" }} />);
-  for (let i = 1; i < 30; i++) items.push(<View key={`v${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: s(i * 36), width: StyleSheet.hairlineWidth, backgroundColor: "rgba(148,163,184,0.12)" }} />);
-  const count = 18;
-  const step = (W - 120) / count;
-  for (let i = 0; i < count; i++) {
-    const wave = Math.sin(i * 0.55) * 0.5 + Math.cos(i * 0.23) * 0.3 + i * 0.02;
-    const up = wave >= 0;
-    const bodyH = 40 + Math.abs(Math.sin(i * 1.7)) * 110;
-    const top = H * 0.7 + (Math.sin(i * 0.9) * 0.5 + 0.5) * 150;
-    const color = up ? "#22D3EE" : "#3B6B9A";
-    const x = 60 + i * step;
-    items.push(<View key={`w${i}`} style={{ position: "absolute", left: s(x + step / 2 - 1), top: s(top - 30), width: s(2), height: s(bodyH + 60), backgroundColor: color, opacity: 0.45 }} />);
-    items.push(<View key={`b${i}`} style={{ position: "absolute", left: s(x + step * 0.22), top: s(top), width: s(step * 0.56), height: s(bodyH), backgroundColor: color, opacity: up ? 0.6 : 0.45, borderRadius: s(3) }} />);
-  }
-  return items;
-}
-
-
 
 /** Compact duration: 45m, 3h 10m, 2d. */
 function formatHeld(ms: number): string {

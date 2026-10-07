@@ -30,8 +30,10 @@ export const CARD_FONTS = {
   body: fonts.bodySemibold,
 };
 
-/** Themes in picker order: the illustrated ones first, then the drawn ones. */
-export type CardStyle = "gigachad" | "moonlit" | "noir" | "blush" | "neon" | "gradient" | "bold" | "grid" | "minimal";
+export type CardStyle = "gigachad" | "anime" | "moonlit" | "printer" | "stonks" | "diamond" | "noir" | "blush" | "minimal";
+
+/** Used when nothing (or a since-removed style) is saved. */
+export const DEFAULT_CARD_STYLE: CardStyle = "gigachad";
 
 export interface CardTheme {
   label: string;
@@ -54,6 +56,70 @@ export interface CardTheme {
 }
 
 export const CARD_THEMES: Record<CardStyle, CardTheme> = {
+  anime: {
+    label: "Anime",
+    text: "#FFFFFF",
+    sub: "#E9D5FF",
+    profit: "#A5F3FC",
+    loss: "#FB7185",
+    pillBg: "#F472B6",
+    pillText: "#1E0B2E",
+    pillBorder: "#F472B6",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1B0B3F", "#0A0616"],
+    background: require("../../assets/cards/anime.jpg"),
+    tagline: { profit: "Power level: over 9000", loss: "Training arc" },
+    corners: true,
+  },
+  printer: {
+    label: "Money Printer",
+    text: "#FFFFFF",
+    sub: "#BBF7D0",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#FACC15",
+    pillText: "#1A1600",
+    pillBorder: "#FACC15",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#06301A", "#020D07"],
+    background: require("../../assets/cards/printer.jpg"),
+    tagline: { profit: "Money printer go brrr", loss: "Printer jammed" },
+    corners: true,
+  },
+  stonks: {
+    label: "Stonks",
+    text: "#FFFFFF",
+    sub: "#93A4C8",
+    profit: "#FB923C",
+    loss: "#F87171",
+    pillBg: "#F97316",
+    pillText: "#FFFFFF",
+    pillBorder: "#F97316",
+    divider: "#FFFFFF2E",
+    shadow: true,
+    fallback: ["#0B1A3A", "#05080F"],
+    background: require("../../assets/cards/stonks.jpg"),
+    tagline: { profit: "Stonks", loss: "Not stonks" },
+    corners: true,
+  },
+  diamond: {
+    label: "Diamond Hands",
+    text: "#FFFFFF",
+    sub: "#A5D8F5",
+    profit: "#67E8F9",
+    loss: "#FB7185",
+    pillBg: "#67E8F9",
+    pillText: "#062033",
+    pillBorder: "#67E8F9",
+    divider: "#FFFFFF2E",
+    shadow: true,
+    fallback: ["#041A2E", "#03080F"],
+    background: require("../../assets/cards/diamond.jpg"),
+    tagline: { profit: "Diamond hands", loss: "Still holding" },
+    corners: true,
+  },
   minimal: {
     label: "Minimal",
     text: "#111118",
@@ -68,70 +134,6 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     fallback: ["#FFFFFF", "#F4F4F6"],
     background: undefined,
     tagline: { profit: "Closed in profit", loss: "Closed at a loss" },
-    corners: true,
-  },
-  bold: {
-    label: "Bold",
-    text: "#FFFFFF",
-    sub: "#A3A3A3",
-    profit: "#C6F432",
-    loss: "#FF4D4D",
-    pillBg: "#C6F432",
-    pillText: "#050505",
-    pillBorder: "#C6F432",
-    divider: "#2A2A2A",
-    shadow: false,
-    fallback: ["#0A0A0A", "#0A0A0A"],
-    background: undefined,
-    tagline: { profit: "Big move", loss: "Took the hit" },
-    corners: true,
-  },
-  neon: {
-    label: "Neon",
-    text: "#FFFFFF",
-    sub: "#A5A3C9",
-    profit: "#22D3EE",
-    loss: "#FB7185",
-    pillBg: "#1E1650",
-    pillText: "#E0F7FF",
-    pillBorder: "#22D3EE",
-    divider: "#3A2F7A",
-    shadow: true,
-    fallback: ["#06060F", "#0E0A22"],
-    background: undefined,
-    tagline: { profit: "Fully charged", loss: "Power dip" },
-    corners: true,
-  },
-  gradient: {
-    label: "Gradient",
-    text: "#FFFFFF",
-    sub: "#F3E8FF",
-    profit: "#FFFFFF",
-    loss: "#FFE4E6",
-    pillBg: "#FFFFFF",
-    pillText: "#4C1D95",
-    pillBorder: "#FFFFFF",
-    divider: "#FFFFFF55",
-    shadow: true,
-    fallback: ["#7C3AED", "#EC4899"],
-    background: undefined,
-    tagline: { profit: "Good vibes only", loss: "Reset and reload" },
-    corners: true,
-  },
-  grid: {
-    label: "Grid",
-    text: "#FFFFFF",
-    sub: "#7E9CC0",
-    profit: "#22D3EE",
-    loss: "#F87171",
-    pillBg: "#0E2A47",
-    pillText: "#22D3EE",
-    pillBorder: "#22D3EE",
-    divider: "#1E3A5F",
-    shadow: false,
-    fallback: ["#0F172A", "#0F172A"],
-    background: undefined,
-    tagline: { profit: "By the numbers", loss: "Risk managed" },
     corners: true,
   },
   noir: {
@@ -200,7 +202,12 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
   },
 };
 
-export const CARD_STYLES: CardStyle[] = ["gigachad", "moonlit", "noir", "blush", "neon", "gradient", "bold", "grid", "minimal"];
+/** Picker order. */
+export const CARD_STYLES: CardStyle[] = ["gigachad", "anime", "moonlit", "printer", "stonks", "diamond", "noir", "blush", "minimal"];
+
+export function isCardStyle(value: unknown): value is CardStyle {
+  return typeof value === "string" && (CARD_STYLES as string[]).includes(value);
+}
 
 export const CARD_STYLE_LABELS: Record<CardStyle, string> = Object.fromEntries(
   CARD_STYLES.map((k) => [k, CARD_THEMES[k].label]),
