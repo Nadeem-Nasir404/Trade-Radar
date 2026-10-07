@@ -37,6 +37,7 @@ import {
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
 const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
 
@@ -113,6 +114,7 @@ export default function MarketDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+      <AmbientOrbs />
       <View style={styles.header}>
         <IconButton icon="chevron-back" label="Back" onPress={() => router.back()} />
         <View style={styles.headerCenter}>

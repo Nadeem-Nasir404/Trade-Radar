@@ -23,6 +23,7 @@ import { haptics } from "@/lib/haptics";
 import { useToastStore } from "@/lib/stores/toast-store";
 import type { Watchlist, WatchlistItem } from "@/lib/api/types";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
 const VISIBLE_ITEMS = 6;
 
@@ -70,6 +71,7 @@ export default function WatchlistsScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+      <AmbientOrbs />
       <View style={styles.header}>
         <ScreenHeader
           title="Watchlists"

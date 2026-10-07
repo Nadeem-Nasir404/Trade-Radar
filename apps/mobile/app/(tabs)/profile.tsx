@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, StyleSheet, ScrollView, Switch, Pressable, Alert as RNAlert } from "react-native";
+import { View, StyleSheet, ScrollView, Switch, Pressable, Linking, Alert as RNAlert } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
+import { FadeInItem } from "@/components/ui/fade-in-item";
+import { GlassPressable } from "@/components/ui/glass-pressable";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLogout } from "@/lib/api/hooks/use-auth";
 import { useSubscription } from "@/lib/api/hooks/use-subscription";
@@ -105,111 +108,195 @@ export default function ProfileScreen() {
           Profile
         </ThemedText>
 
-        <Surface style={styles.hero}>
-          <View style={[styles.avatar, { backgroundColor: colors.brand }]}>
-            <ThemedText style={[styles.avatarText, { color: colors.brandForeground }]}>
-              {(user?.name || user?.email || "?").slice(0, 1).toUpperCase()}
-            </ThemedText>
-          </View>
-          <View style={styles.heroText}>
-            <ThemedText style={styles.heroName}>{user?.name || "Trader"}</ThemedText>
-            <ThemedText variant="subtle" numberOfLines={1}>
-              {user?.email}
-            </ThemedText>
-          </View>
-          <View style={[styles.planPill, { backgroundColor: withAlpha(colors.brand, 0.16) }]}>
-            <ThemedText style={[styles.planText, { color: colors.brand }]}>{subscription?.plan ?? "FREE"}</ThemedText>
-          </View>
-        </Surface>
-
-        <Surface style={styles.usageCard}>
-          <View style={styles.rowBetween}>
-            <ThemedText variant="label">Active alerts</ThemedText>
-            <ThemedText variant="mono">
-              {used} / {limit || "--"}
-            </ThemedText>
-          </View>
-          <View style={[styles.track, { backgroundColor: colors.glassHover }]}>
-            <View style={[styles.fill, { width: `${usage * 100}%`, backgroundColor: colors.brand }]} />
-          </View>
-          <ThemedText variant="subtle">
-            {limit > 0 && used >= limit ? "You've reached your limit. Remove an alert to add another." : "Plenty of room for new levels."}
-          </ThemedText>
-        </Surface>
-
-        <SectionTitle>Notifications</SectionTitle>
-        <Surface style={styles.group}>
-          <SettingRow icon="notifications-outline" label="Push notifications" hint="Reach you even when closed">
-            <Switch value={pushGranted} onValueChange={handlePushToggle} trackColor={{ true: colors.brand }} />
-          </SettingRow>
-          <Divider />
-          <SettingRow icon="mail-outline" label="Email alerts" hint="Sent to your account email">
-            <Switch
-              value={emailEnabled}
-              onValueChange={(next) => {
-                haptics.light();
-                toggleEmail.mutate(next);
-              }}
-              disabled={toggleEmail.isPending}
-              trackColor={{ true: colors.brand }}
-            />
-          </SettingRow>
-          <Divider />
-          <Pressable onPress={sendTest} disabled={testing} style={styles.rowPress}>
-            <SettingRow icon="paper-plane-outline" label={testing ? "Sending test…" : "Send test notification"} hint="Checks email and push delivery">
-              <Ionicons name="chevron-forward" size={18} color={colors.foregroundSubtle} />
-            </SettingRow>
-          </Pressable>
-        </Surface>
-
-        <SectionTitle>Appearance</SectionTitle>
-        <Surface style={styles.group}>
-          <View style={styles.themePad}>
-            <View style={[styles.segmented, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              {THEME_OPTIONS.map((opt) => {
-                const active = opt.value === mode;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => {
-                      haptics.selection();
-                      setMode(opt.value);
-                    }}
-                    style={[styles.segment, active && { backgroundColor: colors.brand }]}
-                  >
-                    <Ionicons name={opt.icon} size={14} color={active ? colors.brandForeground : colors.foregroundMuted} />
-                    <ThemedText style={[styles.segmentText, { color: active ? colors.brandForeground : colors.foregroundMuted }]}>
-                      {opt.label}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
+        <FadeInItem index={0}>
+          <Surface style={styles.hero}>
+            <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
+              <ThemedText style={[styles.avatarText, { color: colors.brandForeground }]}>
+                {(user?.name || user?.email || "?").slice(0, 1).toUpperCase()}
+              </ThemedText>
+            </LinearGradient>
+            <View style={styles.heroText}>
+              <ThemedText style={styles.heroName}>{user?.name || "Trader"}</ThemedText>
+              <ThemedText variant="subtle" numberOfLines={1}>
+                {user?.email}
+              </ThemedText>
             </View>
-          </View>
-        </Surface>
+            <View style={[styles.planPill, { backgroundColor: withAlpha(colors.brand, 0.16) }]}>
+              <ThemedText style={[styles.planText, { color: colors.brand }]}>{subscription?.plan ?? "FREE"}</ThemedText>
+            </View>
+          </Surface>
+        </FadeInItem>
 
-        <SectionTitle>About</SectionTitle>
-        <Surface style={styles.group}>
-          <SettingRow icon="information-circle-outline" label="Version" hint="CoinRadar">
-            <ThemedText variant="mono" style={{ color: colors.foregroundMuted }}>
-              {version}
+        <FadeInItem index={1}>
+          <Surface style={styles.usageCard}>
+            <View style={styles.rowBetween}>
+              <ThemedText variant="label">Active alerts</ThemedText>
+              <ThemedText variant="mono">
+                {used} / {limit || "--"}
+              </ThemedText>
+            </View>
+            <View style={[styles.track, { backgroundColor: colors.glassHover }]}>
+              <View style={[styles.fill, { width: `${usage * 100}%`, backgroundColor: colors.brand }]} />
+            </View>
+            <ThemedText variant="subtle">
+              {limit > 0 && used >= limit ? "You've reached your limit. Remove an alert to add another." : "Plenty of room for new levels."}
             </ThemedText>
-          </SettingRow>
-        </Surface>
+          </Surface>
+        </FadeInItem>
 
-        <Pressable
-          onPress={() => {
-            haptics.warning();
-            logout.mutate();
-          }}
-          disabled={logout.isPending}
-          style={[styles.logout, { borderColor: withAlpha(colors.negative, 0.4), backgroundColor: withAlpha(colors.negative, 0.1) }]}
-        >
-          <Ionicons name="log-out-outline" size={18} color={colors.negative} />
-          <ThemedText style={[styles.logoutText, { color: colors.negative }]}>Log out</ThemedText>
-        </Pressable>
+        <FadeInItem index={2} style={styles.block}>
+          <SectionTitle>Notifications</SectionTitle>
+          <Surface style={styles.group}>
+            <SettingRow icon="notifications-outline" label="Push notifications" hint="Reach you even when closed">
+              <Switch value={pushGranted} onValueChange={handlePushToggle} trackColor={{ true: colors.brand }} />
+            </SettingRow>
+            <Divider />
+            <SettingRow icon="mail-outline" label="Email alerts" hint="Sent to your account email">
+              <Switch
+                value={emailEnabled}
+                onValueChange={(next) => {
+                  haptics.light();
+                  toggleEmail.mutate(next);
+                }}
+                disabled={toggleEmail.isPending}
+                trackColor={{ true: colors.brand }}
+              />
+            </SettingRow>
+            <Divider />
+            <Pressable onPress={sendTest} disabled={testing} style={styles.rowPress}>
+              <SettingRow icon="paper-plane-outline" label={testing ? "Sending test…" : "Send test notification"} hint="Checks email and push delivery">
+                <Ionicons name="chevron-forward" size={18} color={colors.foregroundSubtle} />
+              </SettingRow>
+            </Pressable>
+          </Surface>
+        </FadeInItem>
+
+        <FadeInItem index={3} style={styles.block}>
+          <SectionTitle>Appearance</SectionTitle>
+          <Surface style={styles.group}>
+            <View style={styles.themePad}>
+              <View style={[styles.segmented, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+                {THEME_OPTIONS.map((opt) => {
+                  const active = opt.value === mode;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => {
+                        haptics.selection();
+                        setMode(opt.value);
+                      }}
+                      style={[styles.segment, active && { backgroundColor: colors.brand }]}
+                    >
+                      <Ionicons name={opt.icon} size={14} color={active ? colors.brandForeground : colors.foregroundMuted} />
+                      <ThemedText style={[styles.segmentText, { color: active ? colors.brandForeground : colors.foregroundMuted }]}>
+                        {opt.label}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </Surface>
+        </FadeInItem>
+
+        <FadeInItem index={4} style={styles.block}>
+          <SectionTitle>Community</SectionTitle>
+          <MadeByNad />
+        </FadeInItem>
+
+        <FadeInItem index={5} style={styles.block}>
+          <SectionTitle>About</SectionTitle>
+          <Surface style={styles.group}>
+            <SettingRow icon="information-circle-outline" label="Version" hint="CoinRadar">
+              <ThemedText variant="mono" style={{ color: colors.foregroundMuted }}>
+                {version}
+              </ThemedText>
+            </SettingRow>
+          </Surface>
+        </FadeInItem>
+
+        <FadeInItem index={6}>
+          <Pressable
+            onPress={() => {
+              haptics.warning();
+              logout.mutate();
+            }}
+            disabled={logout.isPending}
+            style={[styles.logout, { borderColor: withAlpha(colors.negative, 0.4), backgroundColor: withAlpha(colors.negative, 0.1) }]}
+          >
+            <Ionicons name="log-out-outline" size={18} color={colors.negative} />
+            <ThemedText style={[styles.logoutText, { color: colors.negative }]}>Log out</ThemedText>
+          </Pressable>
+        </FadeInItem>
+
+        <ThemedText variant="subtle" style={styles.footer}>
+          CoinRadar {version} · Made with ♥ by Nad
+        </ThemedText>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+const X_URL = "https://x.com/NadTrades_";
+const DISCORD_URL = "https://discord.gg/2w7puUZYY3";
+const DISCORD_BLURPLE = "#5865F2";
+
+/** Credits and the creator's socials: X and the Discord community. */
+function MadeByNad() {
+  const { colors, isDark } = useTheme();
+  const open = (url: string) => {
+    haptics.light();
+    Linking.openURL(url).catch(() => undefined);
+  };
+  return (
+    <Surface style={styles.credits}>
+      <View style={styles.creditsHead}>
+        <LinearGradient colors={[colors.brand, "#EC4899"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.creditsBadge}>
+          <ThemedText style={styles.creditsBadgeText}>N</ThemedText>
+        </LinearGradient>
+        <View style={styles.rowText}>
+          <ThemedText variant="subtitle">
+            Made with <ThemedText variant="subtitle" style={{ color: "#EC4899" }}>♥</ThemedText> by Nad
+          </ThemedText>
+          <ThemedText variant="subtle">Trading updates, new features and the CoinRadar community.</ThemedText>
+        </View>
+      </View>
+      <View style={styles.socials}>
+        <SocialButton
+          label="@NadTrades_"
+          icon="logo-x"
+          tint={isDark ? "#FFFFFF" : "#000000"}
+          onPress={() => open(X_URL)}
+          a11y="Follow Nad on X"
+        />
+        <SocialButton label="Join Discord" icon="logo-discord" tint={DISCORD_BLURPLE} onPress={() => open(DISCORD_URL)} a11y="Join the CoinRadar Discord" />
+      </View>
+    </Surface>
+  );
+}
+
+function SocialButton({
+  label,
+  icon,
+  tint,
+  onPress,
+  a11y,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  tint: string;
+  onPress: () => void;
+  a11y: string;
+}) {
+  return (
+    <View style={styles.socialSlot}>
+      <GlassPressable onPress={onPress} accessibilityLabel={a11y} style={styles.social}>
+        <Ionicons name={icon} size={18} color={tint} />
+        <ThemedText style={styles.socialText} numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </GlassPressable>
+    </View>
   );
 }
 
@@ -285,4 +372,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoutText: { fontSize: 15, fontWeight: "600" },
+  block: { gap: 14 },
+  credits: { padding: 16, gap: 14 },
+  creditsHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  creditsBadge: { width: 44, height: 44, borderRadius: radius.lg, alignItems: "center", justifyContent: "center" },
+  creditsBadgeText: { color: "#FFFFFF", fontSize: 20, fontWeight: "800" },
+  socials: { flexDirection: "row", gap: 10 },
+  socialSlot: { flex: 1 },
+  social: { height: 46, borderRadius: radius.lg, paddingHorizontal: 12 },
+  socialText: { fontSize: 14, fontWeight: "600" },
+  footer: { textAlign: "center", marginTop: 6 },
 });

@@ -49,6 +49,8 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
+          // A short shift + fade between tabs instead of an instant swap.
+          animation: "shift",
           tabBarButton: (props) => <TabBarButton {...props} />,
           tabBarStyle: {
             position: "absolute",

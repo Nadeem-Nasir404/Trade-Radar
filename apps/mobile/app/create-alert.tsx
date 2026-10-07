@@ -15,6 +15,7 @@ import { useTheme } from "@/lib/use-theme";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
 export default function CreateAlertScreen() {
   const { colors } = useTheme();
@@ -32,6 +33,7 @@ export default function CreateAlertScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
+      <AmbientOrbs />
       <ModalHeader kind="close" title={selected ? "Set your level" : "Choose a market"} />
 
       {!selected ? (

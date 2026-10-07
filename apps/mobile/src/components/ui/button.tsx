@@ -1,5 +1,6 @@
 import { Pressable, ActivityIndicator, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { ThemedText } from "./themed-text";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -18,8 +19,24 @@ interface ButtonProps extends Omit<PressableProps, "style"> {
   style?: StyleProp<ViewStyle>;
 }
 
-export function Button({ title, variant = "primary", size = "md", loading, icon, trailingIcon, style, disabled, ...props }: ButtonProps) {
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const PRESS_SPRING = { damping: 18, stiffness: 420, mass: 0.6 };
+
+export function Button({ title, variant = "primary", size = "md", loading, icon, trailingIcon, style, disabled, onPressIn, onPressOut, ...props }: ButtonProps) {
   const { colors } = useTheme();
+  // A quick spring on press: the button gives under the finger and settles back when released.
+  const scale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const pressHandlers = {
+    onPressIn: (e: Parameters<NonNullable<PressableProps["onPressIn"]>>[0]) => {
+      scale.set(withSpring(0.96, PRESS_SPRING));
+      onPressIn?.(e);
+    },
+    onPressOut: (e: Parameters<NonNullable<PressableProps["onPressOut"]>>[0]) => {
+      scale.set(withSpring(1, PRESS_SPRING));
+      onPressOut?.(e);
+    },
+  };
 
   const onColor = variant === "primary" || variant === "destructive" ? colors.brandForeground : colors.foreground;
 
@@ -37,37 +54,39 @@ export function Button({ title, variant = "primary", size = "md", loading, icon,
 
   if (variant === "primary") {
     return (
-      <Pressable
+      <AnimatedPressable
         disabled={disabled || loading}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.wrap, size === "sm" && styles.wrapSm, (disabled || loading) && styles.disabled, pressed && styles.pressed, style]}
+        style={[styles.wrap, size === "sm" && styles.wrapSm, (disabled || loading) && styles.disabled, pressStyle, style]}
+        {...pressHandlers}
         {...props}
       >
         <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.base, size === "sm" && styles.sm]}>
           {content}
         </LinearGradient>
-      </Pressable>
+      </AnimatedPressable>
     );
   }
 
   return (
-    <Pressable
+    <AnimatedPressable
       disabled={disabled || loading}
       accessibilityRole="button"
-      style={({ pressed }) => [
+      style={[
         styles.base,
         size === "sm" && styles.sm,
         variant === "glass" && { backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassBorder },
         variant === "ghost" && { backgroundColor: "transparent" },
         variant === "destructive" && { backgroundColor: colors.negative },
         (disabled || loading) && styles.disabled,
-        pressed && styles.pressed,
+        pressStyle,
         style,
       ]}
+      {...pressHandlers}
       {...props}
     >
       {content}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -87,5 +106,4 @@ const styles = StyleSheet.create({
   text: { fontSize: 15 },
   textSm: { fontSize: 14 },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
 });

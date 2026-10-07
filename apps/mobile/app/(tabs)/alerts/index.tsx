@@ -13,6 +13,8 @@ import { radius } from "@/lib/theme";
 import { isSameDay } from "@/lib/format";
 import type { Alert } from "@/lib/api/types";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
+import { FadeInItem } from "@/components/ui/fade-in-item";
 
 interface Section {
   title: string;
@@ -51,6 +53,7 @@ export default function AlertsScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+      <AmbientOrbs />
       <View style={styles.header}>
         <ScreenHeader
           title="Alerts"
@@ -81,7 +84,8 @@ export default function AlertsScreen() {
             const isLast = index === section.data.length - 1;
             return (
               // Consecutive rows join into one card per section, like the grouped Surface they replace.
-              <View
+              <FadeInItem
+                index={index}
                 style={[
                   styles.cardRow,
                   { borderColor: colors.glassBorder, backgroundColor: colors.glass },
@@ -90,7 +94,7 @@ export default function AlertsScreen() {
                 ]}
               >
                 <AlertRow alert={alert} autoPeek={section === sections[0] && isFirst} />
-              </View>
+              </FadeInItem>
             );
           }}
           ListEmptyComponent={

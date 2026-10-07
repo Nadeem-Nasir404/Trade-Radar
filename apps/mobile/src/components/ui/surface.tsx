@@ -13,8 +13,8 @@ interface SurfaceProps extends ViewProps {
   blur?: boolean;
 }
 
-export function Surface({ style, intensity = 32, blur = true, children, ...props }: SurfaceProps) {
-  const { colors } = useTheme();
+export function Surface({ style, intensity = 40, blur = true, children, ...props }: SurfaceProps) {
+  const { colors, isDark } = useTheme();
   return (
     <View style={[styles.surface, { borderColor: colors.glassBorder }, style]} {...props}>
       {blur && (
@@ -26,6 +26,14 @@ export function Surface({ style, intensity = 32, blur = true, children, ...props
         />
       )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
+      {/* Diagonal sheen: light catching the top-left of the pane, the cue that reads as glass. */}
+      <LinearGradient
+        colors={[isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.45)", "rgba(255,255,255,0)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0.7, y: 0.7 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       {/* Faint top-edge highlight - the light-catching-glass detail flat translucent fills alone don't sell. */}
       <LinearGradient
         colors={[colors.glassBorderStrong, "transparent"]}

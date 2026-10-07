@@ -18,6 +18,7 @@ import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
 const FILTERS = ["ALL", "CRYPTO", "FAVORITES"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -54,6 +55,7 @@ export default function MarketsScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+      <AmbientOrbs />
       <View style={styles.header}>
         <ScreenHeader title="Markets" subtitle={`${filtered.length} instruments`} />
 

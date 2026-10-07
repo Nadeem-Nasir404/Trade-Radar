@@ -17,6 +17,7 @@ import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 import { formatCompactPrice } from "@/lib/format";
 import { useMinuteClock } from "@/lib/hooks/use-minute-clock";
+import { FadeInItem } from "@/components/ui/fade-in-item";
 
 /** Content stays phone-width on tablets and large screens instead of stretching edge to edge. */
 const MAX_CONTENT_WIDTH = 640;
@@ -95,7 +96,11 @@ export default function TradesScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(t) => t.id}
-        renderItem={({ item }) => <TradeRow trade={item} onPress={() => openDetail(item.id)} />}
+        renderItem={({ item, index }) => (
+          <FadeInItem index={index}>
+            <TradeRow trade={item} onPress={() => openDetail(item.id)} />
+          </FadeInItem>
+        )}
         renderSectionHeader={({ section }) => <SectionLabel>{section.title}</SectionLabel>}
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={header}

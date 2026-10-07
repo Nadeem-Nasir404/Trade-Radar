@@ -134,15 +134,17 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
 
   return (
     <SectionErrorBoundary label="CoinRadar">
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="create-alert" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="alert-triggered" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="fullscreen-chart" options={{ presentation: "fullScreenModal", headerShown: false }} />
+    {/* Same motion on both platforms: pushed screens slide in from the right (iOS-style, with the
+        edge swipe back), sheets rise from the bottom, the fullscreen chart fades in. */}
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: "ios_from_right" }}>
+      <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+      <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+      <Stack.Screen name="create-alert" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="alert-triggered" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="fullscreen-chart" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
       <Stack.Screen name="trades" options={{ headerShown: false }} />
       <Stack.Screen name="trade/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="new-trade" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="new-trade" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
     </Stack>
     </SectionErrorBoundary>
   );

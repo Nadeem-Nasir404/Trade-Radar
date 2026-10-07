@@ -1,18 +1,24 @@
-import Animated, { Easing, FadeIn } from "react-native-reanimated";
-import type { ViewProps } from "react-native";
+import { View, type ViewProps } from "react-native";
+import Animated, { Easing, FadeInDown, useReducedMotion } from "react-native-reanimated";
 
-/** Rows past roughly the first screen render without the entrance fade. */
+/** Only the first screenful cascades in; rows mounted later while scrolling just appear. */
 const ANIMATED_ROWS = 12;
 
 /**
- * Staggers the first screen of FlatList rows in with a clean fade (no bounce/slide). Rows further
- * down mount as the user scrolls, and a delayed fade there shows up as blank gaps mid-scroll, so
- * they render immediately.
+ * Fades its content up into place when it mounts, staggered by `index` so list rows and stacked
+ * cards cascade in. Skipped when the system "reduce motion" setting is on.
  */
 export function FadeInItem({ index, children, style }: { index: number } & ViewProps) {
-  if (index >= ANIMATED_ROWS) return <Animated.View style={style}>{children}</Animated.View>;
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion || index >= ANIMATED_ROWS) return <View style={style}>{children}</View>;
   return (
-    <Animated.View entering={FadeIn.delay(Math.min(index * 40, 320)).duration(380).easing(Easing.out(Easing.quad))} style={style}>
+    <Animated.View
+      entering={FadeInDown.delay(Math.min(index * 45, 360))
+        .duration(360)
+        .easing(Easing.out(Easing.cubic))
+        .withInitialValues({ opacity: 0, transform: [{ translateY: 14 }] })}
+      style={style}
+    >
       {children}
     </Animated.View>
   );
