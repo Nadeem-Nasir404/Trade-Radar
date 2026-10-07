@@ -15,6 +15,7 @@ import { MarketRow } from "@/components/markets/market-row";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { useWatchlists } from "@/lib/api/hooks/use-watchlists";
 import { useTheme } from "@/lib/use-theme";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
 
@@ -26,7 +27,8 @@ export default function MarketsScreen() {
   const { colors } = useTheme();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
-  const { data: markets, isLoading } = useMarkets({ search: search || undefined, limit: 250 });
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const { data: markets, isLoading } = useMarkets({ search: debouncedSearch || undefined, limit: 250 });
   const { data: watchlists } = useWatchlists();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -87,7 +89,7 @@ export default function MarketsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
-          ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.glassBorder }]} />}
+          ItemSeparatorComponent={Separator}
           renderItem={({ item, index }: { item: Instrument; index: number }) => (
             <FadeInItem index={index}>
               <MarketRow instrument={item} />
@@ -97,6 +99,11 @@ export default function MarketsScreen() {
       )}
     </SafeAreaView>
   );
+}
+
+function Separator() {
+  const { colors } = useTheme();
+  return <View style={[styles.separator, { backgroundColor: colors.glassBorder }]} />;
 }
 
 const styles = StyleSheet.create({

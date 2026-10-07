@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, FlatList, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -11,6 +11,7 @@ import { CreateAlertForm } from "@/components/alerts/create-alert-form";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { formatCompactPrice, formatPct } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
 
@@ -22,11 +23,7 @@ export default function CreateAlertScreen() {
     params.instrumentId ? { id: params.instrumentId, symbol: params.symbol ?? "", price: params.price ? Number(params.price) : null } : null,
   );
   const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebouncedValue(search.trim());
   const { data: markets, isLoading } = useMarkets(
     { search: debounced || undefined, limit: debounced ? 50 : 100 },
     { enabled: !selected },

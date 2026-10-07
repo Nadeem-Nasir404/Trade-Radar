@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWatchlists, useAddWatchlistItem, useRemoveWatchlistItem, useReorderWatchlist } from "@/lib/api/hooks/use-watchlists";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { cn, formatCompactPrice, formatPct } from "@/lib/utils";
 
 export default function WatchlistDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +22,8 @@ export default function WatchlistDetailPage({ params }: { params: Promise<{ id: 
 
   const [search, setSearch] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const { data: searchResults } = useMarkets({ search, limit: 6 });
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const { data: searchResults } = useMarkets({ search: debouncedSearch, limit: 6 });
 
   const watchlist = watchlists?.find((w) => w.id === id);
 
