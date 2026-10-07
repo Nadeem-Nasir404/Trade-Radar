@@ -18,16 +18,11 @@ import { ACCESS_TOKEN_COOKIE, type AccessTokenPayload } from "../auth/auth.const
 import { SubscriptionRegistryService } from "../market-data/subscription-registry.service";
 import { MarketDataService } from "../market-data/market-data.service";
 import { MARKET_RESUMED_EVENT, MARKET_STALE_EVENT, MARKET_TICK_EVENT, type MarketTickEvent, type MarketStaleEventPayload, type MarketResumedEventPayload } from "../market-data/market-data.events";
+import { PriceUpdateThrottle } from "./price-update-throttle";
 import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "../alert-engine/alert-engine.events";
 
+/** Clients get at most this many ms between price updates per instrument (see PriceUpdateThrottle). */
 const PRICE_UPDATE_INTERVAL_MS = 250;
-
-interface PriceThrottleState {
-  lastSentAt: number;
-  lastSentPrice: number | null;
-  pending: PriceUpdateEvent | null;
-  timer: ReturnType<typeof setTimeout> | null;
-}
 
 function instrumentRoom(instrumentId: string) {
   return `instrument:${instrumentId}`;
@@ -54,7 +49,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(EventsGateway.name);
   /** connectionId -> set of instrumentIds it's currently subscribed to, so disconnect can clean up refs. */
   private readonly connectionSubscriptions = new Map<string, Set<string>>();
-  private readonly priceThrottle = new Map<string, PriceThrottleState>();
+  private readonly priceUpdates = new PriceUpdateThrottle(
+    (update) => this.server.to(instrumentRoom(update.instrumentId)).emit(WS_EVENTS.PRICE_UPDATE, update),
+    PRICE_UPDATE_INTERVAL_MS,
+  );
 
   constructor(
     private readonly jwtService: JwtService,
@@ -128,40 +126,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       changePct24h: tick.changePct24h,
       eventTime: tick.eventTime,
     };
-    this.queuePriceUpdate(payload);
-  }
-
-  /**
-   * The alert engine sees every trade, but clients only need to repaint a few times a second:
-   * busy symbols trade dozens of times a second, which would otherwise re-render every open
-   * screen on each one. Sends at most one update per PRICE_UPDATE_INTERVAL_MS per instrument,
-   * the first immediately and the rest on the trailing edge, so the latest price always arrives.
-   */
-  private queuePriceUpdate(payload: PriceUpdateEvent) {
-    const state = this.priceThrottle.get(payload.instrumentId) ?? { lastSentAt: 0, lastSentPrice: null, pending: null, timer: null };
-    this.priceThrottle.set(payload.instrumentId, state);
-
-    const elapsed = Date.now() - state.lastSentAt;
-    if (!state.timer && elapsed >= PRICE_UPDATE_INTERVAL_MS) {
-      this.sendPriceUpdate(payload, state);
-      return;
-    }
-    state.pending = payload;
-    if (!state.timer) {
-      state.timer = setTimeout(() => {
-        state.timer = null;
-        if (state.pending) this.sendPriceUpdate(state.pending, state);
-      }, PRICE_UPDATE_INTERVAL_MS - elapsed);
-    }
-  }
-
-  private sendPriceUpdate(payload: PriceUpdateEvent, state: PriceThrottleState) {
-    // prevPrice relative to what this client last saw, so up/down flashes match the screen.
-    const outgoing = { ...payload, prevPrice: state.lastSentPrice ?? payload.prevPrice };
-    state.lastSentAt = Date.now();
-    state.lastSentPrice = payload.price;
-    state.pending = null;
-    this.server.to(instrumentRoom(payload.instrumentId)).emit(WS_EVENTS.PRICE_UPDATE, outgoing);
+    this.priceUpdates.push(payload);
   }
 
   @OnEvent(MARKET_STALE_EVENT)

@@ -7,7 +7,7 @@ import type { Candle } from "@/lib/api/types";
 import { bucketStart, TIMEFRAME_SECONDS } from "@/lib/timeframe";
 import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-store";
 import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
-import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore } from "@/lib/ws/live-price-store";
+import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore, type LivePriceState } from "@/lib/ws/live-price-store";
 import { LIGHTWEIGHT_CHARTS_SOURCE } from "./chart-lib.generated";
 
 export interface ChartAlertLevel {
@@ -151,21 +151,25 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
     // Folds a price at an exchange time into the live bar, opening a new bar when the
     // timeframe's bucket rolls over. Bars follow the exchange clock, not the phone's.
-    const apply = (price: number, atMs: number) => {
+    const apply = (price: number, atMs: number, window?: LiveWindow) => {
       const last = lastCandleRef.current;
       if (!last) return;
       const bucket = bucketStart(Math.floor(atMs / 1000), timeframe);
       if (bucket < last.time) return; // older than the bar on screen
+      // Spikes between sampled prices count toward this bar only if they all traded inside it.
+      const inBar = window && bucketStart(Math.floor(window.start / 1000), timeframe) === bucket;
+      const high = inBar ? Math.max(price, window.high) : price;
+      const low = inBar ? Math.min(price, window.low) : price;
       let updated: Candle;
       if (bucket > last.time) {
         // No volume on a bar opened from live prices: the real figure arrives with the refetch.
-        updated = { time: bucket, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price };
+        updated = { time: bucket, open: last.close, high: Math.max(last.close, high), low: Math.min(last.close, low), close: price };
         // The closed bar was drawn from sampled live prices; fetch the exchange's final OHLC.
         if (barCloseTimer) clearTimeout(barCloseTimer);
         barCloseTimer = setTimeout(() => onBarCloseRef.current?.(), BAR_CLOSE_REFETCH_DELAY_MS);
       } else {
-        if (price === last.close && price <= last.high && price >= last.low) return;
-        updated = { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+        if (price === last.close && high <= last.high && low >= last.low) return;
+        updated = { ...last, close: price, high: Math.max(last.high, high), low: Math.min(last.low, low) };
       }
       lastCandleRef.current = updated;
       webviewRef.current?.injectJavaScript(`window.updateLastCandle(${JSON.stringify(updated)}, ${exchangeNow() - Date.now()}); true;`);
@@ -174,7 +178,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
     const pushLatest = () => {
       const entry = useLivePriceStore.getState().byId[instrumentId];
-      if (entry?.price != null) apply(entry.price, entry.eventTime ?? exchangeNow());
+      if (entry?.price != null) apply(entry.price, entry.eventTime ?? exchangeNow(), liveWindow(entry));
     };
     pushLiveRef.current = pushLatest;
     pushLatest();
@@ -182,7 +186,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     const unsubscribe = useLivePriceStore.subscribe((state, prev) => {
       const entry = state.byId[instrumentId];
       if (!entry || entry === prev.byId[instrumentId] || entry.price == null) return;
-      apply(entry.price, entry.eventTime ?? exchangeNow());
+      apply(entry.price, entry.eventTime ?? exchangeNow(), liveWindow(entry));
     });
 
     // Quiet markets: still open the next bar on time even when no trade arrives.
@@ -239,6 +243,17 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 });
 
 const EMPTY_DRAWINGS: Drawing[] = [];
+
+interface LiveWindow {
+  high: number;
+  low: number;
+  start: number;
+}
+
+function liveWindow(entry: LivePriceState): LiveWindow | undefined {
+  if (entry.windowHigh == null || entry.windowLow == null || entry.windowStartTime == null) return undefined;
+  return { high: entry.windowHigh, low: entry.windowLow, start: entry.windowStartTime };
+}
 
 /** Wait after a bar closes before refetching, so the exchange has finalized that bar. */
 const BAR_CLOSE_REFETCH_DELAY_MS = 1500;

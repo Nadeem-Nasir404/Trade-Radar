@@ -11,9 +11,20 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { Candle } from "@/lib/api/types";
-import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore } from "@/lib/ws/live-price-store";
+import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore, type LivePriceState } from "@/lib/ws/live-price-store";
 
 const TIMEFRAME_SECONDS: Record<string, number> = { "1m": 60, "3m": 180, "5m": 300, "15m": 900, "1h": 3600, "4h": 14_400, "1d": 86_400, "1w": 604_800 };
+
+interface LiveWindow {
+  high: number;
+  low: number;
+  start: number;
+}
+
+function liveWindow(entry: LivePriceState): LiveWindow | undefined {
+  if (entry.windowHigh == null || entry.windowLow == null || entry.windowStartTime == null) return undefined;
+  return { high: entry.windowHigh, low: entry.windowLow, start: entry.windowStartTime };
+}
 
 /** Wait after a bar closes before refetching, so the exchange has finalized that bar. */
 const BAR_CLOSE_REFETCH_DELAY_MS = 1500;
@@ -124,19 +135,23 @@ export function PriceChart({ candles, instrumentId, timeframe = "1h", onBarClose
 
     // Folds a price at an exchange time into the live bar, opening a new bar when the bucket
     // rolls over. Bars follow the exchange clock, not this computer's.
-    const apply = (price: number, atMs: number) => {
+    const apply = (price: number, atMs: number, window?: LiveWindow) => {
       const last = lastBarRef.current;
       if (!last || !seriesRef.current) return;
       const bucket = Math.floor(atMs / 1000 / bucketSize) * bucketSize;
       if (bucket < last.time) return;
+      // Spikes between sampled prices count toward this bar only if they all traded inside it.
+      const inBar = window && Math.floor(window.start / 1000 / bucketSize) * bucketSize === bucket;
+      const high = inBar ? Math.max(price, window.high) : price;
+      const low = inBar ? Math.min(price, window.low) : price;
       let updated: Candle;
       if (bucket > last.time) {
-        updated = { time: bucket, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price };
+        updated = { time: bucket, open: last.close, high: Math.max(last.close, high), low: Math.min(last.close, low), close: price };
         if (barCloseTimer) clearTimeout(barCloseTimer);
         barCloseTimer = setTimeout(() => onBarCloseRef.current?.(), BAR_CLOSE_REFETCH_DELAY_MS);
       } else {
-        if (price === last.close && price <= last.high && price >= last.low) return;
-        updated = { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) };
+        if (price === last.close && high <= last.high && low >= last.low) return;
+        updated = { ...last, close: price, high: Math.max(last.high, high), low: Math.min(last.low, low) };
       }
       lastBarRef.current = updated;
       seriesRef.current.update({ time: updated.time as UTCTimestamp, open: updated.open, high: updated.high, low: updated.low, close: updated.close });
@@ -144,7 +159,7 @@ export function PriceChart({ candles, instrumentId, timeframe = "1h", onBarClose
 
     const pushLatest = () => {
       const entry = useLivePriceStore.getState().byId[instrumentId];
-      if (entry?.price != null) apply(entry.price, entry.eventTime ?? exchangeNow());
+      if (entry?.price != null) apply(entry.price, entry.eventTime ?? exchangeNow(), liveWindow(entry));
     };
     pushLiveRef.current = pushLatest;
     pushLatest();
@@ -152,7 +167,7 @@ export function PriceChart({ candles, instrumentId, timeframe = "1h", onBarClose
     const unsubscribeStore = useLivePriceStore.subscribe((state, prev) => {
       const entry = state.byId[instrumentId];
       if (!entry || entry === prev.byId[instrumentId] || entry.price == null) return;
-      apply(entry.price, entry.eventTime ?? exchangeNow());
+      apply(entry.price, entry.eventTime ?? exchangeNow(), liveWindow(entry));
     });
     // Quiet markets: still open the next bar on time even when no trade arrives.
     const rollover = setInterval(() => {

@@ -12,6 +12,10 @@ export interface LivePriceState {
   feedStatus: "LIVE" | "STALE" | "UNKNOWN";
   /** Exchange time of the trade behind `price` (ms epoch), or null before the first live update. */
   eventTime: number | null;
+  /** High/low of every trade since the previous update, starting at windowStartTime - spikes the sampled price skipped. */
+  windowHigh?: number;
+  windowLow?: number;
+  windowStartTime?: number;
 }
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -64,6 +68,9 @@ function bind(): Socket {
       changePct24h: payload.changePct24h ?? useLivePriceStore.getState().byId[payload.instrumentId]?.changePct24h ?? null,
       feedStatus: "LIVE",
       eventTime: payload.eventTime ?? null,
+      windowHigh: payload.windowHigh,
+      windowLow: payload.windowLow,
+      windowStartTime: payload.windowStartTime,
     });
   });
   socket.on(WS_EVENTS.MARKET_STALE, (payload: MarketStaleEvent) => {
