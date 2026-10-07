@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../../queues/resilient-worker-host";
 import { ConfigService } from "@nestjs/config";
 import type { Job } from "bullmq";
 import webpush from "web-push";
@@ -11,7 +12,7 @@ import type { EnvConfig } from "../../common/config/env.validation";
 
 @Injectable()
 @Processor(QUEUE_NAMES.NOTIFY_WEBPUSH, { concurrency: 25 })
-export class WebPushProcessor extends WorkerHost implements OnModuleInit {
+export class WebPushProcessor extends ResilientWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(WebPushProcessor.name);
   private configured = false;
 

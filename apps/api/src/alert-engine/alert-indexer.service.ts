@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { AlertStatus, ConditionType, type Alert } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AlertRegistryService } from "./alert-registry.service";
@@ -14,8 +14,9 @@ import { AlertRegistryService } from "./alert-registry.service";
  * the exact same crossing-detection path as plain price alerts - no special-cased evaluator.
  */
 @Injectable()
-export class AlertIndexerService implements OnModuleInit {
+export class AlertIndexerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AlertIndexerService.name);
+  private retryTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -23,7 +24,27 @@ export class AlertIndexerService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.reconcileFromDatabase();
+    await this.reconcileWithRetry(0);
+  }
+
+  onModuleDestroy() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+  }
+
+  /**
+   * A failed rebuild (Redis refusing connections, e.g. "max number of clients reached") must not
+   * stop the API from booting - prices, charts and auth keep working without the registries. The
+   * first attempt runs inline as before; after a failure it retries in the background with backoff.
+   */
+  private async reconcileWithRetry(attempt: number): Promise<void> {
+    try {
+      await this.reconcileFromDatabase();
+      if (attempt > 0) this.logger.log(`Alert registries rebuilt after ${attempt} retr${attempt === 1 ? "y" : "ies"}`);
+    } catch (err) {
+      const delayMs = Math.min(30_000, 2_000 * 2 ** attempt);
+      this.logger.warn(`Rebuilding alert registries failed (${(err as Error).message}); retrying in ${delayMs / 1000}s`);
+      this.retryTimer = setTimeout(() => void this.reconcileWithRetry(attempt + 1), delayMs);
+    }
   }
 
   async reconcileFromDatabase(): Promise<void> {

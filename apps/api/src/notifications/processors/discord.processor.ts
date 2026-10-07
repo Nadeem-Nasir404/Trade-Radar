@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../../queues/resilient-worker-host";
 import type { Job } from "bullmq";
 import { NotificationChannelType } from "@prisma/client";
 import { QUEUE_NAMES, type NotificationJobPayload } from "@levelpulse/shared-types";
@@ -8,7 +9,7 @@ import { NotificationContextService, formatConditionText } from "../notification
 import { DeliveryStatusService } from "../delivery-status.service";
 
 @Processor(QUEUE_NAMES.NOTIFY_DISCORD, { concurrency: 5 })
-export class DiscordProcessor extends WorkerHost {
+export class DiscordProcessor extends ResilientWorkerHost {
   private readonly logger = new Logger(DiscordProcessor.name);
 
   constructor(

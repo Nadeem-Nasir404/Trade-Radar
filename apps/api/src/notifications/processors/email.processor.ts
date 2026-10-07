@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Processor } from "@nestjs/bullmq";
+import { ResilientWorkerHost } from "../../queues/resilient-worker-host";
 import type { Job } from "bullmq";
 import { QUEUE_NAMES, type NotificationJobPayload } from "@levelpulse/shared-types";
 import { MailerService } from "../../common/mailer/mailer.service";
@@ -8,7 +9,7 @@ import { DeliveryStatusService } from "../delivery-status.service";
 import { buildAlertEmailHtml, buildAlertEmailText } from "../email-templates";
 
 @Processor(QUEUE_NAMES.NOTIFY_EMAIL, { concurrency: 10 })
-export class EmailProcessor extends WorkerHost {
+export class EmailProcessor extends ResilientWorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
 
   constructor(
