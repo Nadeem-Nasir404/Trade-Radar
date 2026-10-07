@@ -3,36 +3,47 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
-import { CARD_FONTS, CARD_PACKS, CARD_PACK_ORDER, CARD_THEMES, packOf, randomStyleFrom, type CardStyle } from "@/lib/card-layout";
+import { CARD_FONTS, CARD_PACKS, CARD_PACK_ORDER, CARD_THEMES, coverFor, packOf, randomStyleFrom, resolveStyle, stylesFor, type CardOutcome, type CardStyle } from "@/lib/card-layout";
 import { useTheme } from "@/lib/use-theme";
 import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
 
 /**
- * One tile per card family. Tapping a family shows its cover style (the one on the tile); tapping
- * the selected family again shuffles to a different one.
+ * One tile per card family. Tiles preview the artwork that suits the trade's result; tapping a family
+ * shows that cover, and tapping the selected family again shuffles among its suitable styles.
  */
-export function CardStylePicker({ value, onChange }: { value: CardStyle; onChange: (style: CardStyle) => void }) {
+export function CardStylePicker({
+  value,
+  onChange,
+  outcome,
+}: {
+  value: CardStyle;
+  onChange: (style: CardStyle) => void;
+  /** The trade's result, so families offer their winning or losing artwork. */
+  outcome: CardOutcome;
+}) {
   const { colors } = useTheme();
   const activePack = packOf(value);
+  const shown = resolveStyle(value, outcome);
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
       {CARD_PACK_ORDER.map((packId) => {
         const pack = CARD_PACKS[packId];
         const active = packId === activePack;
-        const preview = CARD_THEMES[active ? value : pack.styles[0]];
-        const canShuffle = pack.styles.length > 1;
+        const preview = CARD_THEMES[active ? shown : coverFor(packId, outcome)];
+        const count = stylesFor(packId, outcome).length;
+        const canShuffle = count > 1;
         return (
           <Pressable
             key={packId}
             onPress={() => {
               haptics.selection();
-              onChange(active ? randomStyleFrom(packId, value) : pack.styles[0]);
+              onChange(active ? randomStyleFrom(packId, shown, outcome) : coverFor(packId, outcome));
             }}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            accessibilityLabel={`${pack.label} cards${canShuffle ? `, ${pack.styles.length} styles - tap again to shuffle` : ""}`}
+            accessibilityLabel={`${pack.label} cards${canShuffle ? `, ${count} styles - tap again to shuffle` : ""}`}
             style={styles.item}
           >
             <View style={[styles.tile, { borderColor: active ? colors.brand : colors.glassBorder, borderWidth: active ? 2 : 1 }]}>
@@ -48,7 +59,7 @@ export function CardStylePicker({ value, onChange }: { value: CardStyle; onChang
                 <View style={[styles.badge, { backgroundColor: active ? colors.brand : withAlpha("#000000", 0.55) }]}>
                   <Ionicons name="shuffle" size={10} color="#FFFFFF" />
                   <ThemedText allowFontScaling={false} style={styles.badgeText}>
-                    {pack.styles.length}
+                    {count}
                   </ThemedText>
                 </View>
               )}

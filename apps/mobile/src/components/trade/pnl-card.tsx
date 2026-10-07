@@ -5,7 +5,7 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
 import { pnlPct, type Trade } from "@/lib/stores/trades-store";
 import { useMinuteClock } from "@/lib/hooks/use-minute-clock";
-import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, DEFAULT_CARD_STYLE, type CardStyle } from "@/lib/card-layout";
+import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, DEFAULT_CARD_STYLE, resolveStyle, type CardStyle } from "@/lib/card-layout";
 
 export { CARD_STYLE_LABELS, CARD_STYLES };
 
@@ -30,11 +30,13 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
 ) {
   const [width, setWidth] = useState(0);
   const k = width / W;
-  const t = CARD_THEMES[style] ?? CARD_THEMES[DEFAULT_CARD_STYLE];
 
   const closed = trade.exitPrice != null;
   const current = closed ? (trade.exitPrice as number) : livePrice ?? trade.entryPrice;
   const pct = pnlPct(trade.side, trade.entryPrice, current);
+  // A family shows its winning artwork on a profit and its losing artwork on a loss.
+  const shown = resolveStyle(CARD_THEMES[style] ? style : DEFAULT_CARD_STYLE, pct >= 0 ? "profit" : "loss");
+  const t = CARD_THEMES[shown];
   const tone = pct >= 0 ? t.profit : t.loss;
   const now = useMinuteClock(trade.closedAt == null);
   const held = formatHeld((trade.closedAt ?? now) - trade.openedAt);
@@ -65,7 +67,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
       {/* Until the first layout pass k is 0, and Android crashes on text with fontSize 0, so wait for a real width. */}
       {width > 0 && (
         <>
-          <Backdrop style={style} background={t.background} />
+          <Backdrop style={shown} background={t.background} />
           {t.corners && <CornerBrackets k={k} color={t.text} />}
 
           <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k, tintColor: t.text }]} />

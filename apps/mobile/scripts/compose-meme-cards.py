@@ -22,7 +22,6 @@ MEMES = {
     # Face kept above the numbers; the blurred sunset fills the rest of the card.
     "fine": dict(src="fine-meme.jpg", mode="fit", bg="blur", feather=40, fade=(620, 860)),
     "wojak": dict(src="wojak-meme.jpg", mode="fit", bg="#FFFFFF"),
-    "notover": dict(src="notover-meme.jpg", mode="fit", bg="#F8F8F8"),
     "feelsgood": dict(src="feelsgood-meme.jpg", mode="fit", bg="#F7F7F7"),
     "rainy": dict(src="rainy-meme.jpg", mode="fit", bg="blur", feather=36, fade=(620, 860)),
     # Wolf of Wall Street stills, full-bleed behind the numbers.
@@ -38,15 +37,21 @@ MEMES = {
     "tom": dict(src="tom-meme.jpg", mode="fit", crop=(90, 330, 735, 905), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
     "apuyacht": dict(src="apuyacht-meme.jpg", mode="full", crop=(40, 20, 716, 696), top=0, fade=(470, 740), max_alpha=0.6),
     "catpump": dict(src="catpump-meme.jpg", mode="full", top=0, fade=(480, 760), max_alpha=0.6),
-    # Phone chart framed in the art area so its own numbers stay clear of the card's.
-    "xmr": dict(src="xmr-meme.jpg", mode="fit", crop=(0, 120, 736, 919), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
     # Face cropped clear of the source's green frame; the cut sides fade into white.
     "onepercent": dict(src="onepercent-meme.jpg", mode="fit", crop=(0, 230, 668, 930), bg="#FFFFFF", box=(118, 608, 30), edge_fade=dict(sides=16, bottom=40)),
-    "apucandle": dict(src="apucandle-meme.jpg", mode="fit", cutout=True, box=(118, 608, 30), bg=("#DCFCE7", "#FFFFFF"), glow="#BBF7D0", edge_fade=dict(bottom=60)),
     # I Am Atomic: titles cropped off. The red-moon poster runs full-bleed under a purple shade;
     # the black-and-white one is just the moon, set in the art area on black.
     "atomic": dict(src="atomic-meme.jpg", mode="full", crop=(0, 150, 857, 1200), top=0, fade=(520, 800), tint=(36, 8, 40), max_alpha=0.6),
     "atomicmoon": dict(src="atomicmoon-meme.jpg", mode="fit", crop=(75, 258, 675, 858), bg="#000000", box=(112, 608, 30)),
+    # Loss memes.
+    "bogdanoff": dict(src="bogdanoff-meme.jpg", mode="fit", crop=(74, 74, 480, 480), bg="blur", feather=30, box=(176, 604, 30), fade=(620, 860)),
+    "pepedump": dict(src="pepedump-meme.jpg", mode="full", top=110, fade=(600, 840)),
+    # Bear on its own red: framed in the art area over a darker red so the numbers stay readable.
+    "bear": dict(src="bear-meme.jpg", mode="fit", bg=("#C21129", "#3A0810"), feather=60, box=(112, 608, 30)),
+    # Gigachad and Bateman stills, faces in the art area.
+    "gigaphone": dict(src="gigaphone-meme.jpg", mode="full", crop=(0, 90, 736, 736), top=0, fade=(520, 800)),
+    "gigadesk": dict(src="gigadesk-meme.jpg", mode="full", top=70, fade=(540, 820)),
+    "bateman": dict(src="bateman-meme.jpg", mode="full", crop=(0, 90, 735, 878), top=0, fade=(520, 800)),
     # Stickers: cut out of their grey backdrop and set larger on a soft tinted gradient.
     "diamond": dict(src="diamond-meme.jpg", mode="fit", crop=(0, 232, 750, 712), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=70), bg=("#DCEFFF", "#FFFFFF"), glow="#BFE3FF"),
     "moneyrain": dict(src="moneyrain-meme.jpg", mode="fit", crop=(0, 96, 387, 446), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=60, top=30, sides=70), bg=("#DDF7E6", "#FFFFFF"), glow="#BBF7D0"),

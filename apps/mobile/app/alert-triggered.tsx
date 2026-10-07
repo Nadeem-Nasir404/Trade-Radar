@@ -17,7 +17,7 @@ import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { useLivePrice } from "@/lib/ws/use-live-price";
-import { useTradesStore, type TradeSide } from "@/lib/stores/trades-store";
+import { useTradesStore, pnlPct, type TradeSide } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
 import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -103,7 +103,11 @@ export default function AlertTriggeredScreen() {
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {activeTrade ? (
           <>
-            <CardStylePicker value={cardStyle} onChange={setCardStyle} />
+            <CardStylePicker
+              value={cardStyle}
+              onChange={setCardStyle}
+              outcome={pnlPct(activeTrade.side, activeTrade.entryPrice, activeTrade.exitPrice ?? price ?? activeTrade.entryPrice) >= 0 ? "profit" : "loss"}
+            />
             <SectionErrorBoundary label="Trade card">
               <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
             </SectionErrorBoundary>

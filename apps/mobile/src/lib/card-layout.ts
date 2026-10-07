@@ -36,39 +36,44 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
-  | "atomic"
-  | "atomicmoon"
-  | "apuyacht"
-  | "apucandle"
-  | "catpump"
-  | "onepercent"
-  | "xmr"
+  | "wolf"
+  | "wolfpen"
+  | "wolfyacht"
+  | "moneyrain"
+  | "diamond"
+  | "gigachad"
+  | "bateman"
+  | "gigaphone"
+  | "gigadesk"
   | "stoic"
   | "patrick"
   | "peter"
   | "tom"
-  | "wolf"
-  | "wolfpen"
-  | "wolfyacht"
-  | "gigachad"
-  | "stonks"
-  | "printer"
   | "feelsgood"
+  | "apuyacht"
+  | "pepedump"
+  | "onepercent"
   | "wojak"
-  | "notover"
-  | "fine"
   | "rainy"
-  | "anime"
+  | "fine"
+  | "stonks"
+  | "catpump"
+  | "printer"
+  | "bogdanoff"
+  | "bear"
   | "kurumi"
+  | "atomic"
+  | "atomicmoon"
   | "moonlit"
-  | "diamond"
-  | "moneyrain"
   | "noir"
   | "blush"
   | "minimal";
 
 /** Used when nothing (or a since-removed style) is saved. */
 export const DEFAULT_CARD_STYLE: CardStyle = "wolf";
+
+/** Whether the trade is up or down; picks which of a family's artwork shows. */
+export type CardOutcome = "profit" | "loss";
 
 export interface CardTheme {
   label: string;
@@ -88,9 +93,113 @@ export interface CardTheme {
   tagline: { profit: string; loss: string };
   /** Draw the corner brackets; false when the artwork already has its own. */
   corners: boolean;
+  /**
+   * Which result the artwork is about: a winning meme, a losing one, or either (unset). A family
+   * shows its matching artwork for the trade's result - see resolveStyle.
+   */
+  mood?: CardOutcome;
 }
 
 export const CARD_THEMES: Record<CardStyle, CardTheme> = {
+  bogdanoff: {
+    label: "Dump It",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#DC2626",
+    pillText: "#FFFFFF",
+    pillBorder: "#DC2626",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/bogdanoff.jpg"),
+    tagline: { profit: "They sold? Pump it", loss: "Got dumped on" },
+    corners: true,
+    mood: "loss",
+  },
+  pepedump: {
+    label: "Dump It Apu",
+    text: "#FFFFFF",
+    sub: "#BFD4F5",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#60A5FA",
+    pillText: "#0B1220",
+    pillBorder: "#60A5FA",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#141A2A", "#080B14"],
+    background: require("../../assets/cards/pepedump.jpg"),
+    tagline: { profit: "Pumped it", loss: "Dumped it" },
+    corners: true,
+    mood: "loss",
+  },
+  bear: {
+    label: "Laser Bear",
+    text: "#FFFFFF",
+    sub: "#FECACA",
+    profit: "#4ADE80",
+    loss: "#FECACA",
+    pillBg: "#FFFFFF",
+    pillText: "#7F1D1D",
+    pillBorder: "#FFFFFF",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#7F1D1D", "#2A0707"],
+    background: require("../../assets/cards/bear.jpg"),
+    tagline: { profit: "Bear trapped", loss: "Bear market" },
+    corners: true,
+    mood: "loss",
+  },
+  gigaphone: {
+    label: "Giga Call",
+    text: "#FFFFFF",
+    sub: "#D4D4D8",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#FFFFFF",
+    pillText: "#111118",
+    pillBorder: "#FFFFFF",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#3F3F46", "#09090B"],
+    background: require("../../assets/cards/gigaphone.jpg"),
+    tagline: { profit: "Buy everything", loss: "Buy the dip" },
+    corners: true,
+  },
+  gigadesk: {
+    label: "Giga Desk",
+    text: "#FFFFFF",
+    sub: "#D4D4D8",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#FFFFFF",
+    pillText: "#111118",
+    pillBorder: "#FFFFFF",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#3F3F46", "#09090B"],
+    background: require("../../assets/cards/gigadesk.jpg"),
+    tagline: { profit: "3am trader", loss: "Still at the desk" },
+    corners: true,
+  },
+  bateman: {
+    label: "Bateman",
+    text: "#FFFFFF",
+    sub: "#E7E5E4",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#B91C1C",
+    pillText: "#FFFFFF",
+    pillBorder: "#B91C1C",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#3B3530", "#0C0A09"],
+    background: require("../../assets/cards/bateman.jpg"),
+    tagline: { profit: "Let's see Paul Allen's P&L", loss: "Returning some videotapes" },
+    corners: true,
+  },
   feelsgood: {
     label: "Feels Good",
     text: "#111118",
@@ -106,6 +215,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/feelsgood.jpg"),
     tagline: { profit: "Feels good man", loss: "Feels bad man" },
     corners: true,
+    mood: "profit",
   },
   wojak: {
     label: "Wojak",
@@ -122,22 +232,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/wojak.jpg"),
     tagline: { profit: "Tears of joy", loss: "It's over" },
     corners: true,
-  },
-  notover: {
-    label: "Not Over",
-    text: "#111118",
-    sub: "#6B7082",
-    profit: "#16A34A",
-    loss: "#DC2626",
-    pillBg: "#15803D",
-    pillText: "#FFFFFF",
-    pillBorder: "#15803D",
-    divider: "#11111822",
-    shadow: false,
-    fallback: ["#F8F8F8", "#F8F8F8"],
-    background: require("../../assets/cards/notover.jpg"),
-    tagline: { profit: "Told you so", loss: "Revenge trade loading" },
-    corners: true,
+    mood: "loss",
   },
   fine: {
     label: "It's Fine",
@@ -154,6 +249,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/fine.jpg"),
     tagline: { profit: "Finally made it", loss: "It's fine. I'm fine." },
     corners: true,
+    mood: "loss",
   },
   rainy: {
     label: "Rainy Day",
@@ -170,22 +266,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/rainy.jpg"),
     tagline: { profit: "After the storm", loss: "Raining red" },
     corners: true,
-  },
-  anime: {
-    label: "Anime",
-    text: "#FFFFFF",
-    sub: "#E9D5FF",
-    profit: "#A5F3FC",
-    loss: "#FB7185",
-    pillBg: "#F472B6",
-    pillText: "#1E0B2E",
-    pillBorder: "#F472B6",
-    divider: "#FFFFFF33",
-    shadow: true,
-    fallback: ["#1B0B3F", "#0A0616"],
-    background: require("../../assets/cards/anime.jpg"),
-    tagline: { profit: "Power level: over 9000", loss: "Training arc" },
-    corners: true,
+    mood: "loss",
   },
   printer: {
     label: "Money Printer",
@@ -202,6 +283,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/printer.jpg"),
     tagline: { profit: "Money printer go brrr", loss: "Printer jammed" },
     corners: true,
+    mood: "profit",
   },
   stonks: {
     label: "Stonks",
@@ -218,6 +300,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/stonks.jpg"),
     tagline: { profit: "Stonks", loss: "Not stonks" },
     corners: true,
+    mood: "profit",
   },
   atomic: {
     label: "Atomic",
@@ -266,22 +349,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/apuyacht.jpg"),
     tagline: { profit: "Comfy gains", loss: "Still comfy" },
     corners: true,
-  },
-  apucandle: {
-    label: "Green Candle",
-    text: "#111118",
-    sub: "#5B6B66",
-    profit: "#16A34A",
-    loss: "#DC2626",
-    pillBg: "#15803D",
-    pillText: "#FFFFFF",
-    pillBorder: "#15803D",
-    divider: "#11111822",
-    shadow: false,
-    fallback: ["#DCFCE7", "#FFFFFF"],
-    background: require("../../assets/cards/apucandle.jpg"),
-    tagline: { profit: "Green candle energy", loss: "Shrinkage" },
-    corners: true,
+    mood: "profit",
   },
   catpump: {
     label: "Cat Pump",
@@ -298,6 +366,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/catpump.jpg"),
     tagline: { profit: "Wait, it's pumping?", loss: "Wait, it's dumping?" },
     corners: true,
+    mood: "profit",
   },
   onepercent: {
     label: "Up 1%",
@@ -314,22 +383,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/onepercent.jpg"),
     tagline: { profit: "Up 1%? Retiring", loss: "Down 1%? It's over" },
     corners: true,
-  },
-  xmr: {
-    label: "Chart Check",
-    text: "#FFFFFF",
-    sub: "#D6DAE6",
-    profit: "#4ADE80",
-    loss: "#F87171",
-    pillBg: "#26A69A",
-    pillText: "#FFFFFF",
-    pillBorder: "#26A69A",
-    divider: "#FFFFFF33",
-    shadow: true,
-    fallback: ["#1F2937", "#0A0A0A"],
-    background: require("../../assets/cards/xmr.jpg"),
-    tagline: { profit: "Number go up", loss: "Number go down" },
-    corners: true,
+    mood: "profit",
   },
   stoic: {
     label: "Stoic",
@@ -362,6 +416,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/patrick.jpg"),
     tagline: { profit: "Professional trader", loss: "Back under the rock" },
     corners: true,
+    mood: "profit",
   },
   peter: {
     label: "Peter",
@@ -378,6 +433,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/peter.jpg"),
     tagline: { profit: "Mine. All mine.", loss: "Gone. All gone." },
     corners: true,
+    mood: "profit",
   },
   tom: {
     label: "Lock In",
@@ -410,6 +466,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/wolf.jpg"),
     tagline: { profit: "I'm not leaving", loss: "Still not leaving" },
     corners: true,
+    mood: "profit",
   },
   wolfpen: {
     label: "Sell Me This Pen",
@@ -426,6 +483,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/wolfpen.jpg"),
     tagline: { profit: "Sell me this pen", loss: "Pen still for sale" },
     corners: true,
+    mood: "profit",
   },
   wolfyacht: {
     label: "Yacht Life",
@@ -442,6 +500,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/wolfyacht.jpg"),
     tagline: { profit: "Throwing money around", loss: "Yacht's still mine" },
     corners: true,
+    mood: "profit",
   },
   diamond: {
     label: "Diamond Hands",
@@ -474,6 +533,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     background: require("../../assets/cards/moneyrain.jpg"),
     tagline: { profit: "Make it rain", loss: "Rain check" },
     corners: true,
+    mood: "profit",
   },
   kurumi: {
     label: "Kurumi",
@@ -575,19 +635,19 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
 };
 
 /**
- * Styles grouped into families. The picker shows one tile per family with its first style as the
- * cover; tapping a family shows that cover, and tapping it again shuffles to another style.
+ * Styles grouped into families. The picker shows one tile per family. A family's cover is its first
+ * style that suits the trade's result; tapping the family shows the cover, tapping again shuffles.
  */
 export type CardPackId = "diamond" | "gigachad" | "cartoons" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
 
 export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[] }> = {
-  diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "diamond", "moneyrain"] },
-  gigachad: { label: "Gigachad", styles: ["gigachad", "stoic"] },
+  diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "moneyrain", "diamond"] },
+  gigachad: { label: "Gigachad", styles: ["gigachad", "bateman", "gigaphone", "gigadesk", "stoic"] },
   cartoons: { label: "Cartoons", styles: ["patrick", "peter", "tom"] },
-  apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "apucandle", "notover"] },
-  wojak: { label: "Wojak", styles: ["wojak", "onepercent", "rainy", "fine"] },
-  stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "xmr"] },
-  anime: { label: "Anime", styles: ["kurumi", "atomic", "atomicmoon", "anime"] },
+  apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "pepedump"] },
+  wojak: { label: "Wojak", styles: ["onepercent", "wojak", "rainy", "fine"] },
+  stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "bogdanoff", "bear"] },
+  anime: { label: "Anime", styles: ["kurumi", "atomic", "atomicmoon"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },
 };
@@ -595,50 +655,48 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
 /** Picker order. */
 export const CARD_PACK_ORDER: CardPackId[] = ["diamond", "gigachad", "cartoons", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
 
+/** Every style, in family order. */
+export const CARD_STYLES: CardStyle[] = CARD_PACK_ORDER.flatMap((id) => CARD_PACKS[id].styles);
+
 export function packOf(style: CardStyle): CardPackId {
   return CARD_PACK_ORDER.find((id) => CARD_PACKS[id].styles.includes(style)) ?? "minimal";
 }
 
-/** A random style from `pack`, never `current` when the pack has others to choose from. */
-export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyle {
-  const options = CARD_PACKS[pack].styles.filter((s) => s !== current);
-  const pool = options.length > 0 ? options : CARD_PACKS[pack].styles;
-  return pool[Math.floor(Math.random() * pool.length)];
+function suits(style: CardStyle, outcome: CardOutcome | undefined): boolean {
+  const mood = CARD_THEMES[style].mood;
+  return outcome == null || mood == null || mood === outcome;
 }
 
-/** Every style, in family order. */
-export const CARD_STYLES: CardStyle[] = [
-  "atomic",
-  "atomicmoon",
-  "apuyacht",
-  "apucandle",
-  "catpump",
-  "onepercent",
-  "xmr",
-  "stoic",
-  "patrick",
-  "peter",
-  "tom",
-  "wolf",
-  "wolfpen",
-  "wolfyacht",
-  "gigachad",
-  "stonks",
-  "printer",
-  "feelsgood",
-  "wojak",
-  "notover",
-  "fine",
-  "rainy",
-  "anime",
-  "kurumi",
-  "moonlit",
-  "diamond",
-  "moneyrain",
-  "noir",
-  "blush",
-  "minimal",
-];
+/** The family's styles that suit `outcome`; all of them if none do. */
+export function stylesFor(pack: CardPackId, outcome?: CardOutcome): CardStyle[] {
+  const all = CARD_PACKS[pack].styles;
+  const matching = all.filter((s) => suits(s, outcome));
+  return matching.length > 0 ? matching : all;
+}
+
+/** What the family shows first for `outcome`. */
+export function coverFor(pack: CardPackId, outcome?: CardOutcome): CardStyle {
+  return stylesFor(pack, outcome)[0];
+}
+
+/**
+ * The style to draw for the chosen one and the trade's result: the chosen style if it suits, else
+ * its family's cover for that result (so a winning meme never sits on a losing trade). Deterministic,
+ * so a live card doesn't flicker while the price moves.
+ */
+export function resolveStyle(style: CardStyle, outcome: CardOutcome): CardStyle {
+  if (suits(style, outcome)) return style;
+  const cover = coverFor(packOf(style), outcome);
+  return suits(cover, outcome) ? cover : style;
+}
+
+/** A random suitable style from `pack`, never `current` when the pack has others to choose from. */
+export function randomStyleFrom(pack: CardPackId, current?: CardStyle, outcome?: CardOutcome): CardStyle {
+  const pool = stylesFor(pack, outcome);
+  const options = pool.filter((s) => s !== current);
+  const pick = options.length > 0 ? options : pool;
+  return pick[Math.floor(Math.random() * pick.length)];
+}
 
 export function isCardStyle(value: unknown): value is CardStyle {
   return typeof value === "string" && (CARD_STYLES as string[]).includes(value);

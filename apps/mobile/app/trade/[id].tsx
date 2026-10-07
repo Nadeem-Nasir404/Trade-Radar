@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { PnlCard } from "@/components/trade/pnl-card";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
-import { useTradesStore } from "@/lib/stores/trades-store";
+import { useTradesStore, pnlPct } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
 import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -74,6 +74,9 @@ export default function TradeDetailScreen() {
   }
 
   const isOpen = trade.closedAt === null;
+  // Same price the card shows, so the picker offers artwork for the card's result.
+  const cardPrice = trade.exitPrice ?? (isOpen ? currentPrice : null) ?? trade.entryPrice;
+  const outcome = pnlPct(trade.side, trade.entryPrice, cardPrice) >= 0 ? "profit" : "loss";
 
   const endTrade = () => {
     if (currentPrice == null) return;
@@ -118,7 +121,7 @@ export default function TradeDetailScreen() {
             <ThemedText variant="label" style={styles.pickerLabel}>
               CARD STYLE · TAP AGAIN TO SHUFFLE
             </ThemedText>
-            <CardStylePicker value={cardStyle} onChange={setCardStyle} />
+            <CardStylePicker value={cardStyle} onChange={setCardStyle} outcome={outcome} />
 
             <Surface style={styles.info}>
               <InfoRow label="Direction" value={trade.side} tone={trade.side === "LONG" ? colors.positive : colors.negative} />
