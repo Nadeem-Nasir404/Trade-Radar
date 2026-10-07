@@ -36,6 +36,13 @@ MEMES = {
     "peter": dict(src="peter-meme.jpg", mode="full", crop=(40, 30, 716, 706), top=0, fade=(470, 740), max_alpha=0.6),
     # Tom sits low on the left where the numbers go, so he and the stacks are framed in the art area instead.
     "tom": dict(src="tom-meme.jpg", mode="fit", crop=(90, 330, 735, 905), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
+    "apuyacht": dict(src="apuyacht-meme.jpg", mode="full", crop=(40, 20, 716, 696), top=0, fade=(470, 740), max_alpha=0.6),
+    "catpump": dict(src="catpump-meme.jpg", mode="full", top=0, fade=(480, 760), max_alpha=0.6),
+    # Phone chart framed in the art area so its own numbers stay clear of the card's.
+    "xmr": dict(src="xmr-meme.jpg", mode="fit", crop=(0, 120, 736, 919), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
+    # Face cropped clear of the source's green frame; the cut sides fade into white.
+    "onepercent": dict(src="onepercent-meme.jpg", mode="fit", crop=(0, 230, 668, 930), bg="#FFFFFF", box=(118, 608, 30), edge_fade=dict(sides=16, bottom=40)),
+    "apucandle": dict(src="apucandle-meme.jpg", mode="fit", cutout=True, box=(118, 608, 30), bg=("#DCFCE7", "#FFFFFF"), glow="#BBF7D0", edge_fade=dict(bottom=60)),
     # Stickers: cut out of their grey backdrop and set larger on a soft tinted gradient.
     "diamond": dict(src="diamond-meme.jpg", mode="fit", crop=(0, 232, 750, 712), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=70), bg=("#DCEFFF", "#FFFFFF"), glow="#BFE3FF"),
     "moneyrain": dict(src="moneyrain-meme.jpg", mode="fit", crop=(0, 96, 387, 446), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=60, top=30, sides=70), bg=("#DDF7E6", "#FFFFFF"), glow="#BBF7D0"),

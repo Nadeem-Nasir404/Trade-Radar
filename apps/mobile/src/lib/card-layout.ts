@@ -36,6 +36,11 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
+  | "apuyacht"
+  | "apucandle"
+  | "catpump"
+  | "onepercent"
+  | "xmr"
   | "stoic"
   | "patrick"
   | "peter"
@@ -210,6 +215,86 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     fallback: ["#0B1A3A", "#05080F"],
     background: require("../../assets/cards/stonks.jpg"),
     tagline: { profit: "Stonks", loss: "Not stonks" },
+    corners: true,
+  },
+  apuyacht: {
+    label: "Yacht Apu",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#0EA5E9",
+    pillText: "#FFFFFF",
+    pillBorder: "#0EA5E9",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/apuyacht.jpg"),
+    tagline: { profit: "Comfy gains", loss: "Still comfy" },
+    corners: true,
+  },
+  apucandle: {
+    label: "Green Candle",
+    text: "#111118",
+    sub: "#5B6B66",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#DCFCE7", "#FFFFFF"],
+    background: require("../../assets/cards/apucandle.jpg"),
+    tagline: { profit: "Green candle energy", loss: "Shrinkage" },
+    corners: true,
+  },
+  catpump: {
+    label: "Cat Pump",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#14B8A6",
+    pillText: "#04201C",
+    pillBorder: "#14B8A6",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/catpump.jpg"),
+    tagline: { profit: "Wait, it's pumping?", loss: "Wait, it's dumping?" },
+    corners: true,
+  },
+  onepercent: {
+    label: "Up 1%",
+    text: "#111118",
+    sub: "#5B6B66",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#FFFFFF", "#FFFFFF"],
+    background: require("../../assets/cards/onepercent.jpg"),
+    tagline: { profit: "Up 1%? Retiring", loss: "Down 1%? It's over" },
+    corners: true,
+  },
+  xmr: {
+    label: "Chart Check",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#26A69A",
+    pillText: "#FFFFFF",
+    pillBorder: "#26A69A",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/xmr.jpg"),
+    tagline: { profit: "Number go up", loss: "Number go down" },
     corners: true,
   },
   stoic: {
@@ -465,9 +550,9 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
   diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "diamond", "moneyrain"] },
   gigachad: { label: "Gigachad", styles: ["gigachad", "stoic"] },
   cartoons: { label: "Cartoons", styles: ["patrick", "peter", "tom"] },
-  apu: { label: "Apu", styles: ["feelsgood", "notover"] },
-  wojak: { label: "Wojak", styles: ["wojak", "rainy", "fine"] },
-  stonks: { label: "Stonks", styles: ["stonks", "printer"] },
+  apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "apucandle", "notover"] },
+  wojak: { label: "Wojak", styles: ["wojak", "onepercent", "rainy", "fine"] },
+  stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "xmr"] },
   anime: { label: "Anime", styles: ["kurumi", "anime"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },
@@ -489,6 +574,11 @@ export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyl
 
 /** Every style, in family order. */
 export const CARD_STYLES: CardStyle[] = [
+  "apuyacht",
+  "apucandle",
+  "catpump",
+  "onepercent",
+  "xmr",
   "stoic",
   "patrick",
   "peter",
