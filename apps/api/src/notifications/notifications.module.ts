@@ -1,6 +1,4 @@
 import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bullmq";
-import { QUEUE_NAMES } from "@levelpulse/shared-types";
 import { NotificationsService } from "./notifications.service";
 import { NotificationsController } from "./notifications.controller";
 import { NotificationDispatchService } from "./notification-dispatch.service";
@@ -13,15 +11,6 @@ import { DiscordProcessor } from "./processors/discord.processor";
 import { ExpoPushProcessor } from "./processors/expo-push.processor";
 
 @Module({
-  imports: [
-    BullModule.registerQueue(
-      { name: QUEUE_NAMES.NOTIFY_EMAIL },
-      { name: QUEUE_NAMES.NOTIFY_WEBPUSH },
-      { name: QUEUE_NAMES.NOTIFY_TELEGRAM },
-      { name: QUEUE_NAMES.NOTIFY_DISCORD },
-      { name: QUEUE_NAMES.NOTIFY_EXPO_PUSH },
-    ),
-  ],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
