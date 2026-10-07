@@ -374,6 +374,7 @@ export class MarketDataService implements OnModuleInit {
       this.logger.warn(`Serving last good ${timeframe} candles for ${instrument.displaySymbol}: provider returned none`);
       return JSON.parse(lastGood) as Candle[];
     }
+    this.logger.warn(`No historical candles from ${adapter} for ${instrument.symbol} (${timeframe}); returning none`);
     return [];
   }
 

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "9277bd9e-6a8b-41d5-8f9c-5c96da4beb97"
+      }
+    },
+    "android": {
+      "package": "com.nadeemch.levelpulse"
+    }
+  }
+}

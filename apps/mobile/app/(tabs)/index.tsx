@@ -92,6 +92,18 @@ export default function HomeScreen() {
               </LinearGradient>
             </Pressable>
 
+            <Pressable
+              style={[styles.tradesButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              onPress={() => {
+                haptics.light();
+                router.push("/trades");
+              }}
+            >
+              <Ionicons name="journal-outline" size={18} color={colors.foreground} />
+              <ThemedText style={{ fontWeight: "600" }}>My trades</ThemedText>
+              <Ionicons name="chevron-forward" size={16} color={colors.foregroundMuted} />
+            </Pressable>
+
             <View style={styles.sectionHeaderRow}>
               <ThemedText style={styles.sectionTitle}>Recent alerts</ThemedText>
               {(recentAlerts?.length ?? 0) > 0 && <SeeAll onPress={() => router.push("/(tabs)/alerts")} />}
@@ -216,4 +228,5 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "600" },
   seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
   seeAllText: { fontSize: 13, fontWeight: "600" },
+  tradesButton: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1 },
 });
