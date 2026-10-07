@@ -44,6 +44,9 @@ export interface Instrument {
   high24h: number | null;
   low24h: number | null;
   volume24h: number | null;
+  /** From CoinGecko; null for coins it doesn't rank and for gold/forex. */
+  marketCap?: number | null;
+  marketCapRank?: number | null;
   feedStatus: "LIVE" | "STALE" | "UNKNOWN";
   isDemo: boolean;
   lastUpdateAt: number | null;

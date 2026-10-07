@@ -13,7 +13,7 @@ import { haptics } from "@/lib/haptics";
 import type { Instrument } from "@/lib/api/types";
 
 /** Plain row: change shows as colored text, not a filled pill, so the list reads calm and scannable. */
-export function MarketRow({ instrument }: { instrument: Instrument }) {
+export function MarketRow({ instrument, detail }: { instrument: Instrument; detail?: string }) {
   const { colors } = useTheme();
   const live = useLivePrice(instrument.id, { price: instrument.price, changePct24h: instrument.changePct24h });
   const price = live.price ?? instrument.price;
@@ -32,7 +32,7 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
             {instrument.displaySymbol}
           </ThemedText>
           <ThemedText variant="subtle" numberOfLines={1}>
-            {instrument.name ?? instrument.provider}
+            {detail ?? instrument.name ?? instrument.provider}
           </ThemedText>
         </View>
         <View style={styles.priceCol}>

@@ -13,6 +13,7 @@ export interface CoinGeckoSearchResult {
 export interface CoinGeckoMarketData {
   id: string;
   currentPrice: number;
+  marketCap: number | null;
   marketCapRank: number | null;
   priceChangePct24h: number | null;
   high24h: number | null;
@@ -30,6 +31,11 @@ export class CoinGeckoService {
   private readonly logger = new Logger(CoinGeckoService.name);
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+
+  /** Top coins by market cap for the Markets list, refreshed at most every MARKET_CAP_TTL_MS. */
+  private marketCaps: MarketCapIndex = { byId: new Map(), bySymbol: new Map() };
+  private marketCapsFetchedAt = 0;
+  private marketCapsRefresh: Promise<void> | null = null;
 
   constructor(config: ConfigService<EnvConfig, true>) {
     this.baseUrl = config.get("COINGECKO_API_BASE_URL", { infer: true });
@@ -74,6 +80,7 @@ export class CoinGeckoService {
       Array<{
         id: string;
         current_price: number;
+        market_cap: number | null;
         market_cap_rank: number | null;
         price_change_percentage_24h: number | null;
         high_24h: number | null;
@@ -88,6 +95,7 @@ export class CoinGeckoService {
       result.set(coin.id, {
         id: coin.id,
         currentPrice: coin.current_price,
+        marketCap: coin.market_cap,
         marketCapRank: coin.market_cap_rank,
         priceChangePct24h: coin.price_change_percentage_24h,
         high24h: coin.high_24h,
@@ -98,4 +106,66 @@ export class CoinGeckoService {
     }
     return result;
   }
+
+  /**
+   * Market cap and rank of the top coins, by CoinGecko id and by ticker (the seed stores no
+   * CoinGecko ids, so instruments are matched on their base asset). Served from memory and
+   * refreshed in the background every 10 minutes (two requests); the first call waits briefly for
+   * data, and after that a slow or failing CoinGecko never holds up the list.
+   */
+  async getMarketCaps(): Promise<MarketCapIndex> {
+    const stale = Date.now() - this.marketCapsFetchedAt > MARKET_CAP_TTL_MS;
+    if (stale && !this.marketCapsRefresh) {
+      this.marketCapsRefresh = this.refreshMarketCaps().finally(() => {
+        this.marketCapsRefresh = null;
+      });
+    }
+    if (this.marketCaps.byId.size === 0 && this.marketCapsRefresh) {
+      let timer: NodeJS.Timeout | undefined;
+      const wait = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, FIRST_FETCH_WAIT_MS);
+      });
+      await Promise.race([this.marketCapsRefresh, wait]).finally(() => clearTimeout(timer));
+    }
+    return this.marketCaps;
+  }
+
+  private async refreshMarketCaps(): Promise<void> {
+    const byId = new Map<string, MarketCap>();
+    const bySymbol = new Map<string, MarketCap>();
+    for (let page = 1; page <= MARKET_CAP_PAGES; page++) {
+      const coins = await this.fetchJson<Array<{ id: string; symbol: string; market_cap: number | null; market_cap_rank: number | null }>>(
+        `/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${MARKETS_PAGE_SIZE}&page=${page}`,
+      );
+      if (!coins) break;
+      for (const coin of coins) {
+        const cap = { marketCap: coin.market_cap, marketCapRank: coin.market_cap_rank };
+        byId.set(coin.id, cap);
+        // Pages come biggest first, so a ticker shared by several coins keeps the largest one.
+        const symbol = coin.symbol.toUpperCase();
+        if (!bySymbol.has(symbol)) bySymbol.set(symbol, cap);
+      }
+    }
+    if (byId.size > 0) {
+      this.marketCaps = { byId, bySymbol };
+      this.marketCapsFetchedAt = Date.now();
+    }
+  }
 }
+
+export interface MarketCap {
+  marketCap: number | null;
+  marketCapRank: number | null;
+}
+
+export interface MarketCapIndex {
+  byId: Map<string, MarketCap>;
+  bySymbol: Map<string, MarketCap>;
+}
+
+const MARKET_CAP_TTL_MS = 10 * 60 * 1000;
+const FIRST_FETCH_WAIT_MS = 2_500;
+/** Two pages of 250: every coin a typical exchange lists outside the long tail. */
+const MARKET_CAP_PAGES = 2;
+/** CoinGecko's /coins/markets returns at most 250 coins per page. */
+const MARKETS_PAGE_SIZE = 250;
