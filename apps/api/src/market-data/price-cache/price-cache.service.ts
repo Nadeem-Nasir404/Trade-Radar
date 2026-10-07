@@ -47,6 +47,7 @@ export class PriceCacheService {
     receivedTime: number;
     providerId: string;
     isDemo: boolean;
+    providerSeq?: number;
   }): Promise<TickGuardResult> {
     const [accepted, prevPriceRaw, seq] = (await this.redis.eval(
       TICK_GUARD_LUA,
@@ -57,6 +58,7 @@ export class PriceCacheService {
       String(input.receivedTime),
       input.providerId,
       input.isDemo ? "1" : "0",
+      input.providerSeq !== undefined ? String(input.providerSeq) : "",
     )) as [number, string, number];
 
     if (accepted === 1) {
@@ -68,9 +70,11 @@ export class PriceCacheService {
 
   async updateTickerStats(
     instrumentId: string,
-    stats: { high24h?: number; low24h?: number; volume24h?: number; changePct24h?: number },
+    stats: { high24h?: number; low24h?: number; volume24h?: number; changePct24h?: number; heardAt?: number },
   ): Promise<void> {
     const fields: string[] = [];
+    // A stats message proves the feed is alive even when an illiquid symbol has no new trades.
+    if (stats.heardAt !== undefined) fields.push("heardTs", String(stats.heardAt));
     if (stats.high24h !== undefined) fields.push("high24h", String(stats.high24h));
     if (stats.low24h !== undefined) fields.push("low24h", String(stats.low24h));
     if (stats.volume24h !== undefined) fields.push("volume24h", String(stats.volume24h));
@@ -82,8 +86,9 @@ export class PriceCacheService {
   private parseSnapshot(instrumentId: string, raw: Record<string, string> | null): PriceSnapshot | null {
     if (!raw || !raw.price) return null;
     const eventTime = Number(raw.ts ?? 0);
-    const feedStatus: PriceSnapshot["feedStatus"] = eventTime
-      ? Date.now() - eventTime > STALE_AFTER_MS
+    const lastHeard = Math.max(eventTime, Number(raw.heardTs ?? 0));
+    const feedStatus: PriceSnapshot["feedStatus"] = lastHeard
+      ? Date.now() - lastHeard > STALE_AFTER_MS
         ? "STALE"
         : "LIVE"
       : "UNKNOWN";

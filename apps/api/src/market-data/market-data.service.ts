@@ -6,7 +6,7 @@ import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
 import type { NormalizedTick } from "@levelpulse/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
 import type { EnvConfig } from "../common/config/env.validation";
-import { PriceCacheService, STALE_AFTER_MS } from "./price-cache/price-cache.service";
+import { PriceCacheService } from "./price-cache/price-cache.service";
 import { SubscriptionRegistryService } from "./subscription-registry.service";
 import { MockMarketDataProvider } from "./providers/mock/mock-market-data.provider";
 import { BinanceProvider } from "./providers/binance/binance.provider";
@@ -36,6 +36,7 @@ export class MarketDataService implements OnModuleInit {
   private readonly instrumentsById = new Map<string, Instrument>();
   private providerIds: Record<AdapterName, string | null> = { binance: null, twelvedata: null, mock: null };
   private readonly lastKnownFeedStatus = new Map<string, "LIVE" | "STALE">();
+  private readonly open24hById = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -182,6 +183,23 @@ export class MarketDataService implements OnModuleInit {
   }
 
   private async handleResolvedTick(instrument: Instrument, tick: NormalizedTick, providerId: string, isDemo: boolean, adapter: AdapterName) {
+    if (tick.open24h !== undefined && tick.open24h > 0) this.open24hById.set(instrument.id, tick.open24h);
+
+    const hasStats =
+      tick.high24h !== undefined || tick.low24h !== undefined || tick.volume24h !== undefined || tick.changePct24h !== undefined;
+    if (tick.statsOnly) {
+      // 24h stats only: refreshes high/low/volume and proves the feed is alive, but the price
+      // itself comes from trades, so this never moves the price or evaluates alerts.
+      await this.priceCache.updateTickerStats(instrument.id, {
+        high24h: tick.high24h,
+        low24h: tick.low24h,
+        volume24h: tick.volume24h,
+        changePct24h: tick.changePct24h,
+        heardAt: tick.receivedTime,
+      });
+      return;
+    }
+
     const result = await this.priceCache.applyTick({
       instrumentId: instrument.id,
       price: tick.price,
@@ -189,15 +207,11 @@ export class MarketDataService implements OnModuleInit {
       receivedTime: tick.receivedTime,
       providerId,
       isDemo,
+      providerSeq: tick.providerSeq,
     });
     if (!result.accepted) return;
 
-    if (
-      tick.high24h !== undefined ||
-      tick.low24h !== undefined ||
-      tick.volume24h !== undefined ||
-      tick.changePct24h !== undefined
-    ) {
+    if (hasStats) {
       await this.priceCache.updateTickerStats(instrument.id, {
         high24h: tick.high24h,
         low24h: tick.low24h,
@@ -219,9 +233,15 @@ export class MarketDataService implements OnModuleInit {
       providerId,
       providerName: adapter,
       isDemo,
-      changePct24h: tick.changePct24h ?? null,
+      changePct24h: tick.changePct24h ?? this.changePctFromOpen(instrument.id, tick.price),
     };
     this.events.emit(MARKET_TICK_EVENT, payload);
+  }
+
+  /** 24h change against the latest trade price, so it moves in step with the price shown beside it. */
+  private changePctFromOpen(instrumentId: string, price: number): number | null {
+    const open = this.open24hById.get(instrumentId);
+    return open ? ((price - open) / open) * 100 : null;
   }
 
   /** Throttled persistence of the live price into Postgres, purely for cold-start display. */
@@ -249,7 +269,7 @@ export class MarketDataService implements OnModuleInit {
       const snapshot = await this.priceCache.getSnapshot(instrumentId);
       if (!snapshot) continue;
       const previous = this.lastKnownFeedStatus.get(instrumentId);
-      const isStale = Date.now() - snapshot.eventTime > STALE_AFTER_MS;
+      const isStale = snapshot.feedStatus === "STALE";
 
       if (isStale && previous !== "STALE") {
         this.lastKnownFeedStatus.set(instrumentId, "STALE");

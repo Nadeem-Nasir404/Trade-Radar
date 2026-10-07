@@ -32,6 +32,15 @@ export interface NormalizedTick {
   high24h?: number;
   low24h?: number;
   changePct24h?: number;
+  /** 24h rolling open, so change % can be recomputed against every new trade price. */
+  open24h?: number;
+  /**
+   * Monotonic per-symbol id from the provider (e.g. Binance aggregate trade id). When present,
+   * tick admission orders by it instead of eventTime, so trades sharing a millisecond all count.
+   */
+  providerSeq?: number;
+  /** A 24h-stats update that carries no new trade price; it refreshes stats, not the price. */
+  statsOnly?: boolean;
 }
 
 export interface Candle {
