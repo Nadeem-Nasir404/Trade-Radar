@@ -36,6 +36,8 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
+  | "atomic"
+  | "atomicmoon"
   | "apuyacht"
   | "apucandle"
   | "catpump"
@@ -215,6 +217,38 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     fallback: ["#0B1A3A", "#05080F"],
     background: require("../../assets/cards/stonks.jpg"),
     tagline: { profit: "Stonks", loss: "Not stonks" },
+    corners: true,
+  },
+  atomic: {
+    label: "Atomic",
+    text: "#FFFFFF",
+    sub: "#F5D0FE",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#A855F7",
+    pillText: "#FFFFFF",
+    pillBorder: "#A855F7",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#2A0F3A", "#0A0412"],
+    background: require("../../assets/cards/atomic.jpg"),
+    tagline: { profit: "I am atomic", loss: "Back to the shadows" },
+    corners: true,
+  },
+  atomicmoon: {
+    label: "Atomic Moon",
+    text: "#FFFFFF",
+    sub: "#A1A1AA",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#DC2626",
+    pillText: "#FFFFFF",
+    pillBorder: "#DC2626",
+    divider: "#FFFFFF2E",
+    shadow: false,
+    fallback: ["#000000", "#000000"],
+    background: require("../../assets/cards/atomicmoon.jpg"),
+    tagline: { profit: "Eminence in profit", loss: "Hiding in the shadows" },
     corners: true,
   },
   apuyacht: {
@@ -553,7 +587,7 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
   apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "apucandle", "notover"] },
   wojak: { label: "Wojak", styles: ["wojak", "onepercent", "rainy", "fine"] },
   stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "xmr"] },
-  anime: { label: "Anime", styles: ["kurumi", "anime"] },
+  anime: { label: "Anime", styles: ["kurumi", "atomic", "atomicmoon", "anime"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },
 };
@@ -574,6 +608,8 @@ export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyl
 
 /** Every style, in family order. */
 export const CARD_STYLES: CardStyle[] = [
+  "atomic",
+  "atomicmoon",
   "apuyacht",
   "apucandle",
   "catpump",
