@@ -76,6 +76,7 @@ export function GlassPressable({ onPress, onLongPress, active = false, disabled,
 
 const styles = StyleSheet.create({
   base: { overflow: "hidden", borderWidth: 1 },
-  inner: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  // flexGrow, not flex: 1 - a zero flex-basis let a content-sized button measure as empty.
+  inner: { flexGrow: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   innerVertical: { flexDirection: "column", gap: 6 },
 });

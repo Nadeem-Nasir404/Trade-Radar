@@ -4,7 +4,6 @@ import { Tabs, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { View, Pressable, StyleSheet, Platform, type PressableProps, type GestureResponderEvent } from "react-native";
 import { BlurView } from "expo-blur";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Animated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated";
@@ -15,9 +14,9 @@ import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Onboarding } from "@/components/onboarding/onboarding";
+import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/hooks/use-tab-bar-space";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const BAR_HEIGHT = 64;
 const FAB_SIZE = 58;
 
 export default function TabsLayout() {
@@ -41,8 +40,7 @@ export default function TabsLayout() {
   };
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const barBottom = Math.max(insets.bottom, 12) + 4;
+  const barBottom = useTabBarBottom();
 
   return (
     <>
@@ -57,7 +55,7 @@ export default function TabsLayout() {
             left: 16,
             right: 16,
             bottom: barBottom,
-            height: BAR_HEIGHT,
+            height: TAB_BAR_HEIGHT,
             borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.glassBorder,
@@ -180,7 +178,7 @@ const styles = StyleSheet.create({
   tabButton: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Full-width, centered content - true screen-center regardless of the tab bar's own slot count/split.
-  fabOverlay: { position: "absolute", left: 0, right: 0, height: BAR_HEIGHT, alignItems: "center", justifyContent: "center" },
+  fabOverlay: { position: "absolute", left: 0, right: 0, height: TAB_BAR_HEIGHT, alignItems: "center", justifyContent: "center" },
   fabPressable: { alignItems: "center", justifyContent: "center" },
   fab: {
     width: FAB_SIZE,

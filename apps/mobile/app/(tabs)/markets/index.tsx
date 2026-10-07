@@ -17,12 +17,14 @@ import { useTheme } from "@/lib/use-theme";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 const FILTERS = ["ALL", "CRYPTO", "FAVORITES"] as const;
 type Filter = (typeof FILTERS)[number];
 const FILTER_LABELS: Record<Filter, string> = { ALL: "All", CRYPTO: "Crypto", FAVORITES: "Favorites" };
 
 export default function MarketsScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors } = useTheme();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
@@ -86,7 +88,7 @@ export default function MarketsScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: tabSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
           ItemSeparatorComponent={Separator}
           renderItem={({ item, index }: { item: Instrument; index: number }) => (

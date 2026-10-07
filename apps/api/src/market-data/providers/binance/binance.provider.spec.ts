@@ -14,6 +14,10 @@ function makeProvider() {
   return { ticks, deliver };
 }
 
+function makeProviderWithInstance() {
+  return { provider: new BinanceProvider({ get: () => "wss://example.invalid" } as any) };
+}
+
 const aggTrade = (a: number, p: string, T: number) => ({ e: "aggTrade", E: T + 5, s: "BTCUSDT", a, p, T });
 
 describe("BinanceProvider stream parsing", () => {
@@ -32,6 +36,41 @@ describe("BinanceProvider stream parsing", () => {
     deliver({ e: "24hrTicker", E: 1, s: "BTCUSDT", c: "100000", o: "98000", P: "2.04", h: "101000", l: "97000", v: "1", q: "5000000" });
 
     expect(ticks[0]).toMatchObject({ statsOnly: true, open24h: 98000, high24h: 101000, low24h: 97000, volume24h: 5000000 });
+  });
+});
+
+describe("BinanceProvider historical candles", () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  const kline = [1_700_000_000_000, "1.5", "1.6", "1.4", "1.55", "1000"];
+
+  it("falls back to the public market-data host when the main API refuses", async () => {
+    const calls: string[] = [];
+    global.fetch = (async (url: string) => {
+      calls.push(url);
+      return url.startsWith("https://api.binance.com")
+        ? new Response("restricted location", { status: 451 })
+        : new Response(JSON.stringify([kline]), { status: 200 });
+    }) as typeof fetch;
+
+    const { provider } = makeProviderWithInstance();
+    const candles = await provider.getHistoricalData("atomusdt", "1m");
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toContain("https://data-api.binance.vision/api/v3/klines?symbol=ATOMUSDT&interval=1m");
+    expect(candles).toEqual([{ time: 1_700_000_000, open: 1.5, high: 1.6, low: 1.4, close: 1.55, volume: 1000 }]);
+  });
+
+  it("returns no candles when every host fails", async () => {
+    global.fetch = (async () => {
+      throw new Error("network down");
+    }) as typeof fetch;
+
+    const { provider } = makeProviderWithInstance();
+    expect(await provider.getHistoricalData("atomusdt", "1m")).toEqual([]);
   });
 });
 

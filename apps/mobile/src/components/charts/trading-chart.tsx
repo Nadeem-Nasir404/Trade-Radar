@@ -11,6 +11,7 @@ import { CANDLE_PALETTES, useChartSettings } from "@/lib/stores/chart-settings-s
 import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
 import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore, type LivePriceState } from "@/lib/ws/live-price-store";
 import { LIGHTWEIGHT_CHARTS_SOURCE } from "./chart-lib.generated";
+import { haptics } from "@/lib/haptics";
 
 export interface ChartAlertLevel {
   price: number;
@@ -99,7 +100,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === "ready") setReady(true);
-      else if (msg.type === "priceTap") onPriceTap?.(msg.price);
+      else if (msg.type === "plusShown") haptics.selection();
+      else if (msg.type === "priceTap") {
+        haptics.medium();
+        onPriceTap?.(msg.price);
+      }
       else if (msg.type === "drawHint") onDrawStage?.(msg.stage);
       else if (msg.type === "drawingAdded") useDrawingsStore.getState().add(drawingsKey, msg.drawing as Drawing);
     } catch {
@@ -316,13 +321,19 @@ function buildChartHtml(): string {
         transition: opacity 0.18s ease-out, transform 0.18s ease-out;
       }
       #tapMarker svg { display: block; }
-      #plusLine { position: absolute; left: 0; right: 0; height: 1px; display: none; pointer-events: none; }
+      /* TradingView-style "+": rides the crosshair's price, just left of the price scale. The
+         outer box is the touch target; z-index keeps it above the chart's canvases so taps reach it. */
       #plusBadge {
-        position: absolute; right: 6px; width: 28px; height: 28px; margin-top: 0; border-radius: 999px;
-        display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-        -webkit-tap-highlight-color: transparent;
+        position: absolute; width: 40px; height: 40px; transform: translateY(-50%); z-index: 20;
+        display: none; align-items: center; justify-content: center;
+        -webkit-tap-highlight-color: transparent; touch-action: none; cursor: pointer;
       }
-      #plusBadge svg { display: block; }
+      #plusFace {
+        width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35); transition: transform 0.08s ease-out;
+      }
+      #plusBadge.pressed #plusFace { transform: scale(0.88); }
+      #plusFace svg { display: block; }
       /* Last price and time left in the bar, as one tag on the price axis (the series' own label is off). */
       #lastTag {
         position: absolute; right: 0; transform: translateY(-50%); box-sizing: border-box;
@@ -342,9 +353,10 @@ function buildChartHtml(): string {
     <div id="tapMarker">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
-    <div id="plusLine"></div>
-    <div id="plusBadge">
-      <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+    <div id="plusBadge" role="button" aria-label="Add alert at this price">
+      <div id="plusFace">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+      </div>
     </div>
     <script>${LIGHTWEIGHT_CHARTS_SOURCE}</script>
     <script>
@@ -376,6 +388,7 @@ function buildChartHtml(): string {
             borderVisible: false, timeVisible: true, secondsVisible: false,
             rightOffset: 8, barSpacing: 8, minBarSpacing: 2, fixLeftEdge: false,
           },
+          trackingMode: { exitMode: 1 /* OnNextTap */ },
           crosshair: {
             mode: 0,
             vertLine: { width: 1, style: 3, labelBackgroundColor: '#2a2d3a' },
@@ -421,6 +434,13 @@ function buildChartHtml(): string {
           ohlcEl.style.opacity = 1;
         });
 
+        chart.subscribeCrosshairMove(function (param) {
+          if (drawMode || !param.point) { hidePlus(); return; }
+          var price = candleSeries.coordinateToPrice(param.point.y);
+          if (price === null) { hidePlus(); return; }
+          showPlus(price, param.point.y);
+        });
+
         function handleDrawTap(x, y) {
           var p = candleSeries.coordinateToPrice(y);
           if (p === null) return;
@@ -452,30 +472,19 @@ function buildChartHtml(): string {
           addDrawing({ id: uid(), type: 'trend', a: a, b: b }, true);
         }
 
-        var pressTimer = null, pressStart = null, PRESS_MS = 450, MOVE_TOLERANCE_PX = 8;
+        var pressStart = null, MOVE_TOLERANCE_PX = 8;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
-          if (plusPrice !== null) hidePlus();
           var rect = chartEl.getBoundingClientRect();
           pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
-          clearTimeout(pressTimer);
-          pressTimer = setTimeout(function () {
-            if (!pressStart || drawMode) return;
-            var price = candleSeries.coordinateToPrice(pressStart.y);
-            if (price === null) return;
-            pressStart = null;
-            showPlus(Number(fmt(price)));
-          }, PRESS_MS);
         });
         chartEl.addEventListener('pointermove', function (e) {
           if (!pressStart) return;
           if (Math.abs(e.clientX - pressStart.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - pressStart.cy) > MOVE_TOLERANCE_PX) {
-            clearTimeout(pressTimer);
             pressStart = null;
           }
         });
         chartEl.addEventListener('pointerup', function (e) {
-          clearTimeout(pressTimer);
           var start = pressStart;
           pressStart = null;
           if (!drawMode || !start) return;
@@ -484,14 +493,12 @@ function buildChartHtml(): string {
         });
         ['pointercancel', 'pointerleave'].forEach(function (type) {
           chartEl.addEventListener(type, function () {
-            clearTimeout(pressTimer);
             pressStart = null;
           });
         });
 
         chart.timeScale().subscribeVisibleTimeRangeChange(function () {
           hideTapMarker();
-          placePlus();
         });
         post({ type: 'ready' });
       }
@@ -517,6 +524,7 @@ function buildChartHtml(): string {
         drawMode = on;
         pendingPoint = null;
         if (!on) hideTapMarker();
+        if (on) { hidePlus(); chart.clearCrosshairPosition(); }
       };
 
       window.setDrawTool = function (tool) {
@@ -525,34 +533,44 @@ function buildChartHtml(): string {
         hideTapMarker();
       };
 
-      // "+" badge: shown on long-press at the held price, pinned to the right edge at that price
-      // level (it follows the price when the chart scrolls or rescales). Tapping it opens the sheet.
-      var plusPrice = null;
-      function placePlus() {
-        if (plusPrice === null || !candleSeries) return;
-        var y = candleSeries.priceToCoordinate(plusPrice);
-        if (y === null) return;
-        document.getElementById('plusLine').style.top = y + 'px';
-        document.getElementById('plusBadge').style.top = (y - 14) + 'px';
-      }
-      function showPlus(price) {
+      // "+" on the crosshair: appears with the crosshair (long-press the chart), follows it, and
+      // tapping it opens the alert sheet at that price. The app buzzes when it appears.
+      var plusPrice = null, plusPressed = false;
+      var plusBadge = document.getElementById('plusBadge'), plusFace = document.getElementById('plusFace');
+      function showPlus(price, y) {
         plusPrice = price;
-        var line = document.getElementById('plusLine'), badge = document.getElementById('plusBadge');
-        line.style.background = accentAlpha(0.8);
-        badge.style.backgroundColor = accent();
-        line.style.display = 'block';
-        badge.style.display = 'flex';
-        placePlus();
+        plusBadge.style.top = y + 'px';
+        plusBadge.style.right = (chart.priceScale('right').width() - 4) + 'px';
+        if (plusBadge.style.display !== 'flex') {
+          plusFace.style.backgroundColor = accent();
+          plusBadge.style.display = 'flex';
+          post({ type: 'plusShown' });
+        }
       }
       function hidePlus() {
         plusPrice = null;
-        document.getElementById('plusLine').style.display = 'none';
-        document.getElementById('plusBadge').style.display = 'none';
+        plusPressed = false;
+        plusBadge.classList.remove('pressed');
+        plusBadge.style.display = 'none';
       }
-      document.getElementById('plusBadge').addEventListener('click', function () {
+      // Handled on pointerup (not click) so the tap registers at once in the WebView, and kept
+      // from reaching the chart so it doesn't count as the tap that dismisses the crosshair.
+      plusBadge.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        plusPressed = true;
+        plusBadge.classList.add('pressed');
+      });
+      plusBadge.addEventListener('pointerup', function (e) {
+        e.stopPropagation();
+        if (!plusPressed) return;
         var p = plusPrice;
         hidePlus();
+        chart.clearCrosshairPosition();
         if (p !== null) post({ type: 'priceTap', price: Number(fmt(p)) });
+      });
+      plusBadge.addEventListener('pointercancel', function () {
+        plusPressed = false;
+        plusBadge.classList.remove('pressed');
       });
 
       function drawOverlay() {
@@ -662,10 +680,7 @@ function buildChartHtml(): string {
         el.style.top = y + 'px';
         el.style.opacity = 1;
       }
-      setInterval(function () {
-        updateLastTag();
-        placePlus();
-      }, 250);
+      setInterval(updateLastTag, 250);
 
       var clockOffsetMs = 0, tagFrame = 0;
       window.updateLastCandle = function (c, offsetMs) {

@@ -22,10 +22,12 @@ import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
 import { useToastStore } from "@/lib/stores/toast-store";
 import type { Watchlist, WatchlistItem } from "@/lib/api/types";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 const VISIBLE_ITEMS = 6;
 
 export default function WatchlistsScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors } = useTheme();
   const { data: watchlists, isLoading } = useWatchlists();
   const createWatchlist = useCreateWatchlist();
@@ -108,7 +110,7 @@ export default function WatchlistsScreen() {
         <FlatList
           data={watchlists ?? []}
           keyExtractor={(w: Watchlist) => w.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: tabSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
           renderItem={({ item, index }) => (
             <FadeInItem index={index} style={index > 0 ? styles.cardGap : undefined}>

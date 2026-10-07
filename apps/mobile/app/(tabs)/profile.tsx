@@ -20,6 +20,7 @@ import { haptics } from "@/lib/haptics";
 import { withAlpha } from "@/lib/color";
 import { useToastStore } from "@/lib/stores/toast-store";
 import type { ThemeMode } from "@/lib/stores/theme-store";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { value: "light", label: "Light", icon: "sunny-outline" },
@@ -28,6 +29,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; icon: keyof typeof Ionic
 ];
 
 export default function ProfileScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors, mode, setMode } = useTheme();
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
@@ -98,7 +100,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <AmbientOrbs />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabSpace }]} showsVerticalScrollIndicator={false}>
         <ThemedText variant="title" style={styles.pageTitle}>
           Profile
         </ThemedText>

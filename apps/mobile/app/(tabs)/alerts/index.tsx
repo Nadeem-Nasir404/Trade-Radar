@@ -12,6 +12,7 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { isSameDay } from "@/lib/format";
 import type { Alert } from "@/lib/api/types";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 interface Section {
   title: string;
@@ -19,6 +20,7 @@ interface Section {
 }
 
 export default function AlertsScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors } = useTheme();
   const { data: alerts, isLoading } = useAlerts({ sort: "recent" });
   const queryClient = useQueryClient();
@@ -67,7 +69,7 @@ export default function AlertsScreen() {
           stickySectionHeadersEnabled={false}
           initialNumToRender={14}
           windowSize={9}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: tabSpace }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
           renderSectionHeader={({ section }) => (
             <ThemedText variant="label" style={[styles.sectionTitle, section !== sections[0] && styles.cardGap]}>

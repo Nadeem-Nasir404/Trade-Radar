@@ -142,7 +142,9 @@ const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   spacer: { flex: 1, minWidth: 4 },
-  pill: { flexDirection: "row", height: 32, paddingHorizontal: 12, borderRadius: radius.full },
+  // No flexDirection here: GlassPressable lays its content out in a row itself, and a row on the
+  // outer view collapsed the pill to its padding (an empty pill instead of "Draw").
+  pill: { height: 32, paddingHorizontal: 12, borderRadius: radius.full },
   pillText: { fontSize: 12, fontWeight: "600" },
   iconPill: { width: 32, height: 32, borderRadius: radius.full },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },

@@ -35,10 +35,12 @@ import {
 } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 export default function MarketDetailScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors } = useTheme();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const router = useRouter();
@@ -131,7 +133,7 @@ export default function MarketDetailScreen() {
         />
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, { paddingBottom: tabSpace }]}>
         <View style={styles.badges}>
           {instrument.isDemo && <Badge label="Demo data" variant="warning" />}
           <FeedDelayedBadge instrumentId={instrument.id} />
@@ -186,10 +188,7 @@ export default function MarketDetailScreen() {
             drawTool={drawTool}
             drawingsKey={symbol}
             viewKey={`${symbol}|${timeframe}`}
-            onPriceTap={(p) => {
-              haptics.light();
-              setTappedPrice(p);
-            }}
+            onPriceTap={setTappedPrice}
           />
 
           {drawMode && (
