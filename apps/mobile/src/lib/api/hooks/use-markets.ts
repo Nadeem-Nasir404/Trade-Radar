@@ -40,9 +40,9 @@ export function useMarketHistory(symbol: string | undefined, timeframe: string) 
     queryFn: () => api.get<Candle[]>(`/markets/${symbol}/history?timeframe=${timeframe}`),
     enabled: Boolean(symbol),
     staleTime: 30_000,
-    // An empty answer means the server couldn't reach the exchange this time (it serves real
-    // candles only), so ask again shortly instead of leaving the chart blank.
-    refetchInterval: (query) => (query.state.data?.length === 0 ? 5_000 : false),
+    // An empty answer or an error means the server couldn't get candles this time (it serves real
+    // exchange data only), so keep asking every few seconds instead of leaving the chart blank.
+    refetchInterval: (query) => (query.state.status === "error" || query.state.data?.length === 0 ? 5_000 : false),
   });
 }
 

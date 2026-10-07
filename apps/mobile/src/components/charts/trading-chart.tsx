@@ -36,6 +36,8 @@ interface TradingChartProps {
   watermark?: string;
   /** History is still loading - shows a loading state instead of an empty chart. */
   loading?: boolean;
+  /** The history request failed (it is being retried) - says so instead of "no history". */
+  failed?: boolean;
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
@@ -56,7 +58,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   // isDark is the theme actually showing; `mode` is the user's setting and can be "system".
@@ -271,9 +273,9 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
       ) : candles.length === 0 ? (
         // Charts only show real exchange data, so a market without history says so instead of drawing a blank grid.
         <View style={styles.overlay} pointerEvents="none">
-          <Ionicons name="bar-chart-outline" size={22} color={colors.foregroundSubtle} />
+          <Ionicons name={failed ? "cloud-offline-outline" : "bar-chart-outline"} size={22} color={colors.foregroundSubtle} />
           <ThemedText variant="subtle" style={styles.overlayText}>
-            No price history for this timeframe yet
+            {failed ? "Couldn't load the chart. Retrying…" : "No price history for this timeframe yet"}
           </ThemedText>
         </View>
       ) : null}

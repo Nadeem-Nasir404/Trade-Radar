@@ -125,4 +125,31 @@ describe("MarketDataService.getHistoricalCandles", () => {
     fail = true;
     expect(await service.getHistoricalCandles(instrument.id, "1m")).toEqual(real);
   });
+
+  it("still serves exchange candles when Redis is full and rejects writes", async () => {
+    const { service, redis } = await makeService(async () => real);
+    (redis as any).multi = () => ({
+      set() {
+        return this;
+      },
+      exec: async () => {
+        throw new Error("OOM command not allowed when used memory > 'maxmemory'");
+      },
+    });
+    expect(await service.getHistoricalCandles(instrument.id, "15m")).toEqual(real);
+  });
+
+  it("still serves exchange candles when Redis hangs instead of answering", async () => {
+    const { service, redis } = await makeService(async () => real);
+    (redis as any).get = () => new Promise(() => undefined); // disconnected client, queued forever
+    (redis as any).multi = () => ({
+      set() {
+        return this;
+      },
+      exec: () => new Promise(() => undefined),
+    });
+    const started = Date.now();
+    expect(await service.getHistoricalCandles(instrument.id, "1h")).toEqual(real);
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
 });

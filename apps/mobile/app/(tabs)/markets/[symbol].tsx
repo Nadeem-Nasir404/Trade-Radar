@@ -52,7 +52,7 @@ export default function MarketDetailScreen() {
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
 
   const { data: instrument, isLoading } = useMarket(symbol);
-  const { data: candles, isLoading: historyLoading } = useMarketHistory(symbol, timeframe);
+  const { data: candles, isLoading: historyLoading, isError: historyFailed } = useMarketHistory(symbol, timeframe);
   const lastCandle = candles && candles.length > 0 ? candles[candles.length - 1] : null;
   const { data: alerts } = useAlerts({ search: symbol });
   const deleteAlert = useDeleteAlert();
@@ -180,6 +180,7 @@ export default function MarketDetailScreen() {
             onBarClose={refetchHistory}
             watermark={`${instrument.displaySymbol} · ${timeframe}`}
             loading={historyLoading}
+            failed={historyFailed}
             onLiveBar={onLiveBar}
             alertLevels={chartLevels}
             drawMode={drawMode}

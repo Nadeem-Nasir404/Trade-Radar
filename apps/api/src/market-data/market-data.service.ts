@@ -37,7 +37,24 @@ const CANDLE_CACHE_SECONDS: Record<Timeframe, number> = {
   "1d": 60,
   "1w": 300,
 };
-const LAST_GOOD_CANDLE_SECONDS = 24 * 3600;
+/**
+ * Fallback copy for when the exchange fails. Kept short: one copy per coin and timeframe is ~40 KB,
+ * and a day of them filled a small Redis plan, after which every chart request failed.
+ */
+const LAST_GOOD_CANDLE_SECONDS = 2 * 3600;
+
+/**
+ * The shared Redis client waits indefinitely while disconnected (maxRetriesPerRequest: null, which
+ * BullMQ needs), so cache calls get their own short deadline and a slow Redis counts as a miss.
+ */
+const CACHE_TIMEOUT_MS = 500;
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Redis did not answer within ${CACHE_TIMEOUT_MS}ms`)), CACHE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 /** Keyed by the current bar too, so the first request after a bar closes always fetches its final OHLC. */
 function candleCacheKey(instrumentId: string, timeframe: Timeframe) {
@@ -338,7 +355,7 @@ export class MarketDataService implements OnModuleInit {
   }
 
   async getHistoricalCandles(instrumentId: string, timeframe: Timeframe): Promise<Candle[]> {
-    const fresh = await this.redis.get(candleCacheKey(instrumentId, timeframe));
+    const fresh = await this.cacheGet(candleCacheKey(instrumentId, timeframe));
     if (fresh) return JSON.parse(fresh) as Candle[];
 
     // Concurrent chart opens for the same series share one upstream request.
@@ -363,15 +380,22 @@ export class MarketDataService implements OnModuleInit {
     const candles = await this.providerFor(adapter).getHistoricalData(instrument.providerSymbol, timeframe);
     if (candles.length > 0) {
       const body = JSON.stringify(candles);
-      await this.redis
-        .multi()
-        .set(candleCacheKey(instrumentId, timeframe), body, "EX", CANDLE_CACHE_SECONDS[timeframe])
-        .set(lastGoodCandleKey(instrumentId, timeframe), body, "EX", LAST_GOOD_CANDLE_SECONDS)
-        .exec();
+      // The cache only saves exchange calls; a full or unreachable Redis must not cost the chart.
+      try {
+        await withTimeout(
+          this.redis
+            .multi()
+            .set(candleCacheKey(instrumentId, timeframe), body, "EX", CANDLE_CACHE_SECONDS[timeframe])
+            .set(lastGoodCandleKey(instrumentId, timeframe), body, "EX", LAST_GOOD_CANDLE_SECONDS)
+            .exec(),
+        );
+      } catch (err) {
+        this.logger.warn(`Could not cache ${timeframe} candles for ${instrument.displaySymbol}: ${(err as Error).message}`);
+      }
       return candles;
     }
 
-    const lastGood = await this.redis.get(lastGoodCandleKey(instrumentId, timeframe));
+    const lastGood = await this.cacheGet(lastGoodCandleKey(instrumentId, timeframe));
     if (lastGood) {
       this.logger.warn(`Serving last good ${timeframe} candles for ${instrument.displaySymbol}: provider returned none`);
       return JSON.parse(lastGood) as Candle[];
@@ -380,4 +404,13 @@ export class MarketDataService implements OnModuleInit {
     return [];
   }
 
+  /** A cache read that treats an unavailable Redis as a miss, so charts still load from the exchange. */
+  private async cacheGet(key: string): Promise<string | null> {
+    try {
+      return await withTimeout(this.redis.get(key));
+    } catch (err) {
+      this.logger.warn(`Candle cache read failed (${key}): ${(err as Error).message}`);
+      return null;
+    }
+  }
 }
