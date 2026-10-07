@@ -5,9 +5,14 @@ import { Star, TrendingUp, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCompactPrice, formatPct } from "@/lib/utils";
 import type { Instrument } from "@/lib/api/types";
+import { useLivePrice } from "@/lib/ws/use-live-price";
 
 export function MarketRow({ instrument }: { instrument: Instrument }) {
-  const positive = (instrument.changePct24h ?? 0) >= 0;
+  // Each row follows its own live price; one shared socket subscription per instrument.
+  const live = useLivePrice(instrument.id, { price: instrument.price, changePct24h: instrument.changePct24h });
+  const price = live.price ?? instrument.price;
+  const changePct = live.changePct24h ?? instrument.changePct24h;
+  const positive = (changePct ?? 0) >= 0;
 
   return (
     <Link
@@ -38,10 +43,10 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
         </div>
       </div>
       <div className="text-right">
-        <p className="font-tabular font-medium">{formatCompactPrice(instrument.price)}</p>
+        <p className="font-tabular font-medium">{formatCompactPrice(price)}</p>
         <p className={cn("flex items-center justify-end gap-1 text-xs font-tabular", positive ? "text-positive" : "text-negative")}>
           {positive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-          {formatPct(instrument.changePct24h)}
+          {formatPct(changePct)}
         </p>
       </div>
     </Link>

@@ -1,6 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/api/query-keys";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Bell, Plus, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -33,8 +35,16 @@ export default function MarketDetailPage({ params }: { params: Promise<{ symbol:
   const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
   const positive = (changePct ?? 0) >= 0;
 
-  const instrumentAlerts = (alerts ?? []).filter((a) => a.instrumentId === instrument?.id);
-  const chartLevels = instrumentAlerts.map((a) => ({ id: a.id, price: a.targetValue, up: isUpwardCondition(a.conditionType) }));
+  const queryClient = useQueryClient();
+  const refetchHistory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.marketHistory(symbol, timeframe) });
+  }, [queryClient, symbol, timeframe]);
+
+  const instrumentAlerts = useMemo(() => (alerts ?? []).filter((a) => a.instrumentId === instrument?.id), [alerts, instrument?.id]);
+  const chartLevels = useMemo(
+    () => instrumentAlerts.map((a) => ({ id: a.id, price: a.targetValue, up: isUpwardCondition(a.conditionType) })),
+    [instrumentAlerts],
+  );
 
   const handleChartClick = (clickedPrice: number) => {
     if (!instrument) return;
@@ -104,7 +114,14 @@ export default function MarketDetailPage({ params }: { params: Promise<{ symbol:
         {loadingCandles ? (
           <Skeleton className="h-[420px] w-full" />
         ) : (
-          <PriceChart candles={candles ?? []} alertLevels={chartLevels} onPriceClick={handleChartClick} />
+          <PriceChart
+            candles={candles ?? []}
+            instrumentId={instrument.id}
+            timeframe={timeframe}
+            onBarClose={refetchHistory}
+            alertLevels={chartLevels}
+            onPriceClick={handleChartClick}
+          />
         )}
       </Card>
 
