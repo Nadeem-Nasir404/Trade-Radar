@@ -1,6 +1,5 @@
 import { forwardRef, useState, type ComponentProps, type ReactNode } from "react";
-import { View, StyleSheet, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
-import { Image } from "expo-image";
+import { View, Image, StyleSheet, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
@@ -71,7 +70,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
           <Backdrop style={shown} background={t.background} width={W * k} height={H * k} />
           {t.corners && <CornerBrackets k={k} color={t.text} />}
 
-          <Image source={LOGO} tintColor={t.text} contentFit="contain" style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k }]} />
+          <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k, tintColor: t.text }]} />
           <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: display }, shadow]}>
             {L.brand.text}
           </CardText>
@@ -162,9 +161,10 @@ function Backdrop({ style, background, width, height }: { style: CardStyle; back
   if (background) {
     return (
       <>
-        {/* expo-image with an explicit size: React Native's Image drew these at their pixel size
-            (zoomed far in) in release builds instead of filling the card. */}
-        <Image source={background} contentFit="cover" style={{ position: "absolute", left: 0, top: 0, width, height }} />
+        {/* Explicit card size: with only absoluteFill the release build sized this Image to the
+            picture's own pixels (zoomed far in). React Native's Image, not expo-image, because
+            view-shot can't draw Glide's hardware bitmaps when the card is saved. */}
+        <Image source={background} resizeMode="cover" style={{ position: "absolute", left: 0, top: 0, width, height }} />
         {ARTWORK_SCRIMS[style]}
       </>
     );
