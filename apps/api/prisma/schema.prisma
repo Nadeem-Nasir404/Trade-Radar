@@ -140,6 +140,10 @@ model Session {
   id           String   @id @default(cuid())
   userId       String
   refreshTokenHash String
+  /// Hash of the token this session held before its last rotation, so a replay of it seconds
+  /// later (two tabs refreshing at once) can be told apart from a stolen token being reused.
+  previousTokenHash String?
+  rotatedAt    DateTime?
   userAgent    String?
   ipAddress    String?
   expiresAt    DateTime

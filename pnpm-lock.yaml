@@ -296,6 +296,9 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))
+      '@jest/globals':
+        specifier: 30.5.1
+        version: 30.5.1(supports-color@8.1.1)
       '@nestjs/cli':
         specifier: 12.0.3
         version: 12.0.3(@types/node@24.13.5)(prettier@3.9.7)(ts-loader@9.6.2(typescript@5.9.3)(webpack@5.111.0(lightningcss@1.32.0)(postcss@8.5.28)(sharp@0.35.4(@types/node@24.13.5))(uglify-js@3.19.3)))(webpack@5.111.0(lightningcss@1.32.0)(postcss@8.5.28)(sharp@0.35.4(@types/node@24.13.5))(uglify-js@3.19.3))
