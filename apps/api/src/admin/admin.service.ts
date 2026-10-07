@@ -66,7 +66,12 @@ export class AdminService {
   async suspendUser(userId: string, reason: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException("User not found");
-    return this.prisma.user.update({ where: { id: userId }, data: { isSuspended: true, suspendedReason: reason } });
+    // Revoking sessions stops refresh, so access ends when the current access token expires.
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { isSuspended: true, suspendedReason: reason } }),
+      this.prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+    return updated;
   }
 
   async unsuspendUser(userId: string) {

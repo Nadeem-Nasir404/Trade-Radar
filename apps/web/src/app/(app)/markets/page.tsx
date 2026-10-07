@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { MarketRow } from "@/components/markets/market-row";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import type { AssetType } from "@levelpulse/shared-types";
 
 function MarketsPageInner() {
@@ -16,8 +17,9 @@ function MarketsPageInner() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [assetType, setAssetType] = useState<AssetType | "ALL">("ALL");
 
+  const debouncedSearch = useDebouncedValue(search.trim());
   const { data: markets, isLoading } = useMarkets({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     assetType: assetType === "ALL" ? undefined : assetType,
     limit: 100,
   });

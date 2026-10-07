@@ -25,6 +25,14 @@ export interface PriceUpdateEvent {
   prevPrice: number;
   changePct24h: number | null;
   eventTime: number;
+  /**
+   * Updates are throttled to a few per second, but trades in between can spike further. These
+   * are the highest and lowest trade prices since the previous update, from trades starting at
+   * windowStartTime (exchange ms), so a live bar can include wicks the sampled price never showed.
+   */
+  windowHigh?: number;
+  windowLow?: number;
+  windowStartTime?: number;
 }
 
 export interface MarketStaleEvent {

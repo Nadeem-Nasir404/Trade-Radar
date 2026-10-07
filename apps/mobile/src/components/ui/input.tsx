@@ -1,7 +1,7 @@
 import { View, TextInput, StyleSheet, type TextInputProps } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
+import { radius, fonts } from "@/lib/theme";
 
 interface InputProps extends TextInputProps {
   icon?: keyof typeof Ionicons.glyphMap;
@@ -39,19 +39,20 @@ export function Input({ icon, style, ...props }: InputProps) {
 const styles = StyleSheet.create({
   input: {
     height: 50,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 15,
+    fontFamily: fonts.bodyMedium,
   },
   iconWrap: {
     height: 50,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
   },
   iconGlyph: { marginRight: 10 },
-  inputBare: { flex: 1, fontSize: 15, height: "100%", padding: 0 },
+  inputBare: { flex: 1, fontSize: 15, fontFamily: fonts.bodyMedium, height: "100%", padding: 0 },
 });

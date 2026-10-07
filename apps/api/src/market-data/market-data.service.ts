@@ -1,12 +1,16 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitter2, OnEvent } from "@nestjs/event-emitter";
 import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
-import type { NormalizedTick } from "@levelpulse/shared-types";
+import type { Candle, NormalizedTick, Timeframe } from "@levelpulse/shared-types";
+import type Redis from "ioredis";
+import { InjectRedis } from "../redis/inject-redis.decorator";
+import { TIMEFRAME_SECONDS } from "./providers/synthetic-candles";
 import { PrismaService } from "../prisma/prisma.service";
 import type { EnvConfig } from "../common/config/env.validation";
-import { PriceCacheService, STALE_AFTER_MS } from "./price-cache/price-cache.service";
+import { PriceCacheService } from "./price-cache/price-cache.service";
+import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "../alert-engine/alert-engine.events";
 import { SubscriptionRegistryService } from "./subscription-registry.service";
 import { MockMarketDataProvider } from "./providers/mock/mock-market-data.provider";
 import { BinanceProvider } from "./providers/binance/binance.provider";
@@ -19,6 +23,47 @@ import {
 } from "./market-data.events";
 
 type AdapterName = "binance" | "twelvedata" | "mock";
+
+/**
+ * How long a fetched history stays fresh within one bar; the live bar itself is drawn from ticks.
+ */
+const CANDLE_CACHE_SECONDS: Record<Timeframe, number> = {
+  "1m": 5,
+  "3m": 10,
+  "5m": 10,
+  "15m": 20,
+  "1h": 30,
+  "4h": 60,
+  "1d": 60,
+  "1w": 300,
+};
+/**
+ * Fallback copy for when the exchange fails. Kept short: one copy per coin and timeframe is ~40 KB,
+ * and a day of them filled a small Redis plan, after which every chart request failed.
+ */
+const LAST_GOOD_CANDLE_SECONDS = 2 * 3600;
+
+/**
+ * The shared Redis client waits indefinitely while disconnected (maxRetriesPerRequest: null, which
+ * BullMQ needs), so cache calls get their own short deadline and a slow Redis counts as a miss.
+ */
+const CACHE_TIMEOUT_MS = 500;
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Redis did not answer within ${CACHE_TIMEOUT_MS}ms`)), CACHE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Keyed by the current bar too, so the first request after a bar closes always fetches its final OHLC. */
+function candleCacheKey(instrumentId: string, timeframe: Timeframe) {
+  const currentBar = Math.floor(Date.now() / 1000 / TIMEFRAME_SECONDS[timeframe]);
+  return `candles:${instrumentId}:${timeframe}:${currentBar}`;
+}
+function lastGoodCandleKey(instrumentId: string, timeframe: Timeframe) {
+  return `candles:lastgood:${instrumentId}:${timeframe}`;
+}
 
 @Injectable()
 export class MarketDataService implements OnModuleInit {
@@ -36,6 +81,8 @@ export class MarketDataService implements OnModuleInit {
   private readonly instrumentsById = new Map<string, Instrument>();
   private providerIds: Record<AdapterName, string | null> = { binance: null, twelvedata: null, mock: null };
   private readonly lastKnownFeedStatus = new Map<string, "LIVE" | "STALE">();
+  private readonly open24hById = new Map<string, number>();
+  private readonly candleRequests = new Map<string, Promise<Candle[]>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,6 +93,7 @@ export class MarketDataService implements OnModuleInit {
     private readonly mockProvider: MockMarketDataProvider,
     private readonly binanceProvider: BinanceProvider,
     private readonly twelveDataProvider: TwelveDataProvider,
+    @InjectRedis() private readonly redis: Redis,
   ) {
     this.demoMode = this.config.get("DEMO_MODE", { infer: true });
   }
@@ -106,7 +154,9 @@ export class MarketDataService implements OnModuleInit {
       if (instrument.providerId === this.providerIds.binance) adapter = "binance";
       else if (instrument.providerId === this.providerIds.twelvedata) adapter = "twelvedata";
     }
-    const isDemo = adapter === "mock";
+    // Without a Twelve Data key, gold/forex come from a local random walk - flag it, so
+    // simulated prices are never shown as real market data.
+    const isDemo = adapter === "mock" || (adapter === "twelvedata" && this.twelveDataProvider.isSimulated);
     this.symbolMaps[adapter].set(instrument.providerSymbol.toLowerCase(), instrument);
     this.instrumentAdapter.set(instrument.id, adapter);
     this.instrumentIsDemo.set(instrument.id, isDemo);
@@ -164,7 +214,12 @@ export class MarketDataService implements OnModuleInit {
     if (result.becameActive) await this.ensureSubscribedById(instrumentId);
   }
 
-  /** Called by AlertsService when an alert is paused/deleted/triggered-non-recurring/expired. */
+  @OnEvent(ALERT_TRIGGERED_EVENT)
+  async onAlertTriggered(event: AlertTriggeredPayload): Promise<void> {
+    if (event.deactivated) await this.onAlertDeactivated(event.instrumentId, event.alertId);
+  }
+
+  /** Called when an alert is paused, deleted, or expired (AlertsService) or fires for the last time (onAlertTriggered). */
   async onAlertDeactivated(instrumentId: string, alertId: string): Promise<void> {
     const result = await this.registry.removeAlertRef(instrumentId, alertId);
     if (result.becameInactive) await this.releaseSubscriptionById(instrumentId);
@@ -182,6 +237,23 @@ export class MarketDataService implements OnModuleInit {
   }
 
   private async handleResolvedTick(instrument: Instrument, tick: NormalizedTick, providerId: string, isDemo: boolean, adapter: AdapterName) {
+    if (tick.open24h !== undefined && tick.open24h > 0) this.open24hById.set(instrument.id, tick.open24h);
+
+    const hasStats =
+      tick.high24h !== undefined || tick.low24h !== undefined || tick.volume24h !== undefined || tick.changePct24h !== undefined;
+    if (tick.statsOnly) {
+      // 24h stats only: refreshes high/low/volume and proves the feed is alive, but the price
+      // itself comes from trades, so this never moves the price or evaluates alerts.
+      await this.priceCache.updateTickerStats(instrument.id, {
+        high24h: tick.high24h,
+        low24h: tick.low24h,
+        volume24h: tick.volume24h,
+        changePct24h: tick.changePct24h,
+        heardAt: tick.receivedTime,
+      });
+      return;
+    }
+
     const result = await this.priceCache.applyTick({
       instrumentId: instrument.id,
       price: tick.price,
@@ -189,15 +261,11 @@ export class MarketDataService implements OnModuleInit {
       receivedTime: tick.receivedTime,
       providerId,
       isDemo,
+      providerSeq: tick.providerSeq,
     });
     if (!result.accepted) return;
 
-    if (
-      tick.high24h !== undefined ||
-      tick.low24h !== undefined ||
-      tick.volume24h !== undefined ||
-      tick.changePct24h !== undefined
-    ) {
+    if (hasStats) {
       await this.priceCache.updateTickerStats(instrument.id, {
         high24h: tick.high24h,
         low24h: tick.low24h,
@@ -219,9 +287,15 @@ export class MarketDataService implements OnModuleInit {
       providerId,
       providerName: adapter,
       isDemo,
-      changePct24h: tick.changePct24h ?? null,
+      changePct24h: tick.changePct24h ?? this.changePctFromOpen(instrument.id, tick.price),
     };
     this.events.emit(MARKET_TICK_EVENT, payload);
+  }
+
+  /** 24h change against the latest trade price, so it moves in step with the price shown beside it. */
+  private changePctFromOpen(instrumentId: string, price: number): number | null {
+    const open = this.open24hById.get(instrumentId);
+    return open ? ((price - open) / open) * 100 : null;
   }
 
   /** Throttled persistence of the live price into Postgres, purely for cold-start display. */
@@ -249,7 +323,7 @@ export class MarketDataService implements OnModuleInit {
       const snapshot = await this.priceCache.getSnapshot(instrumentId);
       if (!snapshot) continue;
       const previous = this.lastKnownFeedStatus.get(instrumentId);
-      const isStale = Date.now() - snapshot.eventTime > STALE_AFTER_MS;
+      const isStale = snapshot.feedStatus === "STALE";
 
       if (isStale && previous !== "STALE") {
         this.lastKnownFeedStatus.set(instrumentId, "STALE");
@@ -280,16 +354,63 @@ export class MarketDataService implements OnModuleInit {
     return [this.mockProvider.getHealth(), this.binanceProvider.getHealth(), this.twelveDataProvider.getHealth()];
   }
 
-  async getHistoricalCandles(instrumentId: string, timeframe: Parameters<MockMarketDataProvider["getHistoricalData"]>[1]) {
+  async getHistoricalCandles(instrumentId: string, timeframe: Timeframe): Promise<Candle[]> {
+    const fresh = await this.cacheGet(candleCacheKey(instrumentId, timeframe));
+    if (fresh) return JSON.parse(fresh) as Candle[];
+
+    // Concurrent chart opens for the same series share one upstream request.
+    const key = `${instrumentId}:${timeframe}`;
+    const pending = this.candleRequests.get(key);
+    if (pending) return pending;
+    const request = this.loadHistoricalCandles(instrumentId, timeframe).finally(() => this.candleRequests.delete(key));
+    this.candleRequests.set(key, request);
+    return request;
+  }
+
+  /**
+   * Charts only ever show the provider's real candles. A failed fetch (rate limit, outage) serves
+   * the last good copy, or nothing - never synthetic candles passed off as market data. Only
+   * instruments already flagged isDemo use the simulator.
+   */
+  private async loadHistoricalCandles(instrumentId: string, timeframe: Timeframe): Promise<Candle[]> {
     const instrument = await this.getOrLoadInstrument(instrumentId);
     if (!instrument) return [];
     const adapter: AdapterName = this.instrumentAdapter.get(instrumentId) ?? "mock";
+
     const candles = await this.providerFor(adapter).getHistoricalData(instrument.providerSymbol, timeframe);
-    // Never substitute synthetic candles for a real market: a chart drawn from random data looks
-    // plausible but does not match the exchange. An empty result is shown as "no data" instead.
-    if (candles.length === 0 && adapter !== "mock") {
-      this.logger.warn(`No historical candles from ${adapter} for ${instrument.symbol} (${timeframe}); returning none`);
+    if (candles.length > 0) {
+      const body = JSON.stringify(candles);
+      // The cache only saves exchange calls; a full or unreachable Redis must not cost the chart.
+      try {
+        await withTimeout(
+          this.redis
+            .multi()
+            .set(candleCacheKey(instrumentId, timeframe), body, "EX", CANDLE_CACHE_SECONDS[timeframe])
+            .set(lastGoodCandleKey(instrumentId, timeframe), body, "EX", LAST_GOOD_CANDLE_SECONDS)
+            .exec(),
+        );
+      } catch (err) {
+        this.logger.warn(`Could not cache ${timeframe} candles for ${instrument.displaySymbol}: ${(err as Error).message}`);
+      }
+      return candles;
     }
-    return candles;
+
+    const lastGood = await this.cacheGet(lastGoodCandleKey(instrumentId, timeframe));
+    if (lastGood) {
+      this.logger.warn(`Serving last good ${timeframe} candles for ${instrument.displaySymbol}: provider returned none`);
+      return JSON.parse(lastGood) as Candle[];
+    }
+    this.logger.warn(`No historical candles from ${adapter} for ${instrument.symbol} (${timeframe}); returning none`);
+    return [];
+  }
+
+  /** A cache read that treats an unavailable Redis as a miss, so charts still load from the exchange. */
+  private async cacheGet(key: string): Promise<string | null> {
+    try {
+      return await withTimeout(this.redis.get(key));
+    } catch (err) {
+      this.logger.warn(`Candle cache read failed (${key}): ${(err as Error).message}`);
+      return null;
+    }
   }
 }

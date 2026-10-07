@@ -7,7 +7,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationContextService, formatConditionText } from "../notification-context.service";
 import { DeliveryStatusService } from "../delivery-status.service";
 
-@Processor(QUEUE_NAMES.NOTIFY_DISCORD)
+@Processor(QUEUE_NAMES.NOTIFY_DISCORD, { concurrency: 5 })
 export class DiscordProcessor extends WorkerHost {
   private readonly logger = new Logger(DiscordProcessor.name);
 

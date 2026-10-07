@@ -13,7 +13,9 @@ import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "./alert-engin
  * idempotency key, so this processor's only job is to make it permanent in Postgres and hand
  * off to notifications - never to re-derive whether the alert should have fired.
  */
-@Processor(QUEUE_NAMES.ALERT_TRIGGER)
+// Jobs are independent (idempotent per transition), so a burst of triggers on one level -
+// hundreds of users' alerts at the same round number - is persisted in parallel, not in a line.
+@Processor(QUEUE_NAMES.ALERT_TRIGGER, { concurrency: 25 })
 export class AlertTriggerProcessor extends WorkerHost {
   private readonly logger = new Logger(AlertTriggerProcessor.name);
 
@@ -84,6 +86,7 @@ export class AlertTriggerProcessor extends WorkerHost {
       targetValue: data.targetValue,
       observedPrice: data.observedPrice,
       eventTime: data.eventTime,
+      deactivated: !alert.isRecurring,
     };
     this.events.emit(ALERT_TRIGGERED_EVENT, payload);
   }

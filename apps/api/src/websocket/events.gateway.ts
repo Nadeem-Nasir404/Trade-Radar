@@ -18,7 +18,11 @@ import { ACCESS_TOKEN_COOKIE, type AccessTokenPayload } from "../auth/auth.const
 import { SubscriptionRegistryService } from "../market-data/subscription-registry.service";
 import { MarketDataService } from "../market-data/market-data.service";
 import { MARKET_RESUMED_EVENT, MARKET_STALE_EVENT, MARKET_TICK_EVENT, type MarketTickEvent, type MarketStaleEventPayload, type MarketResumedEventPayload } from "../market-data/market-data.events";
+import { PriceUpdateThrottle } from "./price-update-throttle";
 import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "../alert-engine/alert-engine.events";
+
+/** Clients get at most this many ms between price updates per instrument (see PriceUpdateThrottle). */
+const PRICE_UPDATE_INTERVAL_MS = 250;
 
 function instrumentRoom(instrumentId: string) {
   return `instrument:${instrumentId}`;
@@ -45,6 +49,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(EventsGateway.name);
   /** connectionId -> set of instrumentIds it's currently subscribed to, so disconnect can clean up refs. */
   private readonly connectionSubscriptions = new Map<string, Set<string>>();
+  private readonly priceUpdates = new PriceUpdateThrottle(
+    (update) => this.server.to(instrumentRoom(update.instrumentId)).emit(WS_EVENTS.PRICE_UPDATE, update),
+    PRICE_UPDATE_INTERVAL_MS,
+  );
 
   constructor(
     private readonly jwtService: JwtService,
@@ -118,7 +126,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       changePct24h: tick.changePct24h,
       eventTime: tick.eventTime,
     };
-    this.server.to(instrumentRoom(tick.instrumentId)).emit(WS_EVENTS.PRICE_UPDATE, payload);
+    this.priceUpdates.push(payload);
   }
 
   @OnEvent(MARKET_STALE_EVENT)

@@ -47,6 +47,18 @@ export class SubscriptionsService {
     }
   }
 
+  /** Same ceiling as assertCanCreateAlert, for activating several alerts at once (resuming a group). */
+  async assertCanActivateAlerts(userId: string, count: number): Promise<void> {
+    if (count === 0) return;
+    const subscription = await this.getForUser(userId);
+    const activeCount = await this.prisma.alert.count({ where: { userId, status: AlertStatus.ACTIVE } });
+    if (activeCount + count > subscription.maxActiveAlerts) {
+      throw new ForbiddenException(
+        `Resuming these ${count} alerts would put you over your ${subscription.plan} plan's limit of ${subscription.maxActiveAlerts} active alerts. Pause or delete some alerts first.`,
+      );
+    }
+  }
+
   async assertCanCreateWatchlist(userId: string): Promise<void> {
     const subscription = await this.getForUser(userId);
     const count = await this.prisma.watchlist.count({ where: { userId } });

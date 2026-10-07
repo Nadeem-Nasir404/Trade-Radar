@@ -3,10 +3,12 @@ import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
+import type Redis from "ioredis";
 import type { User } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import { MailerService } from "../common/mailer/mailer.service";
+import { InjectRedis } from "../redis/inject-redis.decorator";
 import type { EnvConfig } from "../common/config/env.validation";
 import type { GoogleProfile } from "./strategies/google.strategy";
 import type { AccessTokenPayload } from "./auth.constants";
@@ -28,12 +30,20 @@ interface RefreshTokenPayload {
 /** A just-rotated token presented again within this window is two tabs racing, not a stolen token. */
 const REFRESH_REUSE_GRACE_MS = 30_000;
 
+const MAGIC_LINK_TTL_SECONDS = 15 * 60;
+
 const TTL_UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
 function ttlToSeconds(ttl: string): number {
   const match = /^(\d+)([smhd])$/.exec(ttl);
   if (!match) return 900;
   return (Number(match[1]) * TTL_UNIT_MS[match[2]]) / 1000;
+}
+
+function assertNotSuspended(user: User): void {
+  if (user.isSuspended) {
+    throw new UnauthorizedException("This account has been suspended. Contact support for details.");
+  }
 }
 
 function hashToken(token: string): string {
@@ -50,6 +60,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly mailer: MailerService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async validateLocalUser(email: string, password: string): Promise<User> {
@@ -73,6 +84,8 @@ export class AuthService {
   }
 
   async issueSession(user: User, meta: { userAgent?: string; ipAddress?: string }): Promise<TokenPair> {
+    // Every sign-in path (password, Google, magic link, register) ends here.
+    assertNotSuspended(user);
     const sessionId = randomUUID();
     const tokens = await this.signTokenPair(user, sessionId);
 
@@ -147,6 +160,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: decoded.sub } });
+    assertNotSuspended(user);
     const tokens = await this.signTokenPair(user, session.id);
 
     // Rotate in place: the session keeps its id, so a later replay of this token hits the hash
@@ -197,8 +211,8 @@ export class AuthService {
 
   async requestMagicLink(email: string): Promise<void> {
     const token = await this.jwtService.signAsync(
-      { email: email.toLowerCase(), purpose: "magic-link" },
-      { secret: this.config.get("MAGIC_LINK_SECRET", { infer: true }), expiresIn: "15m" },
+      { email: email.toLowerCase(), purpose: "magic-link", jti: randomUUID() },
+      { secret: this.config.get("MAGIC_LINK_SECRET", { infer: true }), expiresIn: MAGIC_LINK_TTL_SECONDS },
     );
     const link = `${this.config.get("FRONTEND_URL", { infer: true })}/auth/magic-link?token=${encodeURIComponent(token)}`;
 
@@ -211,7 +225,7 @@ export class AuthService {
   }
 
   async verifyMagicLink(token: string): Promise<User> {
-    let decoded: { email: string; purpose: string };
+    let decoded: { email: string; purpose: string; jti?: string };
     try {
       decoded = await this.jwtService.verifyAsync(token, {
         secret: this.config.get("MAGIC_LINK_SECRET", { infer: true }),
@@ -219,8 +233,13 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException("This sign-in link is invalid or has expired");
     }
-    if (decoded.purpose !== "magic-link") {
+    if (decoded.purpose !== "magic-link" || !decoded.jti) {
       throw new UnauthorizedException("Invalid token");
+    }
+    // Single use: the first verify claims the link's jti until the link would have expired anyway.
+    const claimed = await this.redis.set(`magiclink:used:${decoded.jti}`, "1", "EX", MAGIC_LINK_TTL_SECONDS, "NX");
+    if (claimed !== "OK") {
+      throw new UnauthorizedException("This sign-in link has already been used");
     }
     return this.usersService.findOrCreateByEmail(decoded.email);
   }

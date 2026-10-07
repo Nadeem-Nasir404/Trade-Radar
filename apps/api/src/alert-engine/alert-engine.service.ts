@@ -6,6 +6,7 @@ import { ConditionType } from "@prisma/client";
 import { QUEUE_NAMES, type AlertTriggerJobPayload } from "@levelpulse/shared-types";
 import { MARKET_TICK_EVENT, type MarketTickEvent } from "../market-data/market-data.events";
 import { AlertRegistryService, type RegisteredAlert } from "./alert-registry.service";
+import type { PriceSnapshot } from "../market-data/price-cache/price-cache.service";
 
 export interface TriggerContext {
   eventTime: number;
@@ -87,6 +88,27 @@ export class AlertEngineService {
   }
 
   /**
+   * ABOVE and BELOW are level conditions ("price is above X"), unlike CROSSES_ABOVE/BELOW: if the
+   * live price is already past the level when the alert is armed, it fires now instead of waiting
+   * for a crossing that may never come. Called whenever an alert becomes active or its level moves.
+   */
+  async fireIfLevelAlreadyMet(alertId: string, conditionType: ConditionType, snapshot: PriceSnapshot | null): Promise<void> {
+    if (conditionType !== ConditionType.ABOVE && conditionType !== ConditionType.BELOW) return;
+    if (!snapshot || snapshot.feedStatus !== "LIVE") return; // never fire on a stale price
+
+    const alert = await this.registry.getAlertHash(alertId);
+    if (!alert) return;
+    const met = conditionType === ConditionType.ABOVE ? snapshot.price >= alert.targetValue : snapshot.price <= alert.targetValue;
+    if (!met) return;
+
+    await this.triggerAlert(alertId, snapshot.price, snapshot.price, snapshot.seq, {
+      eventTime: snapshot.eventTime,
+      receivedTime: snapshot.receivedTime,
+      providerId: snapshot.providerId ?? "unknown",
+    }, alert);
+  }
+
+  /**
    * Re-checks status/expiry/cooldown, claims the idempotency key, and enqueues the trigger job.
    * Public so PctWindowEvaluatorService (PCT_CHANGE_WINDOW isn't ZSET-indexed, see
    * AlertIndexerService) can reuse the exact same trigger path instead of duplicating it.
@@ -102,27 +124,16 @@ export class AlertEngineService {
     const alert = preloaded ?? (await this.registry.getAlertHash(alertId));
     if (!alert) return; // race: deleted between ZRANGEBYSCORE and here
 
-    if (alert.status !== "ACTIVE") return; // race guard vs pause/delete/already-triggered
-    if (alert.expiresAt && Date.now() > alert.expiresAt) return;
-    if (alert.cooldownSeconds > 0 && alert.lastTriggeredAt) {
-      const secondsSinceLastTrigger = (Date.now() - alert.lastTriggeredAt) / 1000;
-      if (secondsSinceLastTrigger < alert.cooldownSeconds) return;
-    }
-
     // seq is a monotonic per-instrument accepted-tick counter (from PriceCacheService), so
     // {alertId, seq} is deterministic and unique per real crossing event - safe as an
     // idempotency key across reconnects and concurrent evaluator races. Dash-separated (not
     // colon-separated): BullMQ rejects colons in custom job IDs, and this same string is used
     // as the jobId below.
     const transitionId = `${alertId}-${seq}`;
-    const claimed = await this.registry.claimIdempotency(alertId, transitionId);
-    if (!claimed) return;
-
-    await this.registry.markTriggered(alertId, Date.now());
-    if (!alert.isRecurring) {
-      await this.registry.markStatus(alertId, "TRIGGERED");
-      await this.registry.unregister(alertId, alert.instrumentId, alert.conditionType);
-    }
+    // Status, expiry, cooldown and idempotency are checked and claimed in one atomic step, so
+    // concurrent ticks can't both fire the same alert (see AlertRegistryService.claimTrigger).
+    const claim = await this.registry.claimTrigger(alertId, transitionId, Date.now());
+    if (!claim.claimed) return;
 
     const payload: AlertTriggerJobPayload = {
       alertId,
@@ -138,7 +149,19 @@ export class AlertEngineService {
       transitionId,
     };
 
-    await this.triggerQueue.add("trigger", payload, { jobId: transitionId });
+    try {
+      await this.triggerQueue.add("trigger", payload, { jobId: transitionId });
+    } catch (err) {
+      // Undo the claim and keep the alert indexed, so a queue outage delays the alert to its
+      // next crossing instead of silently dropping it.
+      await this.registry
+        .releaseTrigger(alertId, transitionId, claim.previousLastTriggeredAt)
+        .catch(() => undefined); // Redis itself down: boot-time reconcile restores the index
+      this.logger.error(`Failed to enqueue trigger for alert ${alertId}: ${(err as Error).message}`);
+      return;
+    }
+    if (!alert.isRecurring) await this.registry.unregister(alertId, alert.instrumentId, alert.conditionType);
+
     this.logger.log(`Alert ${alertId} triggered: ${alert.conditionType} ${alert.targetValue} (observed ${curr})`);
   }
 }

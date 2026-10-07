@@ -1,14 +1,19 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/api/query-keys";
+import type { Instrument } from "@/lib/api/types";
 import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
+import { useAlerts } from "@/lib/api/hooks/use-alerts";
+import { useChartAlerts } from "@/lib/hooks/use-chart-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -34,28 +39,27 @@ export default function FullscreenChartScreen() {
   const [tappedPrice, setTappedPrice] = useState<number | null>(null);
 
   const { data: instrument } = useMarket(symbol);
-  const { data: candles } = useMarketHistory(symbol, timeframe);
-  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
-  const price = live.price ?? instrument?.price ?? null;
-  const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
-  const positive = (changePct ?? 0) >= 0;
+  const { data: candles, isLoading: historyLoading, isError: historyFailed } = useMarketHistory(symbol, timeframe);
+  const { data: alerts } = useAlerts({ search: symbol });
+  const { levels: alertLevels, onAlertMove, onAlertDelete } = useChartAlerts(instrument, alerts);
+  // Price and change render in their own small components, so live updates don't re-render the screen.
+  const queryClient = useQueryClient();
+  const refetchHistory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.marketHistory(symbol, timeframe) });
+  }, [queryClient, symbol, timeframe]);
 
   const chartHeight = height - 230;
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: colors.glass }]}>
-          <Ionicons name="close" size={20} color={colors.foreground} />
-        </Pressable>
+        <IconButton icon="close" label="Close" onPress={() => router.back()} />
         <View style={styles.headerCenter}>
           <ThemedText style={styles.symbol}>{params.displaySymbol ?? instrument?.displaySymbol ?? ""}</ThemedText>
-          <ThemedText style={{ color: positive ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
-            {formatPct(changePct)}
-          </ThemedText>
+          <LiveChange instrument={instrument} />
         </View>
         <View style={styles.iconButton}>
-          <PriceText value={price} variant="mono" style={styles.headerPrice} />
+          <LivePrice instrument={instrument} />
         </View>
       </View>
 
@@ -84,13 +88,20 @@ export default function FullscreenChartScreen() {
           ref={chartRef}
           height={chartHeight}
           candles={candles ?? []}
-          livePrice={price}
+          instrumentId={instrument?.id}
+          onBarClose={refetchHistory}
+          watermark={`${params.displaySymbol ?? instrument?.displaySymbol ?? symbol} · ${timeframe}`}
+          loading={historyLoading}
+          failed={historyFailed}
           timeframe={timeframe}
           viewKey={`${symbol}|${timeframe}`}
           drawMode={drawMode}
           drawTool={drawTool}
           drawingsKey={symbol}
           onPriceTap={setTappedPrice}
+          alertLevels={alertLevels}
+          onAlertMove={onAlertMove}
+          onAlertDelete={onAlertDelete}
           onDrawStage={setDrawStage}
         />
       </View>
@@ -131,9 +142,9 @@ export default function FullscreenChartScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   headerCenter: { alignItems: "center", gap: 2 },
-  iconButton: { minWidth: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  iconButton: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
   symbol: { fontSize: 16, fontWeight: "600" },
   headerPrice: { fontSize: 14 },
   tfScroll: { flexGrow: 0, marginBottom: 8 },
@@ -145,3 +156,19 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   hint: { textAlign: "center", fontSize: 12 },
 });
+
+function LiveChange({ instrument }: { instrument: Instrument | undefined }) {
+  const { colors } = useTheme();
+  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
+  const changePct = live.changePct24h ?? instrument?.changePct24h ?? null;
+  return (
+    <ThemedText style={{ color: (changePct ?? 0) >= 0 ? colors.positive : colors.negative, fontSize: 12, fontWeight: "600" }}>
+      {formatPct(changePct)}
+    </ThemedText>
+  );
+}
+
+function LivePrice({ instrument }: { instrument: Instrument | undefined }) {
+  const live = useLivePrice(instrument?.id, { price: instrument?.price ?? null, changePct24h: instrument?.changePct24h ?? null });
+  return <PriceText value={live.price ?? instrument?.price ?? null} variant="mono" style={styles.headerPrice} />;
+}

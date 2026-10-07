@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { Button } from "@/components/ui/button";
 import { useTradesStore, type TradeSide } from "@/lib/stores/trades-store";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
+import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 
 /** Parses a number typed by the user; empty or invalid input becomes null. */
@@ -21,6 +22,7 @@ function parseNumber(v: string): number | null {
 export default function NewTradeScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const add = useTradesStore((s) => s.add);
   const showToast = useToastStore((s) => s.show);
 
@@ -53,65 +55,64 @@ export default function NewTradeScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <AmbientOrbs />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="close" size={18} color={colors.foreground} />
-        </Pressable>
-        <ThemedText style={styles.headerTitle}>New trade</ThemedText>
-        <View style={styles.spacer} />
-      </View>
+      <ModalHeader title="New trade" kind="close" />
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Surface style={styles.card}>
-          <Field label="Symbol">
-            <TextInput
-              value={symbol}
-              onChangeText={setSymbol}
-              placeholder="BTC/USDT"
-              placeholderTextColor={colors.foregroundMuted}
-              autoCapitalize="characters"
-              style={[styles.input, { color: colors.foreground, borderColor: colors.glassBorder }]}
-            />
-          </Field>
+      {/* Keeps Save above the keyboard; the form stays phone-width on tablets. */}
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          contentContainerStyle={[styles.body, { width: Math.min(width, 560), alignSelf: "center" }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Surface style={styles.card}>
+            <Field label="Symbol">
+              <TextInput
+                value={symbol}
+                onChangeText={setSymbol}
+                placeholder="BTC/USDT"
+                placeholderTextColor={colors.foregroundMuted}
+                autoCapitalize="characters"
+                style={[styles.input, { color: colors.foreground, borderColor: colors.glassBorder }]}
+              />
+            </Field>
 
-          <Field label="Direction">
-            <View style={styles.sideRow}>
-              {(["LONG", "SHORT"] as TradeSide[]).map((s) => {
-                const active = s === side;
-                const tone = s === "LONG" ? colors.positive : colors.negative;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => {
-                      haptics.selection();
-                      setSide(s);
-                    }}
-                    style={[styles.sideBtn, { borderColor: colors.glassBorder, backgroundColor: active ? tone : colors.glass }]}
-                  >
-                    <ThemedText style={{ color: active ? "#FFFFFF" : colors.foregroundMuted, fontWeight: "700" }}>{s}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Field>
+            <Field label="Direction">
+              <View style={styles.sideRow}>
+                {(["LONG", "SHORT"] as TradeSide[]).map((s) => {
+                  const active = s === side;
+                  const tone = s === "LONG" ? colors.positive : colors.negative;
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => {
+                        haptics.selection();
+                        setSide(s);
+                      }}
+                      style={[styles.sideBtn, { borderColor: colors.glassBorder, backgroundColor: active ? tone : colors.glass }]}
+                    >
+                      <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "700" }}>{s}</ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Field>
 
-          <Field label="Entry price">
-            <NumberInput value={entry} onChange={setEntry} placeholder="e.g. 142.80" />
-          </Field>
+            <Field label="Entry price">
+              <NumberInput value={entry} onChange={setEntry} placeholder="e.g. 142.80" />
+            </Field>
 
-          <Field label="Exit price (leave empty if still open)">
-            <NumberInput value={exit} onChange={setExit} placeholder="e.g. 179.43" />
-          </Field>
+            <Field label="Exit price (leave empty if still open)">
+              <NumberInput value={exit} onChange={setExit} placeholder="e.g. 179.43" />
+            </Field>
 
-          <Field label="Position size in $ (optional)">
-            <NumberInput value={size} onChange={setSize} placeholder="e.g. 1000" prefix="$" />
-          </Field>
-        </Surface>
+            <Field label="Position size in $ (optional)">
+              <NumberInput value={size} onChange={setSize} placeholder="e.g. 1000" prefix="$" />
+            </Field>
+          </Surface>
 
-        <Pressable onPress={save} style={[styles.save, { backgroundColor: colors.brand }]}>
-          <ThemedText style={{ color: colors.brandForeground, fontWeight: "700", fontSize: 15 }}>Save trade</ThemedText>
-        </Pressable>
-      </ScrollView>
+          <Button title="Save trade" onPress={save} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -144,17 +145,12 @@ function NumberInput({ value, onChange, placeholder, prefix }: { value: string; 
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  closeBtn: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700" },
-  spacer: { width: 40 },
   body: { padding: 20, gap: 16, paddingBottom: 40 },
   card: { padding: 18, gap: 16 },
   field: { gap: 8 },
-  input: { height: 48, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14, fontSize: 16, fontWeight: "600" },
-  numRow: { flexDirection: "row", alignItems: "center", gap: 6, height: 48, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14 },
-  numInput: { flex: 1, fontSize: 16, fontWeight: "600", padding: 0 },
+  input: { height: 50, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14, fontSize: 16, fontFamily: fonts.bodySemibold },
+  numRow: { flexDirection: "row", alignItems: "center", gap: 6, height: 50, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14 },
+  numInput: { flex: 1, fontSize: 16, fontFamily: fonts.bodySemibold, padding: 0 },
   sideRow: { flexDirection: "row", gap: 10 },
-  sideBtn: { flex: 1, height: 44, borderRadius: radius.lg, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  save: { height: 54, borderRadius: radius.lg, alignItems: "center", justifyContent: "center" },
+  sideBtn: { flex: 1, height: 46, borderRadius: radius.lg, borderWidth: 1, alignItems: "center", justifyContent: "center" },
 });

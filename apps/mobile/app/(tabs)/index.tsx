@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, FadeInDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -22,8 +22,10 @@ import { useCountUp } from "@/lib/hooks/use-count-up";
 import { haptics } from "@/lib/haptics";
 import { withAlpha } from "@/lib/color";
 import type { Alert } from "@/lib/api/types";
+import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 
 export default function HomeScreen() {
+  const tabSpace = useTabBarSpace();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: activeAlerts, isLoading } = useAlerts({ status: "ACTIVE" });
@@ -48,7 +50,7 @@ export default function HomeScreen() {
       <FlatList
         data={(recentAlerts ?? []).slice(0, 10)}
         keyExtractor={(item: Alert) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: tabSpace }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
         ListHeaderComponent={
           <Animated.View entering={FadeInDown.duration(300).easing(Easing.out(Easing.quad))} style={styles.header}>

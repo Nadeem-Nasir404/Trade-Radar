@@ -7,7 +7,7 @@ import { NotificationContextService, formatConditionText } from "../notification
 import { DeliveryStatusService } from "../delivery-status.service";
 import { buildAlertEmailHtml, buildAlertEmailText } from "../email-templates";
 
-@Processor(QUEUE_NAMES.NOTIFY_EMAIL)
+@Processor(QUEUE_NAMES.NOTIFY_EMAIL, { concurrency: 10 })
 export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
 

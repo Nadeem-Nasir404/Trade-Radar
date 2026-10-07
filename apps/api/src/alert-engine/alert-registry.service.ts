@@ -19,6 +19,9 @@ export interface RegisteredAlert {
 function alertHashKey(alertId: string) {
   return `alert:${alertId}`;
 }
+function idempotencyKey(alertId: string, transitionId: string) {
+  return `alert:${alertId}:trigger:${transitionId}`;
+}
 function rangeHashKey(alertId: string) {
   return `alert:range:${alertId}`;
 }
@@ -46,6 +49,25 @@ function registryKindFor(conditionType: ConditionType): "above" | "below" | "equ
       return null;
   }
 }
+
+/**
+ * KEYS[1] = alert:{id} hash, KEYS[2] = idempotency key for this transition
+ * ARGV[1] = now (ms epoch)
+ * Returns { claimed (0|1), previous lastTriggeredAt ('' if never) }
+ */
+const CLAIM_TRIGGER_LUA = `
+local h = redis.call('HMGET', KEYS[1], 'status', 'expiresAt', 'cooldownSeconds', 'lastTriggeredAt', 'isRecurring')
+if h[1] ~= 'ACTIVE' then return {0, ''} end
+local now = tonumber(ARGV[1])
+local last = h[4] or ''
+if h[2] and h[2] ~= '' and now > tonumber(h[2]) then return {0, last} end
+local cooldown = tonumber(h[3] or '0') or 0
+if cooldown > 0 and last ~= '' and (now - tonumber(last)) < cooldown * 1000 then return {0, last} end
+if not redis.call('SET', KEYS[2], '1', 'EX', 86400, 'NX') then return {0, last} end
+redis.call('HSET', KEYS[1], 'lastTriggeredAt', ARGV[1])
+if h[5] ~= '1' then redis.call('HSET', KEYS[1], 'status', 'TRIGGERED') end
+return {1, last}
+`;
 
 @Injectable()
 export class AlertRegistryService {
@@ -126,14 +148,6 @@ export class AlertRegistryService {
     return { lower: Number(raw.lower), upper: Number(raw.upper) };
   }
 
-  async markTriggered(alertId: string, whenMs: number): Promise<void> {
-    await this.redis.hset(alertHashKey(alertId), "lastTriggeredAt", String(whenMs));
-  }
-
-  async markStatus(alertId: string, status: string): Promise<void> {
-    await this.redis.hset(alertHashKey(alertId), "status", status);
-  }
-
   async candidatesAbove(instrumentId: string, exclusiveMin: number, inclusiveMax: number): Promise<string[]> {
     return this.redis.zrangebyscore(registryKey("above", instrumentId), `(${exclusiveMin}`, `${inclusiveMax}`);
   }
@@ -159,10 +173,30 @@ export class AlertRegistryService {
     return [...new Set([...lowerHits, ...upperHits])];
   }
 
-  async claimIdempotency(alertId: string, transitionId: string): Promise<boolean> {
-    const key = `alert:${alertId}:trigger:${transitionId}`;
-    const result = await this.redis.set(key, "1", "EX", 86_400, "NX");
-    return result === "OK";
+  /**
+   * Atomically decides whether this alert fires for `transitionId`: re-checks status, expiry and
+   * cooldown, claims the idempotency key, records the trigger time, and (for one-shot alerts)
+   * flips status to TRIGGERED - all in one script, so two ticks evaluated at the same moment can
+   * never both pass the checks. Returns the previous lastTriggeredAt so releaseTrigger() can undo
+   * the claim if the trigger job can't be enqueued.
+   */
+  async claimTrigger(alertId: string, transitionId: string, nowMs: number): Promise<{ claimed: boolean; previousLastTriggeredAt: string }> {
+    const [claimed, previous] = (await this.redis.eval(
+      CLAIM_TRIGGER_LUA,
+      2,
+      alertHashKey(alertId),
+      idempotencyKey(alertId, transitionId),
+      String(nowMs),
+    )) as [number, string];
+    return { claimed: claimed === 1, previousLastTriggeredAt: previous ?? "" };
+  }
+
+  /** Reverses claimTrigger() so the alert can fire on its next crossing. */
+  async releaseTrigger(alertId: string, transitionId: string, previousLastTriggeredAt: string): Promise<void> {
+    const pipeline = this.redis.pipeline();
+    pipeline.hset(alertHashKey(alertId), { status: "ACTIVE", lastTriggeredAt: previousLastTriggeredAt });
+    pipeline.del(idempotencyKey(alertId, transitionId));
+    await pipeline.exec();
   }
 
   /** Rebuilds every registry from Postgres. Called on API boot since Redis is a rebuildable index, not source of truth. */

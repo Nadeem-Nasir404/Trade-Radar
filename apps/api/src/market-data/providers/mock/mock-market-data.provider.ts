@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { syntheticCandles } from "../synthetic-candles";
 import {
   AssetType,
   type Candle,
@@ -90,31 +91,9 @@ export class MockMarketDataProvider implements MarketDataProvider {
 
   async getHistoricalData(providerSymbol: string, timeframe: Timeframe): Promise<Candle[]> {
     const state = this.state.get(providerSymbol.toLowerCase()) ?? BASE_PRICES[providerSymbol.toLowerCase()];
-    const basePrice = state?.price ?? 100;
+    const lastPrice = state?.price ?? 100;
     const volatility = "volatilityPct" in (state ?? {}) ? (state as MockSymbolState).volatilityPct : 0.001;
-    const bucketSeconds = timeframeToSeconds(timeframe);
-    const candles: Candle[] = [];
-    let price = basePrice * (1 - volatility * 40);
-    const now = Math.floor(Date.now() / 1000);
-    const startTime = now - bucketSeconds * 200;
-
-    for (let i = 0; i < 200; i++) {
-      const open = price;
-      const drift = (Math.random() - 0.48) * price * volatility * 4;
-      const close = Math.max(open + drift, 0.01);
-      const high = Math.max(open, close) * (1 + Math.random() * volatility);
-      const low = Math.min(open, close) * (1 - Math.random() * volatility);
-      candles.push({
-        time: startTime + i * bucketSeconds,
-        open,
-        high,
-        low,
-        close,
-        volume: Math.random() * 1000,
-      });
-      price = close;
-    }
-    return candles;
+    return syntheticCandles(providerSymbol.toLowerCase(), timeframe, lastPrice, volatility);
   }
 
   getHealth(): ProviderHealth {
@@ -159,26 +138,5 @@ export class MockMarketDataProvider implements MarketDataProvider {
       };
       for (const handler of this.tickHandlers) handler(tick);
     }
-  }
-}
-
-function timeframeToSeconds(tf: Timeframe): number {
-  switch (tf) {
-    case "1m":
-      return 60;
-    case "3m":
-      return 180;
-    case "5m":
-      return 300;
-    case "15m":
-      return 900;
-    case "1h":
-      return 3600;
-    case "4h":
-      return 14_400;
-    case "1d":
-      return 86_400;
-    case "1w":
-      return 604_800;
   }
 }

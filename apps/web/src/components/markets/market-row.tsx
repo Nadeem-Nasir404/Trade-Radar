@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { Star, TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
+import { FavoriteButton } from "./favorite-button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCompactPrice, formatPct } from "@/lib/utils";
 import type { Instrument } from "@/lib/api/types";
+import { useLivePrice } from "@/lib/ws/use-live-price";
 
 export function MarketRow({ instrument }: { instrument: Instrument }) {
-  const positive = (instrument.changePct24h ?? 0) >= 0;
+  // Each row follows its own live price; one shared socket subscription per instrument.
+  const live = useLivePrice(instrument.id, { price: instrument.price, changePct24h: instrument.changePct24h });
+  const price = live.price ?? instrument.price;
+  const changePct = live.changePct24h ?? instrument.changePct24h;
+  const positive = (changePct ?? 0) >= 0;
 
   return (
     <Link
@@ -15,14 +21,7 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
       className="flex items-center justify-between gap-4 rounded-xl border border-glass-border bg-glass px-4 py-3.5 transition-colors hover:bg-glass-hover"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <button
-          type="button"
-          onClick={(e) => e.preventDefault()}
-          className="text-foreground-subtle hover:text-warning"
-          aria-label="Favorite"
-        >
-          <Star className="size-4" />
-        </button>
+        <FavoriteButton instrumentId={instrument.id} className="-ml-2" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="truncate font-medium">{instrument.displaySymbol}</p>
@@ -33,15 +32,15 @@ export function MarketRow({ instrument }: { instrument: Instrument }) {
             )}
           </div>
           <p className="truncate text-xs text-foreground-subtle">
-            {instrument.provider} {instrument.exchange ? `· ${instrument.exchange}` : ""}
+            {instrument.exchange ?? instrument.provider}
           </p>
         </div>
       </div>
       <div className="text-right">
-        <p className="font-tabular font-medium">{formatCompactPrice(instrument.price)}</p>
+        <p className="font-tabular font-medium">{formatCompactPrice(price)}</p>
         <p className={cn("flex items-center justify-end gap-1 text-xs font-tabular", positive ? "text-positive" : "text-negative")}>
           {positive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-          {formatPct(instrument.changePct24h)}
+          {formatPct(changePct)}
         </p>
       </div>
     </Link>

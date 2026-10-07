@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
+import { syntheticCandles } from "../synthetic-candles";
 import { ConfigService } from "@nestjs/config";
 import {
   AssetType,
@@ -23,21 +24,11 @@ interface TwelveDataQuote {
   last_quote_at?: number;
 }
 
-const TIMEFRAME_MINUTES: Partial<Record<Timeframe, number>> = {
-  "1m": 1,
-  "3m": 3,
-  "5m": 5,
-  "15m": 15,
-  "1h": 60,
-  "4h": 240,
-  "1d": 1440,
-  "1w": 10080,
-};
-
+/** Twelve Data has no 3-minute interval, so 3m charts are built from 1-minute bars (see aggregateCandles). */
 const TIMEFRAME_INTERVAL: Record<Timeframe, string> = {
   "1m": "1min",
   "5m": "5min",
-  "3m": "3min",
+  "3m": "1min",
   "15m": "15min",
   "1h": "1h",
   "4h": "4h",
@@ -57,6 +48,30 @@ const BASE_FALLBACK_PRICES: Record<string, number> = {
   spx: 5815.0,
   ndx: 20350.0,
 };
+
+/** "2026-10-07 05:00:00" or "2026-10-07" (requested with timezone=UTC) -> seconds epoch. */
+function parseUtcDatetime(datetime: string): number {
+  const iso = datetime.includes(" ") ? datetime.replace(" ", "T") : `${datetime}T00:00:00`;
+  return Math.floor(Date.parse(`${iso}Z`) / 1000);
+}
+
+/** Merges ascending candles into buckets of `bucketSeconds`, aligned to the epoch like the chart's own buckets. */
+export function aggregateCandles(candles: Candle[], bucketSeconds: number): Candle[] {
+  const out: Candle[] = [];
+  for (const c of candles) {
+    const time = Math.floor(c.time / bucketSeconds) * bucketSeconds;
+    const last = out[out.length - 1];
+    if (last && last.time === time) {
+      last.high = Math.max(last.high, c.high);
+      last.low = Math.min(last.low, c.low);
+      last.close = c.close;
+      if (c.volume !== undefined) last.volume = (last.volume ?? 0) + c.volume;
+    } else {
+      out.push({ ...c, time });
+    }
+  }
+  return out;
+}
 
 @Injectable()
 export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
@@ -213,43 +228,38 @@ export class TwelveDataProvider implements MarketDataProvider, OnModuleDestroy {
     }
   }
 
+  /** True when there's no API key, so prices and candles are a local random walk, not market data. */
+  get isSimulated(): boolean {
+    return !this.apiKey;
+  }
+
   async getHistoricalData(providerSymbol: string, timeframe: Timeframe): Promise<Candle[]> {
     if (!this.apiKey) {
-      // Fallback synthetic candles generator
-      const intervalMinutes = TIMEFRAME_MINUTES[timeframe] ?? 1440;
-      const basePrice = BASE_FALLBACK_PRICES[providerSymbol.toLowerCase()] || 100;
-      const candles: Candle[] = [];
-      const now = Math.floor(Date.now() / 1000);
-      let p = basePrice;
-      for (let i = 100; i >= 0; i--) {
-        const time = now - i * intervalMinutes * 60;
-        const open = p;
-        const close = p * (1 + (Math.random() - 0.49) * 0.003);
-        const high = Math.max(open, close) * 1.001;
-        const low = Math.min(open, close) * 0.999;
-        p = close;
-        candles.push({ time, open, high, low, close });
-      }
-      return candles;
+      const key = providerSymbol.toLowerCase();
+      const lastPrice = this.fallbackPrices.get(key) ?? BASE_FALLBACK_PRICES[key] ?? 100;
+      return syntheticCandles(key, timeframe, lastPrice, 0.0005);
     }
 
     const interval = TIMEFRAME_INTERVAL[timeframe];
     const normSymbol = this.normalizeSymbol(providerSymbol);
-    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(normSymbol)}&interval=${interval}&outputsize=200&apikey=${this.apiKey}`;
+    const outputSize = timeframe === "3m" ? 600 : 200;
+    // timezone=UTC: without it Twelve Data returns exchange-local times with no offset.
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(normSymbol)}&interval=${interval}&outputsize=${outputSize}&timezone=UTC&apikey=${this.apiKey}`;
     try {
       const res = await fetch(url);
       if (!res.ok) return [];
       const body = (await res.json()) as { values?: Array<{ datetime: string; open: string; high: string; low: string; close: string }> };
       if (!body.values) return [];
-      return body.values
+      const candles = body.values
         .map((v) => ({
-          time: Math.floor(new Date(v.datetime).getTime() / 1000),
+          time: parseUtcDatetime(v.datetime),
           open: Number(v.open),
           high: Number(v.high),
           low: Number(v.low),
           close: Number(v.close),
         }))
         .reverse();
+      return timeframe === "3m" ? aggregateCandles(candles, 180) : candles;
     } catch (err) {
       this.logger.warn(`Failed to fetch Twelve Data time_series for ${providerSymbol}: ${(err as Error).message}`);
       return [];

@@ -9,7 +9,7 @@ import { NotificationContextService, formatConditionText } from "../notification
 import { DeliveryStatusService } from "../delivery-status.service";
 import type { EnvConfig } from "../../common/config/env.validation";
 
-@Processor(QUEUE_NAMES.NOTIFY_TELEGRAM)
+@Processor(QUEUE_NAMES.NOTIFY_TELEGRAM, { concurrency: 10 })
 export class TelegramProcessor extends WorkerHost {
   private readonly logger = new Logger(TelegramProcessor.name);
 

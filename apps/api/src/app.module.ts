@@ -1,12 +1,17 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
 import { BullModule } from "@nestjs/bullmq";
 import { EventEmitterModule } from "@nestjs/event-emitter";
+import type Redis from "ioredis";
 import { validateEnv, type EnvConfig } from "./common/config/env.validation";
+import { HttpThrottlerGuard } from "./common/guards/http-throttler.guard";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
+import { REDIS_CLIENT } from "./redis/redis.constants";
+import { QueuesModule } from "./queues/queues.module";
 import { MailerModule } from "./common/mailer/mailer.module";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
@@ -42,22 +47,15 @@ import { WebsocketModule } from "./websocket/websocket.module";
     }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
+    // Queues and workers share the app's Redis client for ordinary commands; BullMQ only opens
+    // its own connection for each worker's blocking wait. One process holds about 7 connections
+    // instead of 24, which matters on hosted plans with low connection caps.
     BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvConfig, true>) => {
-        const url = new URL(config.get("REDIS_URL", { infer: true }));
-        return {
-          connection: {
-            host: url.hostname,
-            port: Number(url.port || 6379),
-            username: url.username || undefined,
-            password: url.password || undefined,
-            tls: url.protocol === "rediss:" ? {} : undefined,
-            maxRetriesPerRequest: null,
-          },
-        };
-      },
+      imports: [RedisModule],
+      inject: [REDIS_CLIENT],
+      useFactory: (redis: Redis) => ({ connection: redis }),
     }),
+    QueuesModule,
     PrismaModule,
     RedisModule,
     MailerModule,
@@ -75,5 +73,6 @@ import { WebsocketModule } from "./websocket/websocket.module";
     AdminModule,
     WebsocketModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
 })
 export class AppModule {}

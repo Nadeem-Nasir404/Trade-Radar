@@ -36,6 +36,27 @@ describe("PriceCacheService.applyTick (tick-guard)", () => {
     expect(result.seq).toBe(2);
   });
 
+  it("admits several trades in the same millisecond when ordered by provider trade id", async () => {
+    await service.applyTick(tick({ price: 100, eventTime: 1000, providerSeq: 1 }));
+    const second = await service.applyTick(tick({ price: 101, eventTime: 1000, providerSeq: 2 }));
+    const third = await service.applyTick(tick({ price: 102, eventTime: 1000, providerSeq: 3 }));
+    expect(second.accepted).toBe(true);
+    expect(third).toMatchObject({ accepted: true, prevPrice: 101 });
+  });
+
+  it("rejects a replayed or out-of-order trade id", async () => {
+    await service.applyTick(tick({ price: 100, eventTime: 1000, providerSeq: 10 }));
+    expect((await service.applyTick(tick({ price: 99, eventTime: 1001, providerSeq: 10 }))).accepted).toBe(false);
+    expect((await service.applyTick(tick({ price: 99, eventTime: 1002, providerSeq: 9 }))).accepted).toBe(false);
+  });
+
+  it("marks the feed live after a stats-only update even when no trade has printed recently", async () => {
+    await service.applyTick(tick({ price: 100, eventTime: Date.now() - STALE_AFTER_MS - 10_000 }));
+    expect((await service.getSnapshot("BTC"))?.feedStatus).toBe("STALE");
+    await service.updateTickerStats("BTC", { high24h: 110, heardAt: Date.now() });
+    expect((await service.getSnapshot("BTC"))?.feedStatus).toBe("LIVE");
+  });
+
   it("rejects a duplicate tick with the same eventTime", async () => {
     await service.applyTick(tick({ price: 100, eventTime: 1000 }));
     const result = await service.applyTick(tick({ price: 999, eventTime: 1000 }));

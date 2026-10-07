@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../client";
 import { queryKeys } from "../query-keys";
 import type { Candle, CoinGeckoSearchResult, Instrument } from "../types";
@@ -20,6 +20,8 @@ export function useMarkets(filters: MarketFilters = {}, options: { enabled?: boo
     queryFn: () => api.get<Instrument[]>(`/markets?${params.toString()}`),
     staleTime: 30_000,
     enabled: options.enabled ?? true,
+    // Keep showing the current results while a new search loads, instead of flashing a skeleton.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -38,6 +40,9 @@ export function useMarketHistory(symbol: string | undefined, timeframe: string) 
     queryFn: () => api.get<Candle[]>(`/markets/${symbol}/history?timeframe=${timeframe}`),
     enabled: Boolean(symbol),
     staleTime: 30_000,
+    // An empty answer or an error means the server couldn't get candles this time (it serves real
+    // exchange data only), so keep asking every few seconds instead of leaving the chart blank.
+    refetchInterval: (query) => (query.state.status === "error" || query.state.data?.length === 0 ? 5_000 : false),
   });
 }
 

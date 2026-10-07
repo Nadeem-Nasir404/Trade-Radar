@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import type { AssetType, Instrument } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PriceCacheService, type PriceSnapshot } from "../market-data/price-cache/price-cache.service";
+import { CoinGeckoService, type MarketCap, type MarketCapIndex } from "./coingecko.service";
 
 type InstrumentWithRelations = Instrument & {
   provider: { name: string };
@@ -19,6 +20,7 @@ export class InstrumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly priceCache: PriceCacheService,
+    private readonly coingecko: CoinGeckoService,
   ) {}
 
   async list(filters: InstrumentListFilters) {
@@ -41,9 +43,9 @@ export class InstrumentsService {
       take: filters.limit ?? 100,
     });
 
-    const snapshots = await this.priceCache.getSnapshots(instruments.map((i) => i.id));
+    const [snapshots, caps] = await Promise.all([this.priceCache.getSnapshots(instruments.map((i) => i.id)), this.coingecko.getMarketCaps()]);
 
-    return instruments.map((instrument) => this.serialize(instrument, snapshots.get(instrument.id)));
+    return instruments.map((instrument) => this.serialize(instrument, snapshots.get(instrument.id), marketCapFor(instrument, caps)));
   }
 
   async getBySymbol(symbol: string) {
@@ -65,7 +67,7 @@ export class InstrumentsService {
     return instrument;
   }
 
-  private serialize(instrument: InstrumentWithRelations, snapshot?: PriceSnapshot | null) {
+  private serialize(instrument: InstrumentWithRelations, snapshot?: PriceSnapshot | null, cap?: MarketCap) {
     return {
       id: instrument.id,
       symbol: instrument.symbol,
@@ -81,9 +83,19 @@ export class InstrumentsService {
       high24h: snapshot?.high24h ?? null,
       low24h: snapshot?.low24h ?? null,
       volume24h: snapshot?.volume24h ?? null,
+      // From CoinGecko, for sorting the Markets list; null for coins without a CoinGecko id (gold, forex).
+      marketCap: cap?.marketCap ?? null,
+      marketCapRank: cap?.marketCapRank ?? null,
       feedStatus: snapshot?.feedStatus ?? "UNKNOWN",
       isDemo: snapshot?.isDemo ?? false,
       lastUpdateAt: snapshot?.eventTime ?? instrument.lastPriceAt?.getTime() ?? null,
     };
   }
+}
+
+/** A coin's market cap: by its CoinGecko id when set, else by its base asset's ticker. */
+function marketCapFor(instrument: Instrument, caps: MarketCapIndex): MarketCap | undefined {
+  if (instrument.coingeckoId) return caps.byId.get(instrument.coingeckoId);
+  if (instrument.assetType !== "CRYPTO" || !instrument.baseCurrency) return undefined;
+  return caps.bySymbol.get(instrument.baseCurrency.toUpperCase());
 }

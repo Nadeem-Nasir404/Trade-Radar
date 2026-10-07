@@ -12,24 +12,51 @@ import {
 } from "@levelpulse/shared-types";
 import type { EnvConfig } from "../../../common/config/env.validation";
 
-interface BinanceTickerMessage {
+interface BinanceTickerData {
+  e: "24hrTicker";
+  E: number; // event time
+  s: string; // symbol
+  c: string; // last price
+  o: string; // open price (24h rolling)
+  P: string; // price change percent (24h)
+  h: string; // high price (24h)
+  l: string; // low price (24h)
+  v: string; // base asset volume (24h) - e.g. BTC units traded, not a dollar figure
+  q: string; // quote asset volume (24h) - traded volume in the pair's quote currency (USD/USDT), what "24h volume" means to users
+}
+
+interface BinanceAggTradeData {
+  e: "aggTrade";
+  E: number; // event time
+  s: string; // symbol
+  a: number; // aggregate trade id - monotonic per symbol
+  p: string; // price
+  T: number; // trade time
+}
+
+interface BinanceStreamMessage {
   stream: string;
-  data: {
-    e: string; // event type
-    E: number; // event time
-    s: string; // symbol
-    c: string; // last price
-    P: string; // price change percent (24h)
-    h: string; // high price (24h)
-    l: string; // low price (24h)
-    v: string; // base asset volume (24h) - e.g. BTC units traded, not a dollar figure
-    q: string; // quote asset volume (24h) - traded volume in the pair's quote currency (USD/USDT), what "24h volume" means to users
-  };
+  data: BinanceTickerData | BinanceAggTradeData;
+}
+
+/**
+ * Per symbol: aggTrade carries every trade as it happens and drives price + alert evaluation, so
+ * a spike through a level inside a single second still fires. The 24h ticker only updates once a
+ * second and supplies the 24h stats.
+ */
+const STREAM_SUFFIXES = ["aggTrade", "ticker"] as const;
+
+function streamsFor(symbol: string): string[] {
+  return STREAM_SUFFIXES.map((suffix) => `${symbol.toLowerCase()}@${suffix}`);
 }
 
 const MAX_BACKOFF_MS = 30_000;
 const WATCHDOG_INTERVAL_MS = 10_000;
 const STALE_THRESHOLD_MS = 30_000;
+/** Kline hosts in order: the main API, then Binance's public market-data mirror. */
+const KLINE_HOSTS = ["https://api.binance.com", "https://data-api.binance.vision"];
+const KLINE_TIMEOUT_MS = 8_000;
+
 const KLINE_INTERVAL_MAP: Record<Timeframe, string> = {
   "1m": "1m",
   "5m": "5m",
@@ -153,7 +180,7 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
   }
 
   private streamNames(): string {
-    return [...this.subscribed].map((s) => `${s}@ticker`).join("/");
+    return [...this.subscribed].flatMap(streamsFor).join("/");
   }
 
   private scheduleReconnect() {
@@ -186,28 +213,46 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
   }
 
   private handleMessage(raw: WebSocket.RawData) {
-    let parsed: BinanceTickerMessage;
+    let parsed: BinanceStreamMessage;
     try {
       parsed = JSON.parse(raw.toString());
     } catch {
       return;
     }
-    if (!parsed?.data || parsed.data.e !== "24hrTicker") return;
+    const d = parsed?.data;
+    if (!d) return;
+
+    let tick: NormalizedTick;
+    if (d.e === "aggTrade") {
+      tick = {
+        instrumentId: d.s.toLowerCase(),
+        providerSymbol: d.s.toLowerCase(),
+        price: Number(d.p),
+        eventTime: d.T,
+        receivedTime: Date.now(),
+        providerId: this.name,
+        providerSeq: d.a,
+      };
+    } else if (d.e === "24hrTicker") {
+      tick = {
+        instrumentId: d.s.toLowerCase(),
+        providerSymbol: d.s.toLowerCase(),
+        price: Number(d.c),
+        eventTime: d.E,
+        receivedTime: Date.now(),
+        providerId: this.name,
+        statsOnly: true,
+        open24h: Number(d.o),
+        volume24h: Number(d.q),
+        high24h: Number(d.h),
+        low24h: Number(d.l),
+        changePct24h: Number(d.P),
+      };
+    } else {
+      return;
+    }
 
     this.lastMessageAt = Date.now();
-    const d = parsed.data;
-    const tick: NormalizedTick = {
-      instrumentId: d.s.toLowerCase(),
-      providerSymbol: d.s.toLowerCase(),
-      price: Number(d.c),
-      eventTime: d.E,
-      receivedTime: Date.now(),
-      providerId: this.name,
-      volume24h: Number(d.q),
-      high24h: Number(d.h),
-      low24h: Number(d.l),
-      changePct24h: Number(d.P),
-    };
     for (const handler of this.tickHandlers) handler(tick);
   }
 
@@ -216,7 +261,7 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
     this.ws.send(
       JSON.stringify({
         method,
-        params: symbols.map((s) => `${s.toLowerCase()}@ticker`),
+        params: symbols.flatMap(streamsFor),
         id: this.msgIdCounter++,
       }),
     );
@@ -247,24 +292,30 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
   }
 
   async getHistoricalData(providerSymbol: string, timeframe: Timeframe): Promise<Candle[]> {
-    const interval = KLINE_INTERVAL_MAP[timeframe];
-    const url = `https://api.binance.com/api/v3/klines?symbol=${providerSymbol.toUpperCase()}&interval=${interval}&limit=500`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const raw = (await res.json()) as unknown[][];
-      return raw.map((k) => ({
-        time: Math.floor(Number(k[0]) / 1000),
-        open: Number(k[1]),
-        high: Number(k[2]),
-        low: Number(k[3]),
-        close: Number(k[4]),
-        volume: Number(k[5]),
-      }));
-    } catch (err) {
-      this.logger.warn(`Failed to fetch Binance klines for ${providerSymbol}: ${(err as Error).message}`);
-      return [];
+    const query = `symbol=${providerSymbol.toUpperCase()}&interval=${KLINE_INTERVAL_MAP[timeframe]}&limit=500`;
+    // api.binance.com refuses some server regions (451) and rate-limits (429/418); the public
+    // market-data host serves the same klines without the region block, so it's the fallback.
+    for (const host of KLINE_HOSTS) {
+      try {
+        const res = await fetch(`${host}/api/v3/klines?${query}`, { signal: AbortSignal.timeout(KLINE_TIMEOUT_MS) });
+        if (!res.ok) {
+          this.logger.warn(`Binance klines ${providerSymbol} ${timeframe} from ${host}: HTTP ${res.status}`);
+          continue;
+        }
+        const raw = (await res.json()) as unknown[][];
+        return raw.map((k) => ({
+          time: Math.floor(Number(k[0]) / 1000),
+          open: Number(k[1]),
+          high: Number(k[2]),
+          low: Number(k[3]),
+          close: Number(k[4]),
+          volume: Number(k[5]),
+        }));
+      } catch (err) {
+        this.logger.warn(`Binance klines ${providerSymbol} ${timeframe} from ${host} failed: ${(err as Error).message}`);
+      }
     }
+    return [];
   }
 
   getHealth(): ProviderHealth {

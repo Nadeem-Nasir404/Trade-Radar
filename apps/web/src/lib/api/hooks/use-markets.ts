@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../client";
 import { queryKeys } from "../query-keys";
 import type { Candle, CoinGeckoSearchResult, Instrument } from "../types";
@@ -21,6 +21,8 @@ export function useMarkets(filters: MarketFilters = {}) {
     queryKey: queryKeys.markets(filters),
     queryFn: () => api.get<Instrument[]>(`/markets?${params.toString()}`),
     staleTime: 30_000,
+    // Keep showing the current results while a new search loads, instead of flashing a skeleton.
+    placeholderData: keepPreviousData,
   });
 }
 

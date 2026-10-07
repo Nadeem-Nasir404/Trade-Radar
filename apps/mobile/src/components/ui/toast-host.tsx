@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, runOnJS } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "./themed-text";
 import { useToastStore, type ToastVariant } from "@/lib/stores/toast-store";
 import { useTheme } from "@/lib/use-theme";

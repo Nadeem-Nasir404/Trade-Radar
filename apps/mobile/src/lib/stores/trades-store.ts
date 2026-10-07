@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { CardStyle } from "@/lib/card-layout";
+import { DEFAULT_CARD_STYLE, isCardStyle, type CardStyle } from "@/lib/card-layout";
 
 export type { CardStyle };
 export type TradeSide = "LONG" | "SHORT";
@@ -39,7 +39,7 @@ export const useTradesStore = create<TradesState>()(
   persist(
     (set) => ({
       trades: [],
-      cardStyle: "neon",
+      cardStyle: DEFAULT_CARD_STYLE,
       setCardStyle: (cardStyle) => set({ cardStyle }),
       open: (t) => {
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -70,7 +70,15 @@ export const useTradesStore = create<TradesState>()(
         })),
       remove: (id) => set((s) => ({ trades: s.trades.filter((t) => t.id !== id) })),
     }),
-    { name: "lp-trades", storage: createJSONStorage(() => AsyncStorage) },
+    {
+      name: "lp-trades",
+      storage: createJSONStorage(() => AsyncStorage),
+      // A saved style that no longer exists (e.g. the retired Neon/Bold/Grid/Gradient) falls back to the default.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<TradesState>;
+        return { ...current, ...saved, cardStyle: isCardStyle(saved.cardStyle) ? saved.cardStyle : DEFAULT_CARD_STYLE };
+      },
+    },
   ),
 );
 

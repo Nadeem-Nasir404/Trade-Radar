@@ -5,6 +5,8 @@ const boolFromString = z
   .transform((v) => v === "true")
   .default(false);
 
+const DEV_MAGIC_LINK_SECRET = "dev-magic-link-secret-change-me-please";
+
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
@@ -25,7 +27,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CALLBACK_URL: z.string().optional(),
 
-  MAGIC_LINK_SECRET: z.string().min(16).default("dev-magic-link-secret-change-me-please"),
+  MAGIC_LINK_SECRET: z.string().min(16).default(DEV_MAGIC_LINK_SECRET),
 
   DEMO_MODE: boolFromString,
   BINANCE_WS_BASE_URL: z.string().default("wss://stream.binance.com:9443"),
@@ -51,12 +53,30 @@ export const envSchema = z.object({
 
   THROTTLE_TTL_MS: z.coerce.number().default(60000),
   THROTTLE_LIMIT: z.coerce.number().default(120),
+  /** Express "trust proxy" setting (e.g. "1" behind one reverse proxy), so rate limits key on the real client IP. */
+  TRUST_PROXY: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
 
+/**
+ * Production must not boot on the placeholders from .env.example or the built-in dev default:
+ * anyone who has read this repo could sign their own session or magic-link tokens.
+ */
+function rejectUnsafeProductionConfig(env: EnvConfig, ctx: z.RefinementCtx) {
+  if (env.NODE_ENV !== "production") return;
+  for (const key of ["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "MAGIC_LINK_SECRET"] as const) {
+    if (env[key] === DEV_MAGIC_LINK_SECRET || env[key].startsWith("change-me")) {
+      ctx.addIssue({ code: "custom", path: [key], message: `${key} is still a placeholder - set a long random value` });
+    }
+  }
+  if (env.ENABLE_MOCK_BILLING) {
+    ctx.addIssue({ code: "custom", path: ["ENABLE_MOCK_BILLING"], message: "mock billing lets any user upgrade for free - disable it in production" });
+  }
+}
+
 export function validateEnv(config: Record<string, unknown>): EnvConfig {
-  const parsed = envSchema.safeParse(config);
+  const parsed = envSchema.superRefine(rejectUnsafeProductionConfig).safeParse(config);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);

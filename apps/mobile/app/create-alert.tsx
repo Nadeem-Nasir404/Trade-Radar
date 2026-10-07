@@ -1,32 +1,31 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, FlatList, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Input } from "@/components/ui/input";
 import { CoinLogo } from "@/components/coin-logo";
 import { CreateAlertForm } from "@/components/alerts/create-alert-form";
 import { useMarkets } from "@/lib/api/hooks/use-markets";
 import { formatCompactPrice, formatPct } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { radius } from "@/lib/theme";
 import type { Instrument } from "@/lib/api/types";
+import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
 export default function CreateAlertScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ instrumentId?: string; symbol?: string; price?: string }>();
-  const [selected, setSelected] = useState<{ id: string; symbol: string; price: number | null } | null>(
+  const [selected] = useState<{ id: string; symbol: string; price: number | null } | null>(
     params.instrumentId ? { id: params.instrumentId, symbol: params.symbol ?? "", price: params.price ? Number(params.price) : null } : null,
   );
   const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebouncedValue(search.trim());
   const { data: markets, isLoading } = useMarkets(
     { search: debounced || undefined, limit: debounced ? 50 : 100 },
     { enabled: !selected },
@@ -34,13 +33,8 @@ export default function CreateAlertScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.closeButton, { backgroundColor: colors.glass }]}>
-          <Ionicons name="close" size={20} color={colors.foreground} />
-        </Pressable>
-        <ThemedText variant="subtitle">{selected ? "Set your level" : "Choose a market"}</ThemedText>
-        <View style={styles.closeSpacer} />
-      </View>
+      <AmbientOrbs />
+      <ModalHeader kind="close" title={selected ? "Set your level" : "Choose a market"} />
 
       {!selected ? (
         <View style={styles.flex}>
@@ -93,10 +87,7 @@ export default function CreateAlertScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 },
-  closeButton: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  closeSpacer: { width: 40 },
-  searchWrap: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 14, height: 48, borderRadius: radius.lg },
+  searchWrap: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 14, height: 50, borderRadius: radius.lg },
   searchInput: { flex: 1, height: 46, borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0 },
   list: { paddingHorizontal: 20, paddingBottom: 40 },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 48 },

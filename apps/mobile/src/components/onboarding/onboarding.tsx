@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { View, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";
@@ -338,5 +338,5 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16 },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingHorizontal: 8 },
   nextWrap: { borderRadius: radius.lg, overflow: "hidden", flex: 1, maxWidth: 230, marginLeft: 16 },
-  nextBtn: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.lg },
+  nextBtn: { height: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.lg },
 });

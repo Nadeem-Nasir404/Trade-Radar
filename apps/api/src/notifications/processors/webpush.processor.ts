@@ -10,7 +10,7 @@ import { DeliveryStatusService } from "../delivery-status.service";
 import type { EnvConfig } from "../../common/config/env.validation";
 
 @Injectable()
-@Processor(QUEUE_NAMES.NOTIFY_WEBPUSH)
+@Processor(QUEUE_NAMES.NOTIFY_WEBPUSH, { concurrency: 25 })
 export class WebPushProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(WebPushProcessor.name);
   private configured = false;
