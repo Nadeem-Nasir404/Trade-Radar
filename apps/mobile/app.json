@@ -36,6 +36,13 @@
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "CoinRadar saves your P&L cards to your photo library.",
+          "savePhotosPermission": "CoinRadar saves your P&L cards to your photo library."
+        }
+      ],
       "expo-router",
       "expo-secure-store",
       [

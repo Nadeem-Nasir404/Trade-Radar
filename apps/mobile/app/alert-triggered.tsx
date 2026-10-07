@@ -1,5 +1,7 @@
 import { useMemo } from "react";
-import { View, Pressable, StyleSheet, ScrollView } from "react-native";
+import { useRef, useState } from "react";
+import { saveCardToGallery } from "@/lib/save-card";
+import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +11,8 @@ import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";
 import { PnlCard, CARD_STYLE_LABELS } from "@/components/trade/pnl-card";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+import { useToastStore } from "@/lib/stores/toast-store";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTradesStore, type TradeSide, type CardStyle } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
@@ -46,9 +50,36 @@ export default function AlertTriggeredScreen() {
   const setCardStyle = useTradesStore((s) => s.setCardStyle);
   const activeTrade = useMemo(() => trades.find((t) => t.symbol === symbol && t.closedAt === null), [trades, symbol]);
 
+  const [amount, setAmount] = useState("");
+
+  const showToast = useToastStore((s) => s.show);
+  const cardRef = useRef<View>(null);
+
+  const saveCard = async () => {
+    if (!cardRef.current) return;
+    try {
+      const result = await saveCardToGallery(cardRef.current);
+      if (result === "saved") {
+        haptics.success();
+        showToast("Saved to gallery", "Find the card in your Photos app", "success");
+      } else {
+        showToast("Permission needed", "Allow photo access to save the card", "error");
+      }
+    } catch (err) {
+      console.error("[save card]", err);
+      showToast("Could not save the card", (err as Error).message, "error");
+    }
+  };
+
   const start = (side: TradeSide) => {
-    haptics.success();
-    open({ symbol, instrumentId, side, entryPrice: price ?? 0 });
+    try {
+      haptics.success();
+      const size = Number(amount);
+      open({ symbol, instrumentId, side, entryPrice: price ?? 0, sizeUsd: size > 0 ? size : null });
+    } catch (err) {
+      console.error("[start trade]", err);
+      showToast("Could not start the trade", (err as Error).message, "error");
+    }
   };
 
   const endTrade = () => {
@@ -65,7 +96,9 @@ export default function AlertTriggeredScreen() {
           <Ionicons name="close" size={18} color={colors.foreground} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>{activeTrade ? "Your trade" : "Alert hit"}</ThemedText>
-        <View style={styles.spacer} />
+        <Pressable onPress={() => router.push("/trades")} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+          <Ionicons name="journal-outline" size={18} color={colors.foreground} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -88,7 +121,13 @@ export default function AlertTriggeredScreen() {
                 );
               })}
             </View>
-            <PnlCard trade={activeTrade} livePrice={price} style={cardStyle} />
+            <SectionErrorBoundary label="Trade card">
+              <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
+            </SectionErrorBoundary>
+            <Pressable onPress={saveCard} style={[styles.saveWrap, { borderColor: colors.glassBorder, backgroundColor: colors.glass }]}>
+              <Ionicons name="download-outline" size={18} color={colors.foreground} />
+              <ThemedText style={{ fontWeight: "700" }}>Save card to gallery</ThemedText>
+            </Pressable>
             <Pressable onPress={endTrade} style={styles.primaryWrap}>
               <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primary}>
                 <Ionicons name="stop-circle-outline" size={18} color="#FFFFFF" />
@@ -109,6 +148,21 @@ export default function AlertTriggeredScreen() {
               <ThemedText style={[styles.bigPrice, { color: colors.foreground }]}>{price != null ? formatCompactPrice(price) : "--"}</ThemedText>
               <ThemedText variant="subtle">Live price right now</ThemedText>
             </Surface>
+
+            <ThemedText variant="label" style={styles.question}>
+              POSITION SIZE (OPTIONAL)
+            </ThemedText>
+            <View style={[styles.amountRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+              <ThemedText style={{ color: colors.foregroundMuted, fontWeight: "700", fontSize: 18 }}>$</ThemedText>
+              <TextInput
+                value={amount}
+                onChangeText={(v) => setAmount(v.replace(/[^0-9.]/g, ""))}
+                placeholder="e.g. 1000"
+                placeholderTextColor={colors.foregroundMuted}
+                keyboardType="decimal-pad"
+                style={[styles.amountInput, { color: colors.foreground }]}
+              />
+            </View>
 
             <ThemedText variant="label" style={styles.question}>
               WHAT DO YOU DO NEXT?
@@ -167,6 +221,9 @@ const styles = StyleSheet.create({
   headline: { fontSize: 17, fontWeight: "700", textAlign: "center" },
   bigPrice: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
   question: { marginTop: 8, fontSize: 11, letterSpacing: 1 },
+  amountRow: { flexDirection: "row", alignItems: "center", gap: 6, height: 52, paddingHorizontal: 16, borderRadius: radius.lg, borderWidth: 1 },
+  amountInput: { flex: 1, fontSize: 17, fontWeight: "600", padding: 0 },
+  saveWrap: { height: 50, borderRadius: radius.lg, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   choiceWrap: { borderRadius: radius.xl, overflow: "hidden" },
   choice: { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, borderRadius: radius.xl },
   choiceText: { flex: 1, gap: 2 },

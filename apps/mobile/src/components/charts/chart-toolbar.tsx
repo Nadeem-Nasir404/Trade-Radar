@@ -3,10 +3,11 @@ import { View, Pressable, StyleSheet, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
+import { GlassPressable } from "@/components/ui/glass-pressable";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
-import { CANDLE_PALETTES, useChartSettings, type CandlePalette, type PriceScaleStyle } from "@/lib/stores/chart-settings-store";
+import { CANDLE_PALETTES, useChartSettings, type CandlePalette } from "@/lib/stores/chart-settings-store";
 import type { DrawTool } from "./trading-chart";
 
 const TOOLS: { value: DrawTool; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -26,7 +27,6 @@ interface ChartToolbarProps {
 
 /** Draw tools, clear, and chart settings - one bar shared by the market screen and full-screen chart. */
 export function ChartToolbar({ drawMode, drawTool, onToggleDraw, onSelectTool, onClear, trailing }: ChartToolbarProps) {
-  const { colors } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -44,22 +44,21 @@ export function ChartToolbar({ drawMode, drawTool, onToggleDraw, onSelectTool, o
               }}
               icon={t.icon}
               label={t.label}
-              subtle
             />
           ))}
-        {drawMode && <Pill active={false} onPress={onClear} icon="trash-outline" label="Clear" subtle />}
+        {drawMode && <Pill active={false} onPress={onClear} icon="trash-outline" label="Clear" />}
         <View style={styles.spacer} />
         {trailing}
-        <Pressable
+        <GlassPressable
           hitSlop={8}
           onPress={() => {
             haptics.light();
             setSettingsOpen(true);
           }}
-          style={[styles.iconPill, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+          style={styles.iconPill}
         >
-          <Ionicons name="options-outline" size={16} color={colors.foregroundMuted} />
-        </Pressable>
+          <Ionicons name="options-outline" size={16} />
+        </GlassPressable>
       </View>
 
       <ChartSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -67,33 +66,14 @@ export function ChartToolbar({ drawMode, drawTool, onToggleDraw, onSelectTool, o
   );
 }
 
-function Pill({
-  active,
-  onPress,
-  icon,
-  label,
-  subtle,
-}: {
-  active: boolean;
-  onPress: () => void;
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  subtle?: boolean;
-}) {
+function Pill({ active, onPress, icon, label }: { active: boolean; onPress: () => void; icon: keyof typeof Ionicons.glyphMap; label: string }) {
   const { colors } = useTheme();
   const tint = active ? colors.brand : colors.foregroundMuted;
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.pill,
-        { backgroundColor: active ? colors.brandGlow : colors.glass, borderColor: active ? colors.brand : colors.glassBorder },
-        subtle && !active && { backgroundColor: "transparent" },
-      ]}
-    >
+    <GlassPressable active={active} onPress={onPress} style={styles.pill}>
       <Ionicons name={icon} size={14} color={tint} />
-      <ThemedText style={[styles.pillText, { color: tint }]}>{label}</ThemedText>
-    </Pressable>
+      <ThemedText style={[styles.pillText, { color: active ? colors.brand : colors.foreground }]}>{label}</ThemedText>
+    </GlassPressable>
   );
 }
 
@@ -111,37 +91,27 @@ function ChartSettingsSheet({ visible, onClose }: { visible: boolean; onClose: (
         </ThemedText>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetBody}>
           <ThemedText variant="label" style={styles.group}>CANDLE COLORS</ThemedText>
-          <View style={styles.paletteRow}>
+          <View style={styles.paletteGrid}>
             {(Object.keys(CANDLE_PALETTES) as CandlePalette[]).map((key) => {
               const p = CANDLE_PALETTES[key];
               const active = s.palette === key;
               return (
-                <Pressable
+                <GlassPressable
                   key={key}
-                  onPress={() => s.set({ palette: key })}
-                  style={[styles.palette, { borderColor: active ? colors.brand : colors.glassBorder, backgroundColor: colors.glass }]}
+                  active={active}
+                  vertical
+                  onPress={() => {
+                    haptics.selection();
+                    s.set({ palette: key });
+                  }}
+                  style={styles.palette}
                 >
-                  <View style={[styles.swatch, { backgroundColor: p.up }]} />
-                  <View style={[styles.swatch, { backgroundColor: p.down }]} />
-                  <ThemedText style={styles.paletteName}>{key[0].toUpperCase() + key.slice(1)}</ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <ThemedText variant="label" style={styles.group}>PRICE SCALE</ThemedText>
-          <View style={styles.scaleRow}>
-            {(["normal", "log", "percent"] as PriceScaleStyle[]).map((k) => {
-              const active = s.priceScale === k;
-              const label = k === "normal" ? "Linear" : k === "log" ? "Log" : "Percent";
-              return (
-                <Pressable
-                  key={k}
-                  onPress={() => s.set({ priceScale: k })}
-                  style={[styles.scaleItem, { backgroundColor: active ? colors.brand : colors.glass, borderColor: colors.glassBorder }]}
-                >
-                  <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "600" }}>{label}</ThemedText>
-                </Pressable>
+                  <View style={styles.swatches}>
+                    <View style={[styles.swatch, { backgroundColor: p.up }]} />
+                    <View style={[styles.swatch, { backgroundColor: p.down }]} />
+                  </View>
+                  <ThemedText style={[styles.paletteName, active && { color: colors.brand }]}>{p.label}</ThemedText>
+                </GlassPressable>
               );
             })}
           </View>
@@ -172,21 +142,20 @@ const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   spacer: { flex: 1, minWidth: 4 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 30, borderRadius: radius.full, borderWidth: 1 },
+  pill: { flexDirection: "row", height: 32, paddingHorizontal: 12, borderRadius: radius.full },
   pillText: { fontSize: 12, fontWeight: "600" },
-  iconPill: { width: 30, height: 30, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  iconPill: { width: 32, height: 32, borderRadius: radius.full },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderRadius: 0, paddingBottom: 32, maxHeight: "72%" },
   sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", marginTop: 10 },
   sheetTitle: { paddingHorizontal: 20, paddingTop: 14 },
   sheetBody: { padding: 20, gap: 14 },
   group: { marginTop: 6, fontSize: 11, letterSpacing: 0.8 },
-  paletteRow: { flexDirection: "row", gap: 10 },
-  palette: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 12, borderRadius: radius.lg, borderWidth: 1 },
-  swatch: { width: 16, height: 22, borderRadius: 3 },
+  paletteGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  palette: { flex: 1, height: 76, borderRadius: radius.lg, flexDirection: "column", gap: 6 },
+  swatches: { flexDirection: "row", gap: 4 },
+  swatch: { width: 14, height: 22, borderRadius: 3 },
   paletteName: { fontSize: 12, fontWeight: "600" },
-  scaleRow: { flexDirection: "row", gap: 8 },
-  scaleItem: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: radius.md, borderWidth: 1 },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   toggleTrack: { width: 40, height: 24, borderRadius: 12, padding: 4, justifyContent: "center" },
   toggleKnob: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff" },

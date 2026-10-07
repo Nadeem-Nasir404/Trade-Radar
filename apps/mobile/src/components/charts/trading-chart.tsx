@@ -94,17 +94,16 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   useEffect(() => {
     if (!ready) return;
-    const palette = CANDLE_PALETTES[settings.palette];
+    const palette = CANDLE_PALETTES[settings.palette] ?? CANDLE_PALETTES.classic;
     const payload = {
       up: palette.up,
       down: palette.down,
       grid: settings.showGrid,
       volume: settings.showVolume,
       wicks: settings.showWicks,
-      scale: settings.priceScale,
     };
     webviewRef.current?.injectJavaScript(`window.applySettings(${JSON.stringify(payload)}); true;`);
-  }, [ready, settings.palette, settings.showGrid, settings.showVolume, settings.showWicks, settings.priceScale]);
+  }, [ready, settings.palette, settings.showGrid, settings.showVolume, settings.showWicks]);
 
   useEffect(() => {
     if (!ready || candles.length === 0) return;
@@ -201,6 +200,13 @@ function buildChartHtml(): string {
         transition: opacity 0.18s ease-out, transform 0.18s ease-out;
       }
       #tapMarker svg { display: block; }
+      #plusLine { position: absolute; left: 0; right: 0; height: 1px; display: none; pointer-events: none; }
+      #plusBadge {
+        position: absolute; right: 6px; width: 28px; height: 28px; margin-top: 0; border-radius: 999px;
+        display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        -webkit-tap-highlight-color: transparent;
+      }
+      #plusBadge svg { display: block; }
       #countdown { position: absolute; right: 2px; font: 600 11px -apple-system, Roboto, sans-serif; color: #9598a3; pointer-events: none; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
     </style>
   </head>
@@ -210,6 +216,10 @@ function buildChartHtml(): string {
     <div id="ohlc"></div>
     <div id="countdown"></div>
     <div id="tapMarker">
+      <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+    </div>
+    <div id="plusLine"></div>
+    <div id="plusBadge">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
@@ -301,6 +311,7 @@ function buildChartHtml(): string {
         var pressTimer = null, pressStart = null, PRESS_MS = 450, MOVE_TOLERANCE_PX = 8;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
+          if (plusPrice !== null) hidePlus();
           var rect = chartEl.getBoundingClientRect();
           pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
           clearTimeout(pressTimer);
@@ -308,9 +319,8 @@ function buildChartHtml(): string {
             if (!pressStart || drawMode) return;
             var price = candleSeries.coordinateToPrice(pressStart.y);
             if (price === null) return;
-            showTapMarker(pressStart.x, pressStart.y);
-            post({ type: 'priceTap', price: Number(fmt(price)) });
             pressStart = null;
+            showPlus(Number(fmt(price)));
           }, PRESS_MS);
         });
         chartEl.addEventListener('pointermove', function (e) {
@@ -335,7 +345,10 @@ function buildChartHtml(): string {
           });
         });
 
-        chart.timeScale().subscribeVisibleTimeRangeChange(hideTapMarker);
+        chart.timeScale().subscribeVisibleTimeRangeChange(function () {
+          hideTapMarker();
+          placePlus();
+        });
         post({ type: 'ready' });
       }
 
@@ -367,6 +380,36 @@ function buildChartHtml(): string {
         pendingPoint = null;
         hideTapMarker();
       };
+
+      // "+" badge: shown on long-press at the held price, pinned to the right edge at that price
+      // level (it follows the price when the chart scrolls or rescales). Tapping it opens the sheet.
+      var plusPrice = null;
+      function placePlus() {
+        if (plusPrice === null || !candleSeries) return;
+        var y = candleSeries.priceToCoordinate(plusPrice);
+        if (y === null) return;
+        document.getElementById('plusLine').style.top = y + 'px';
+        document.getElementById('plusBadge').style.top = (y - 14) + 'px';
+      }
+      function showPlus(price) {
+        plusPrice = price;
+        var line = document.getElementById('plusLine'), badge = document.getElementById('plusBadge');
+        line.style.background = accentAlpha(0.8);
+        badge.style.backgroundColor = accent();
+        line.style.display = 'block';
+        badge.style.display = 'flex';
+        placePlus();
+      }
+      function hidePlus() {
+        plusPrice = null;
+        document.getElementById('plusLine').style.display = 'none';
+        document.getElementById('plusBadge').style.display = 'none';
+      }
+      document.getElementById('plusBadge').addEventListener('click', function () {
+        var p = plusPrice;
+        hidePlus();
+        if (p !== null) post({ type: 'priceTap', price: Number(fmt(p)) });
+      });
 
       function drawOverlay() {
         var svg = document.getElementById('overlay');
@@ -468,7 +511,10 @@ function buildChartHtml(): string {
         el.style.top = (y + 14) + 'px';
         el.style.opacity = 1;
       }
-      setInterval(updateCountdown, 250);
+      setInterval(function () {
+        updateCountdown();
+        placePlus();
+      }, 250);
 
       window.updateLastCandle = function (c) {
         lastBarTime = c.time; lastBarClose = c.close;
@@ -504,7 +550,6 @@ function buildChartHtml(): string {
             horzLines: { visible: s.grid, color: gridColor },
           },
         });
-        chart.priceScale('right').applyOptions({ mode: s.scale === 'log' ? 1 : s.scale === 'percent' ? 2 : 0 });
       };
 
       window.applyTheme = function (t) {

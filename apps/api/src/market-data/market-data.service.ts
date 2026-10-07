@@ -285,11 +285,10 @@ export class MarketDataService implements OnModuleInit {
     if (!instrument) return [];
     const adapter: AdapterName = this.instrumentAdapter.get(instrumentId) ?? "mock";
     const candles = await this.providerFor(adapter).getHistoricalData(instrument.providerSymbol, timeframe);
-    // Real providers' REST endpoints need no active subscription, but if one ever returns
-    // nothing (rate limit, symbol not listed, no API key), fall back to synthetic demo candles
-    // rather than showing an empty chart.
+    // Never substitute synthetic candles for a real market: a chart drawn from random data looks
+    // plausible but does not match the exchange. An empty result is shown as "no data" instead.
     if (candles.length === 0 && adapter !== "mock") {
-      return this.mockProvider.getHistoricalData(instrument.providerSymbol, timeframe);
+      this.logger.warn(`No historical candles from ${adapter} for ${instrument.symbol} (${timeframe}); returning none`);
     }
     return candles;
   }

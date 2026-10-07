@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { CardStyle } from "@/lib/card-layout";
 
+export type { CardStyle };
 export type TradeSide = "LONG" | "SHORT";
 
 export interface Trade {
@@ -11,19 +13,27 @@ export interface Trade {
   side: TradeSide;
   entryPrice: number;
   exitPrice: number | null;
+  /** Position size in USD (spot-style notional). Null when the user did not enter one. */
+  sizeUsd: number | null;
   openedAt: number;
   closedAt: number | null;
 }
-
-export type CardStyle = "minimal" | "bold" | "neon" | "gradient" | "grid";
 
 interface TradesState {
   trades: Trade[];
   cardStyle: CardStyle;
   setCardStyle: (s: CardStyle) => void;
-  open: (t: Omit<Trade, "id" | "exitPrice" | "closedAt" | "openedAt">) => string;
+  open: (t: Omit<Trade, "id" | "exitPrice" | "closedAt" | "openedAt" | "sizeUsd"> & { sizeUsd?: number | null }) => string;
+  /** Journal entry logged by hand; pass an exit price to record it as already closed. */
+  add: (t: NewTrade) => string;
   close: (id: string, exitPrice: number) => void;
+  remove: (id: string) => void;
 }
+
+export type NewTrade = Pick<Trade, "symbol" | "instrumentId" | "side" | "entryPrice"> & {
+  exitPrice?: number | null;
+  sizeUsd?: number | null;
+};
 
 export const useTradesStore = create<TradesState>()(
   persist(
@@ -33,13 +43,32 @@ export const useTradesStore = create<TradesState>()(
       setCardStyle: (cardStyle) => set({ cardStyle }),
       open: (t) => {
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        set((s) => ({ trades: [{ ...t, id, exitPrice: null, openedAt: Date.now(), closedAt: null }, ...s.trades].slice(0, 100) }));
+        set((s) => ({ trades: [{ ...t, id, sizeUsd: t.sizeUsd ?? null, exitPrice: null, openedAt: Date.now(), closedAt: null }, ...s.trades].slice(0, 100) }));
+        return id;
+      },
+      add: (t) => {
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const now = Date.now();
+        const exitPrice = t.exitPrice ?? null;
+        const trade: Trade = {
+          id,
+          symbol: t.symbol,
+          instrumentId: t.instrumentId,
+          side: t.side,
+          entryPrice: t.entryPrice,
+          exitPrice,
+          sizeUsd: t.sizeUsd ?? null,
+          openedAt: now,
+          closedAt: exitPrice != null ? now : null,
+        };
+        set((s) => ({ trades: [trade, ...s.trades].slice(0, 100) }));
         return id;
       },
       close: (id, exitPrice) =>
         set((s) => ({
           trades: s.trades.map((t) => (t.id === id ? { ...t, exitPrice, closedAt: Date.now() } : t)),
         })),
+      remove: (id) => set((s) => ({ trades: s.trades.filter((t) => t.id !== id) })),
     }),
     { name: "lp-trades", storage: createJSONStorage(() => AsyncStorage) },
   ),

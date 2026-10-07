@@ -1,98 +1,70 @@
 // One-off local tooling script (not shipped, not run by EAS) - regenerates every app icon /
-// splash / notification asset from a single vector mark, so they all stay visually consistent.
+// splash / notification asset from the brand SVGs in assets/brand/, so they all stay consistent.
 // Run with: node scripts/generate-icons.js
 const sharp = require("sharp");
+const fs = require("fs");
 const path = require("path");
 
 const ASSETS = path.join(__dirname, "..", "assets");
-
-// The "breakout" mark: a price line crossing up through a level with an arrow - reused from the
-// in-app <Logo> component (src/components/logo.tsx) so the app icon and in-app wordmark read as
-// the same brand, just at different scales.
-const MARK_PATH = "M3 14L8 9L12 13L21 4 M15 4H21V10";
+const BRAND = path.join(ASSETS, "brand");
 
 const BRAND_START = "#8B5CF6";
 const BRAND_END = "#6D28D9";
 
-function markSvg({ size, strokeWidth, color, background }) {
-  // The path lives in a 24x24 box; center it with generous padding so it survives adaptive-icon
-  // masking (circle/squircle/rounded-square) without clipping.
-  const scale = size * 0.5 / 24;
-  const offset = (size - 24 * scale) / 2;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-    ${background ?? ""}
-    <g transform="translate(${offset},${offset}) scale(${scale})">
-      <path d="${MARK_PATH}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>
-    </g>
-  </svg>`;
+// icon-dark.svg: full-bleed dark canvas with the glossy brand tile (app icon, favicon).
+// icon-transparent.svg: the same tile on a transparent canvas (splash).
+// mark-white.svg: the flat white arrow-and-ring glyph (adaptive foreground, monochrome, notification).
+const dark = fs.readFileSync(path.join(BRAND, "icon-dark.svg"));
+const transparent = fs.readFileSync(path.join(BRAND, "icon-transparent.svg"));
+const mark = fs.readFileSync(path.join(BRAND, "mark-white.svg"));
+
+async function writeFull(input, size, file) {
+  await sharp(input, { density: 144 }).resize(size, size).png().toFile(path.join(ASSETS, file));
+  console.log("wrote", file, `${size}x${size}`);
 }
 
-function gradientDef(id) {
-  return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="${BRAND_START}"/>
-    <stop offset="1" stop-color="${BRAND_END}"/>
-  </linearGradient></defs>`;
-}
-
-async function write(svg, size, file) {
-  await sharp(Buffer.from(svg)).resize(size, size).png().toFile(path.join(ASSETS, file));
+// Draws the glyph centered on a transparent square. `scale` keeps it inside the safe zone
+// (adaptive icons crop to a circle; Android notifications and monochrome icons need padding too).
+async function writeMark(size, scale, file) {
+  const inner = Math.round(size * scale);
+  const glyph = await sharp(mark, { density: 144 }).resize(inner, inner).png().toBuffer();
+  await sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: glyph, gravity: "center" }])
+    .png()
+    .toFile(path.join(ASSETS, file));
   console.log("wrote", file, `${size}x${size}`);
 }
 
 async function main() {
-  // Main app icon (iOS + generic + web) - full-bleed brand gradient square, white mark.
-  {
-    const size = 1024;
-    const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      ${gradientDef("g")}
-      <rect width="${size}" height="${size}" fill="url(#g)"/>
-      ${markSvg({ size, strokeWidth: 2.6, color: "#ffffff" }).replace(/<svg[^>]*>|<\/svg>/g, "")}
-    </svg>`;
-    await write(svg, size, "icon.png");
-    await write(svg, 48, "favicon.png");
-  }
+  // Main app icon (iOS + generic) and favicon - full-bleed dark canvas with the brand tile.
+  await writeFull(dark, 1024, "icon.png");
+  await writeFull(dark, 48, "favicon.png");
 
-  // Android adaptive icon background - gradient only, no mark (foreground carries it).
+  // Android adaptive icon background - the brand gradient, matching the tile.
   {
     const size = 512;
     const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-      ${gradientDef("g")}
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="${BRAND_START}"/>
+        <stop offset="1" stop-color="${BRAND_END}"/>
+      </linearGradient></defs>
       <rect width="${size}" height="${size}" fill="url(#g)"/>
     </svg>`;
-    await write(svg, size, "android-icon-background.png");
+    await sharp(Buffer.from(svg)).png().toFile(path.join(ASSETS, "android-icon-background.png"));
+    console.log("wrote android-icon-background.png 512x512");
   }
 
-  // Android adaptive icon foreground - transparent bg, white mark within the safe zone.
-  {
-    const size = 512;
-    const svg = markSvg({ size, strokeWidth: 2.4, color: "#ffffff" });
-    await write(svg, size, "android-icon-foreground.png");
-  }
+  // Android adaptive icon foreground - white glyph inside the 66dp safe zone.
+  await writeMark(512, 0.72, "android-icon-foreground.png");
 
-  // Android 13+ themed (monochrome) icon - same mark, single flat color, OS tints it itself.
-  {
-    const size = 432;
-    const svg = markSvg({ size, strokeWidth: 2.4, color: "#ffffff" });
-    await write(svg, size, "android-icon-monochrome.png");
-  }
+  // Android 13+ themed (monochrome) icon - same glyph, OS tints it.
+  await writeMark(432, 0.72, "android-icon-monochrome.png");
 
-  // Splash icon - transparent bg (splash background color comes from app.json), brand-purple mark.
-  {
-    const size = 1024;
-    const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      ${gradientDef("g")}
-      ${markSvg({ size, strokeWidth: 2.2, color: "url(#g)" }).replace(/<svg[^>]*>|<\/svg>/g, "")}
-    </svg>`;
-    await write(svg, size, "splash-icon.png");
-  }
+  // Splash icon - the tile on transparent (splash background color comes from app.json).
+  await writeFull(transparent, 1024, "splash-icon.png");
 
-  // Notification tray icon - Android forces these to a flat white silhouette regardless of what
-  // color you give it, so author it as exactly that: bold, simple, transparent background.
-  {
-    const size = 256;
-    const svg = markSvg({ size, strokeWidth: 3.2, color: "#ffffff" });
-    await write(svg, size, "notification-icon.png");
-  }
+  // Notification tray icon - Android renders it as a white silhouette.
+  await writeMark(256, 0.9, "notification-icon.png");
 }
 
 main().catch((err) => {

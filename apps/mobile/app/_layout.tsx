@@ -20,6 +20,12 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { bootstrapAuth } from "@/lib/api/hooks/use-auth";
 import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import { setupNotificationHandler, subscribeNotificationTaps } from "@/lib/safe-notifications";
+import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+
+/** Notification data can carry numbers or strings; route params must be strings. */
+function toParam(v: unknown): string {
+  return typeof v === "string" || typeof v === "number" ? String(v) : "";
+}
 import { ToastHost } from "@/components/ui/toast-host";
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -91,16 +97,25 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
     subscribeNotificationTaps((data) => {
       const symbol = typeof data.symbol === "string" ? data.symbol : undefined;
       if (!symbol) return;
-      router.push({
-        pathname: "/alert-triggered",
-        params: {
-          symbol,
-          instrumentId: typeof data.instrumentId === "string" ? data.instrumentId : "",
-          price: typeof data.price === "string" ? data.price : "",
-          condition: typeof data.condition === "string" ? data.condition : "",
-          target: typeof data.target === "string" ? data.target : "",
-        },
-      });
+      // A tap that launched the app arrives before the navigator has mounted; defer the push so
+      // it doesn't throw inside the notification callback, and never let a failed push kill the app.
+      const go = () => {
+        try {
+          router.push({
+            pathname: "/alert-triggered",
+            params: {
+              symbol,
+              instrumentId: typeof data.instrumentId === "string" ? data.instrumentId : "",
+              price: toParam(data.price),
+              condition: typeof data.condition === "string" ? data.condition : "",
+              target: toParam(data.target),
+            },
+          });
+        } catch (err) {
+          console.error("[notification tap]", err);
+        }
+      };
+      setTimeout(go, 300);
     }).then((unsub) => {
       unsubscribe = unsub;
     });
@@ -112,13 +127,18 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (!ready) return null;
 
   return (
+    <SectionErrorBoundary label="CoinRadar">
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="create-alert" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="alert-triggered" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="fullscreen-chart" options={{ presentation: "fullScreenModal", headerShown: false }} />
+      <Stack.Screen name="trades" options={{ headerShown: false }} />
+      <Stack.Screen name="trade/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="new-trade" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
+    </SectionErrorBoundary>
   );
 }
 
