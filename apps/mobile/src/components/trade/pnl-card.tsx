@@ -15,6 +15,9 @@ const LOGO = require("../../../assets/splash-icon.png");
 const W = CARD_LAYOUT.canvas.width;
 const H = CARD_LAYOUT.canvas.height;
 
+/** Lining figures: serif faces like Playfair default to old-style numerals that bob above and below the line. */
+const NUMBER_VARIANT: TextStyle["fontVariant"] = ["lining-nums"];
+
 /** The card is a fixed-proportion image, so its text ignores the system font size (which would break the layout). */
 function CardText(props: ComponentProps<typeof ThemedText>) {
   return <ThemedText allowFontScaling={false} {...props} />;
@@ -120,6 +123,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
                 fontSize: pctSize * k,
                 fontFamily: display,
                 letterSpacing: t.heroTracking * k,
+                fontVariant: NUMBER_VARIANT,
                 // Display faces carry tall ascenders; a little extra line height keeps them from clipping.
                 lineHeight: pctSize * 1.18 * k,
               },
@@ -130,7 +134,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
           </CardText>
 
           {usd != null && (
-            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: display }, shadow]}>
+            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: display, fontVariant: NUMBER_VARIANT }, shadow]}>
               {usd >= 0 ? "+" : "-"}${Math.abs(usd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </CardText>
           )}
@@ -144,7 +148,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
             return (
               <View key={col.label} style={at(x, L.stats.y)}>
                 <CardText style={{ color: t.sub, fontSize: L.stats.labelSize * k, fontFamily: body, textTransform: "uppercase", letterSpacing: 2 * k }}>{col.label}</CardText>
-                <CardText style={[{ color: t.text, fontSize: L.stats.valueSize * k, fontFamily: display, marginTop: (L.stats.valueGap - L.stats.labelSize) * k }, shadow]}>{col.value}</CardText>
+                <CardText style={[{ color: t.text, fontSize: L.stats.valueSize * k, fontFamily: display, fontVariant: NUMBER_VARIANT, marginTop: (L.stats.valueGap - L.stats.labelSize) * k }, shadow]}>{col.value}</CardText>
               </View>
             );
           })}

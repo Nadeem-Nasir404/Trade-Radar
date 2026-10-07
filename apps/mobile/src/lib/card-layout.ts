@@ -23,12 +23,13 @@ export type CardLayout = typeof CARD_LAYOUT;
 /** Numbers stacked along the bottom, leaving the top two thirds to the artwork. */
 const BOTTOM_LAYOUT: CardLayout = {
   ...CARD_LAYOUT,
-  tagline: { x: 80, y: 700, fontSize: 28 },
-  symbol: { ...CARD_LAYOUT.symbol, y: 752 },
-  pnlPercent: { ...CARD_LAYOUT.pnlPercent, y: 822, fontSize: 176 },
-  pnlUsd: { ...CARD_LAYOUT.pnlUsd, y: 1004, fontSize: 56 },
-  divider: { ...CARD_LAYOUT.divider, y: 1098 },
-  stats: { ...CARD_LAYOUT.stats, y: 1124 },
+  tagline: { x: 80, y: 676, fontSize: 28 },
+  symbol: { ...CARD_LAYOUT.symbol, y: 724 },
+  // Sized for Anton's tall glyphs, which stand about 1.2x their font size.
+  pnlPercent: { ...CARD_LAYOUT.pnlPercent, y: 792, fontSize: 158 },
+  pnlUsd: { ...CARD_LAYOUT.pnlUsd, y: 1000, fontSize: 52 },
+  divider: { ...CARD_LAYOUT.divider, y: 1092 },
+  stats: { ...CARD_LAYOUT.stats, y: 1116 },
   footer: { y: 1270, fontSize: 26 },
 };
 
