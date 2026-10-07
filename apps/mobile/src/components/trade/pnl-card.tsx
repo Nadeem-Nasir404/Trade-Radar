@@ -65,7 +65,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
       {/* Until the first layout pass k is 0, and Android crashes on text with fontSize 0, so wait for a real width. */}
       {width > 0 && (
         <>
-          <Backdrop style={style} k={k} background={t.background} />
+          <Backdrop style={style} background={t.background} />
           {t.corners && <CornerBrackets k={k} color={t.text} />}
 
           <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k, tintColor: t.text }]} />
@@ -154,16 +154,8 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   );
 });
 
-/** Decorative layer per style, all drawn with plain views so it renders the same on every device. */
-function Backdrop({ style, k, background }: { style: CardStyle; k: number; background: number | undefined }) {
-  const s = (v: number) => v * k;
-  const blob = (x: number, y: number, r: number, color: string, opacity = 1) => (
-    <View key={`${x}-${y}-${r}`} style={{ position: "absolute", left: s(x - r), top: s(y - r), width: s(2 * r), height: s(2 * r), borderRadius: s(r), backgroundColor: color, opacity }} />
-  );
-  const ring = (x: number, y: number, r: number, color: string, opacity = 1) => (
-    <View key={`ring-${x}-${y}-${r}`} style={{ position: "absolute", left: s(x - r), top: s(y - r), width: s(2 * r), height: s(2 * r), borderRadius: s(r), borderWidth: Math.max(1, 2 * k), borderColor: color, opacity }} />
-  );
-
+/** The style's artwork with its scrim, or its fallback gradient if the artwork is missing. */
+function Backdrop({ style, background }: { style: CardStyle; background: number | undefined }) {
   if (background) {
     return (
       <>
@@ -172,18 +164,7 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
       </>
     );
   }
-
-  // Minimal is the one theme without artwork: a light gradient with soft shapes.
-  const shapes = [blob(900, 120, 320, "#C4B5FD", 0.35), blob(120, 1200, 260, "#DDD6FE", 0.35), ring(W - 40, H - 60, 300, "#C9CCD8"), ring(W - 40, H - 60, 420, "#D6D8E2")];
-
-  return (
-    <>
-      <LinearGradient colors={[...CARD_THEMES[style].fallback]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
-        {shapes}
-      </View>
-    </>
-  );
+  return <LinearGradient colors={[...CARD_THEMES[style].fallback]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />;
 }
 
 /** Shading laid over each artwork only where text sits, so numbers stay readable without dulling the picture. */

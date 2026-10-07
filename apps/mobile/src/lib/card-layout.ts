@@ -15,9 +15,9 @@ export const CARD_LAYOUT = {
   sidePill: { gap: 20, height: 64, fontSize: 32, radius: 14 },
   // With a position size the percent and the dollar amount are both headline numbers;
   // without one the percent fills the space alone.
-  pnlPercent: { x: 72, y: 724, fontSize: 140, tracking: -2 },
+  pnlPercent: { x: 72, y: 728, fontSize: 150, tracking: -2 },
   pnlPercentSolo: { y: 770, fontSize: 160 },
-  pnlUsd: { x: 76, y: 886, fontSize: 104, tracking: -2 },
+  pnlUsd: { x: 78, y: 904, fontSize: 72, tracking: -1 },
   // Same height as the rule in Noir's artwork, so on that card the two coincide.
   divider: { x: 80, y: 1020, thickness: 2 },
   // Third column starts at 720 so values clear the antenna in Moonlit's artwork.
@@ -36,6 +36,10 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
+  | "stoic"
+  | "patrick"
+  | "peter"
+  | "tom"
   | "wolf"
   | "wolfpen"
   | "wolfyacht"
@@ -208,6 +212,70 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     tagline: { profit: "Stonks", loss: "Not stonks" },
     corners: true,
   },
+  stoic: {
+    label: "Stoic",
+    text: "#FFFFFF",
+    sub: "#D9F99D",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#A3E635",
+    pillText: "#142000",
+    pillBorder: "#A3E635",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#0B2A12", "#03100A"],
+    background: require("../../assets/cards/stoic.jpg"),
+    tagline: { profit: "Discipline pays", loss: "Stoic about it" },
+    corners: true,
+  },
+  patrick: {
+    label: "Patrick",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#F472B6",
+    pillText: "#FFFFFF",
+    pillBorder: "#F472B6",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/patrick.jpg"),
+    tagline: { profit: "Professional trader", loss: "Back under the rock" },
+    corners: true,
+  },
+  peter: {
+    label: "Peter",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#22C55E",
+    pillText: "#FFFFFF",
+    pillBorder: "#22C55E",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/peter.jpg"),
+    tagline: { profit: "Mine. All mine.", loss: "Gone. All gone." },
+    corners: true,
+  },
+  tom: {
+    label: "Lock In",
+    text: "#FFFFFF",
+    sub: "#FDE7C2",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#F59E0B",
+    pillText: "#1A1000",
+    pillBorder: "#F59E0B",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#3A2A14", "#120C05"],
+    background: require("../../assets/cards/tom.jpg"),
+    tagline: { profit: "Locked in", loss: "Still locked in" },
+    corners: true,
+  },
   wolf: {
     label: "Wolf",
     text: "#FFFFFF",
@@ -313,10 +381,11 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     pillBg: "#FFFFFF",
     pillText: "#111118",
     pillBorder: "#D3D5DF",
-    divider: "#D3D5DF",
+    divider: "#11111822",
     shadow: false,
     fallback: ["#FFFFFF", "#F4F4F6"],
-    background: undefined,
+    // Soft colour blobs with a frosted-glass panel behind the numbers.
+    background: require("../../assets/cards/minimal.jpg"),
     tagline: { profit: "Closed in profit", loss: "Closed at a loss" },
     corners: true,
   },
@@ -390,11 +459,12 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
  * Styles grouped into families. The picker shows one tile per family with its first style as the
  * cover; tapping a family shows that cover, and tapping it again shuffles to another style.
  */
-export type CardPackId = "diamond" | "gigachad" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
+export type CardPackId = "diamond" | "gigachad" | "cartoons" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
 
 export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[] }> = {
   diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "diamond", "moneyrain"] },
-  gigachad: { label: "Gigachad", styles: ["gigachad"] },
+  gigachad: { label: "Gigachad", styles: ["gigachad", "stoic"] },
+  cartoons: { label: "Cartoons", styles: ["patrick", "peter", "tom"] },
   apu: { label: "Apu", styles: ["feelsgood", "notover"] },
   wojak: { label: "Wojak", styles: ["wojak", "rainy", "fine"] },
   stonks: { label: "Stonks", styles: ["stonks", "printer"] },
@@ -404,7 +474,7 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
 };
 
 /** Picker order. */
-export const CARD_PACK_ORDER: CardPackId[] = ["diamond", "gigachad", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
+export const CARD_PACK_ORDER: CardPackId[] = ["diamond", "gigachad", "cartoons", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
 
 export function packOf(style: CardStyle): CardPackId {
   return CARD_PACK_ORDER.find((id) => CARD_PACKS[id].styles.includes(style)) ?? "minimal";
@@ -419,6 +489,10 @@ export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyl
 
 /** Every style, in family order. */
 export const CARD_STYLES: CardStyle[] = [
+  "stoic",
+  "patrick",
+  "peter",
+  "tom",
   "wolf",
   "wolfpen",
   "wolfyacht",

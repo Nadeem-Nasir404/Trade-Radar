@@ -30,6 +30,12 @@ MEMES = {
     "wolfpen": dict(src="wolfpen-meme.jpg", mode="full", top=110, fade=(620, 860)),
     # Cropped from the left so Leo sits nearer the middle, clear of the numbers.
     "wolfyacht": dict(src="wolfyacht-meme.jpg", mode="full", crop=(120, 0, 683, 449), top=90, fade=(600, 880)),
+    # Statue starts at the sunglasses band so the face sits in the art area; a green shade (not black) under the numbers.
+    "stoic": dict(src="stoic-meme.jpg", mode="full", crop=(0, 420, 736, 1308), top=0, fade=(520, 800), tint=(4, 30, 12), max_alpha=0.6),
+    "patrick": dict(src="patrick-meme.jpg", mode="full", crop=(110, 40, 736, 666), top=0, fade=(560, 820)),
+    "peter": dict(src="peter-meme.jpg", mode="full", crop=(40, 30, 716, 706), top=0, fade=(470, 740), max_alpha=0.6),
+    # Tom sits low on the left where the numbers go, so he and the stacks are framed in the art area instead.
+    "tom": dict(src="tom-meme.jpg", mode="fit", crop=(90, 330, 735, 905), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
     # Stickers: cut out of their grey backdrop and set larger on a soft tinted gradient.
     "diamond": dict(src="diamond-meme.jpg", mode="fit", crop=(0, 232, 750, 712), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=70), bg=("#DCEFFF", "#FFFFFF"), glow="#BFE3FF"),
     "moneyrain": dict(src="moneyrain-meme.jpg", mode="fit", crop=(0, 96, 387, 446), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=60, top=30, sides=70), bg=("#DDF7E6", "#FFFFFF"), glow="#BBF7D0"),
