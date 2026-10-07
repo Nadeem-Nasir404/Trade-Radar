@@ -138,3 +138,21 @@ describe("AuthService magic links", () => {
     await expect(service.verifyMagicLink(second)).resolves.toBeDefined();
   });
 });
+
+describe("AuthService suspension", () => {
+  const meta = { userAgent: "jest", ipAddress: "127.0.0.1" };
+
+  it("refuses to open a session for a suspended user", async () => {
+    const { service } = makeService(fakePrisma());
+    await expect(service.issueSession({ ...user, isSuspended: true }, meta)).rejects.toThrow(/suspended/);
+  });
+
+  it("refuses to refresh once the user has been suspended", async () => {
+    const prisma = fakePrisma();
+    const { service } = makeService(prisma);
+    const first = await service.issueSession(user, meta);
+
+    prisma.user.findUniqueOrThrow = async () => ({ ...user, isSuspended: true });
+    await expect(service.refresh(first.refreshToken, meta)).rejects.toThrow(/suspended/);
+  });
+});

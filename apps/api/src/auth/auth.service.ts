@@ -40,6 +40,12 @@ function ttlToSeconds(ttl: string): number {
   return (Number(match[1]) * TTL_UNIT_MS[match[2]]) / 1000;
 }
 
+function assertNotSuspended(user: User): void {
+  if (user.isSuspended) {
+    throw new UnauthorizedException("This account has been suspended. Contact support for details.");
+  }
+}
+
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -78,6 +84,8 @@ export class AuthService {
   }
 
   async issueSession(user: User, meta: { userAgent?: string; ipAddress?: string }): Promise<TokenPair> {
+    // Every sign-in path (password, Google, magic link, register) ends here.
+    assertNotSuspended(user);
     const sessionId = randomUUID();
     const tokens = await this.signTokenPair(user, sessionId);
 
@@ -152,6 +160,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: decoded.sub } });
+    assertNotSuspended(user);
     const tokens = await this.signTokenPair(user, session.id);
 
     // Rotate in place: the session keeps its id, so a later replay of this token hits the hash
