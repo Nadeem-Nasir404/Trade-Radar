@@ -21,7 +21,12 @@ export interface TokenPair {
 interface RefreshTokenPayload {
   sub: string;
   sid: string;
+  /** Random per-token id, so two rotations within the same second never produce identical tokens. */
+  jti?: string;
 }
+
+/** A just-rotated token presented again within this window is two tabs racing, not a stolen token. */
+const REFRESH_REUSE_GRACE_MS = 30_000;
 
 const TTL_UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
@@ -68,6 +73,24 @@ export class AuthService {
   }
 
   async issueSession(user: User, meta: { userAgent?: string; ipAddress?: string }): Promise<TokenPair> {
+    const sessionId = randomUUID();
+    const tokens = await this.signTokenPair(user, sessionId);
+
+    await this.prisma.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        refreshTokenHash: hashToken(tokens.refreshToken),
+        userAgent: meta.userAgent,
+        ipAddress: meta.ipAddress,
+        expiresAt: new Date(Date.now() + tokens.refreshTokenExpiresInSeconds * 1000),
+      },
+    });
+
+    return tokens;
+  }
+
+  private async signTokenPair(user: User, sessionId: string): Promise<TokenPair> {
     const accessTtl = this.config.get("JWT_ACCESS_TTL", { infer: true });
     const refreshTtl = this.config.get("JWT_REFRESH_TTL", { infer: true });
 
@@ -79,22 +102,10 @@ export class AuthService {
       expiresIn: accessTtl as any,
     });
 
-    const sessionId = randomUUID();
     const refreshToken = await this.jwtService.signAsync(
-      { sub: user.id, sid: sessionId } satisfies RefreshTokenPayload,
+      { sub: user.id, sid: sessionId, jti: randomUUID() } satisfies RefreshTokenPayload,
       { secret: this.config.get("JWT_REFRESH_SECRET", { infer: true }), expiresIn: refreshTtl as any },
     );
-
-    await this.prisma.session.create({
-      data: {
-        id: sessionId,
-        userId: user.id,
-        refreshTokenHash: hashToken(refreshToken),
-        userAgent: meta.userAgent,
-        ipAddress: meta.ipAddress,
-        expiresAt: new Date(Date.now() + ttlToSeconds(refreshTtl) * 1000),
-      },
-    });
 
     return {
       accessToken,
@@ -122,16 +133,38 @@ export class AuthService {
     if (session.revokedAt || session.expiresAt < new Date()) {
       throw new UnauthorizedException("Session has expired or been revoked");
     }
-    if (session.refreshTokenHash !== hashToken(rawRefreshToken)) {
+    const presentedHash = hashToken(rawRefreshToken);
+    if (session.refreshTokenHash !== presentedHash) {
+      const isConcurrentRefresh =
+        session.previousTokenHash === presentedHash &&
+        session.rotatedAt !== null &&
+        Date.now() - session.rotatedAt.getTime() < REFRESH_REUSE_GRACE_MS;
+      if (isConcurrentRefresh) throw new UnauthorizedException("Refresh token was already rotated");
+
       this.logger.warn(`Refresh token reuse detected for user ${decoded.sub} - revoking all sessions`);
       await this.revokeAllSessions(decoded.sub);
       throw new UnauthorizedException("Refresh token reuse detected. All sessions have been revoked for your safety.");
     }
 
-    await this.prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: decoded.sub } });
-    const tokens = await this.issueSession(user, meta);
+    const tokens = await this.signTokenPair(user, session.id);
+
+    // Rotate in place: the session keeps its id, so a later replay of this token hits the hash
+    // mismatch above instead of a revoked-session dead end. Conditional on the hash we checked,
+    // so of two concurrent refreshes with the same token only one wins.
+    const rotated = await this.prisma.session.updateMany({
+      where: { id: session.id, refreshTokenHash: presentedHash, revokedAt: null },
+      data: {
+        refreshTokenHash: hashToken(tokens.refreshToken),
+        previousTokenHash: presentedHash,
+        rotatedAt: new Date(),
+        userAgent: meta.userAgent,
+        ipAddress: meta.ipAddress,
+        expiresAt: new Date(Date.now() + tokens.refreshTokenExpiresInSeconds * 1000),
+      },
+    });
+    if (rotated.count !== 1) throw new UnauthorizedException("Refresh token was already rotated");
+
     return { user, tokens };
   }
 
