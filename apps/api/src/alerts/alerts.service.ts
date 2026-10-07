@@ -1,8 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { AlertStatus, ConditionType, Prisma } from "@prisma/client";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { AlertStatus, ConditionType, Prisma, type Alert } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { AlertIndexerService } from "../alert-engine/alert-indexer.service";
+import { AlertEngineService } from "../alert-engine/alert-engine.service";
 import { MarketDataService } from "../market-data/market-data.service";
 import { PriceCacheService } from "../market-data/price-cache/price-cache.service";
 import type { CreateAlertDto } from "./dto/create-alert.dto";
@@ -17,6 +19,14 @@ const ALERT_INCLUDE = {
 
 type AlertWithRelations = Prisma.AlertGetPayload<{ include: typeof ALERT_INCLUDE }>;
 
+function isRangeCondition(conditionType: ConditionType) {
+  return conditionType === ConditionType.ENTERS_RANGE || conditionType === ConditionType.EXITS_RANGE;
+}
+
+function assertValidRange(lower: number, upper: number) {
+  if (!(lower < upper)) throw new BadRequestException("A range alert's lower bound must be below its upper bound");
+}
+
 @Injectable()
 export class AlertsService {
   constructor(
@@ -25,6 +35,7 @@ export class AlertsService {
     private readonly indexer: AlertIndexerService,
     private readonly marketData: MarketDataService,
     private readonly priceCache: PriceCacheService,
+    private readonly engine: AlertEngineService,
   ) {}
 
   async create(userId: string, dto: CreateAlertDto) {
@@ -33,9 +44,11 @@ export class AlertsService {
     const instrument = await this.prisma.instrument.findUnique({ where: { id: dto.instrumentId } });
     if (!instrument || !instrument.isActive) throw new NotFoundException("Instrument not found");
 
-    if ((dto.conditionType === ConditionType.ENTERS_RANGE || dto.conditionType === ConditionType.EXITS_RANGE) && dto.secondaryValue === undefined) {
-      throw new ForbiddenException("Range alerts require a secondaryValue (the upper bound)");
+    if (isRangeCondition(dto.conditionType)) {
+      if (dto.secondaryValue === undefined) throw new BadRequestException("Range alerts require a secondaryValue (the upper bound)");
+      assertValidRange(dto.targetValue, dto.secondaryValue);
     }
+    await this.assertOwnsGroup(userId, dto.alertGroupId);
 
     let secondaryValue = dto.secondaryValue;
     if (dto.conditionType === ConditionType.PCT_CHANGE) {
@@ -77,9 +90,7 @@ export class AlertsService {
       include: ALERT_INCLUDE,
     });
 
-    await this.indexer.indexAlert(alert);
-    await this.marketData.onAlertActivated(alert.instrumentId, alert.id);
-
+    await this.arm(alert);
     return this.serialize(alert);
   }
 
@@ -140,6 +151,10 @@ export class AlertsService {
 
   async update(userId: string, id: string, dto: UpdateAlertDto) {
     const existing = await this.findOwned(userId, id);
+    if (isRangeCondition(existing.conditionType)) {
+      assertValidRange(dto.targetValue ?? Number(existing.targetValue), dto.secondaryValue ?? Number(existing.secondaryValue));
+    }
+    await this.assertOwnsGroup(userId, dto.alertGroupId);
 
     const updated = await this.prisma.alert.update({
       where: { id },
@@ -165,9 +180,12 @@ export class AlertsService {
       include: ALERT_INCLUDE,
     });
 
-    if (existing.status === AlertStatus.ACTIVE && (dto.targetValue !== undefined || dto.secondaryValue !== undefined)) {
+    // Re-index on any change, not just the level: cooldown, expiry and recurrence are read from
+    // the Redis copy at trigger time too.
+    if (existing.status === AlertStatus.ACTIVE) {
       await this.indexer.deindexAlert(existing.id, existing.instrumentId, existing.conditionType);
       await this.indexer.indexAlert(updated);
+      await this.fireIfLevelAlreadyMet(updated);
     }
 
     return this.serialize(updated);
@@ -198,8 +216,7 @@ export class AlertsService {
     await this.subscriptions.assertCanCreateAlert(userId);
 
     const updated = await this.prisma.alert.update({ where: { id }, data: { status: AlertStatus.ACTIVE }, include: ALERT_INCLUDE });
-    await this.indexer.indexAlert(updated);
-    await this.marketData.onAlertActivated(updated.instrumentId, updated.id);
+    await this.arm(updated);
     return this.serialize(updated);
   }
 
@@ -226,8 +243,7 @@ export class AlertsService {
       include: ALERT_INCLUDE,
     });
 
-    await this.indexer.indexAlert(cloned);
-    await this.marketData.onAlertActivated(cloned.instrumentId, cloned.id);
+    await this.arm(cloned);
     return this.serialize(cloned);
   }
 
@@ -250,8 +266,9 @@ export class AlertsService {
     if (!group) throw new NotFoundException("Alert group not found");
 
     const alerts = await this.prisma.alert.findMany({
-      where: { alertGroupId: groupId, status: paused ? AlertStatus.ACTIVE : AlertStatus.PAUSED },
+      where: { alertGroupId: groupId, userId, status: paused ? AlertStatus.ACTIVE : AlertStatus.PAUSED },
     });
+    if (!paused) await this.subscriptions.assertCanActivateAlerts(userId, alerts.length);
 
     for (const alert of alerts) {
       if (paused) {
@@ -267,14 +284,48 @@ export class AlertsService {
 
     if (!paused) {
       for (const alert of alerts) {
-        const fresh = await this.prisma.alert.findUniqueOrThrow({ where: { id: alert.id } });
-        await this.indexer.indexAlert(fresh);
-        await this.marketData.onAlertActivated(alert.instrumentId, alert.id);
+        await this.arm({ ...alert, status: AlertStatus.ACTIVE });
       }
     }
 
     await this.prisma.alertGroup.update({ where: { id: groupId }, data: { isPaused: paused } });
     return { groupId, affectedAlerts: alerts.length, paused };
+  }
+
+  private async assertOwnsGroup(userId: string, groupId: string | undefined | null) {
+    if (!groupId) return;
+    const group = await this.prisma.alertGroup.findFirst({ where: { id: groupId, userId }, select: { id: true } });
+    if (!group) throw new NotFoundException("Alert group not found");
+  }
+
+  /** Puts an active alert into the engine's index, keeps its market feed open, and fires it at once if its level is already met. */
+  private async arm(alert: Alert) {
+    await this.indexer.indexAlert(alert);
+    await this.marketData.onAlertActivated(alert.instrumentId, alert.id);
+    await this.fireIfLevelAlreadyMet(alert);
+  }
+
+  private async fireIfLevelAlreadyMet(alert: Alert) {
+    await this.engine.fireIfLevelAlreadyMet(alert.id, alert.conditionType, await this.priceCache.getSnapshot(alert.instrumentId));
+  }
+
+  /** Expired alerts leave the engine, release their market feed, and stop counting against the plan limit. */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async expireDueAlerts() {
+    const due = await this.prisma.alert.findMany({
+      where: { status: AlertStatus.ACTIVE, expiresAt: { lte: new Date() } },
+      select: { id: true, instrumentId: true, conditionType: true },
+    });
+    if (due.length === 0) return;
+
+    await this.prisma.alert.updateMany({
+      where: { id: { in: due.map((a) => a.id) }, status: AlertStatus.ACTIVE },
+      data: { status: AlertStatus.EXPIRED },
+    });
+    for (const alert of due) {
+      await this.indexer.deindexAlert(alert.id, alert.instrumentId, alert.conditionType);
+      await this.marketData.onAlertDeactivated(alert.instrumentId, alert.id);
+    }
   }
 
   private serialize(alert: AlertWithRelations, snapshot?: Awaited<ReturnType<PriceCacheService["getSnapshot"]>>) {

@@ -21,7 +21,7 @@ interface ExpoPushTicket {
  * used while the app process is alive. Requires the project to have FCM V1 credentials uploaded
  * to EAS; without them Expo returns a DeviceNotRegistered/credentials error per-ticket.
  */
-@Processor(QUEUE_NAMES.NOTIFY_EXPO_PUSH)
+@Processor(QUEUE_NAMES.NOTIFY_EXPO_PUSH, { concurrency: 25 })
 export class ExpoPushProcessor extends WorkerHost {
   private readonly logger = new Logger(ExpoPushProcessor.name);
 

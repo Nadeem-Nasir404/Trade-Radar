@@ -265,4 +265,28 @@ describe("AlertEngineService.evaluateTick (crossing logic)", () => {
     expect(queueAdd).toHaveBeenCalledTimes(2);
     expect(queueAdd.mock.calls[1][1].transitionId).toBe("a1-3");
   });
+
+  describe("fireIfLevelAlreadyMet", () => {
+    const snapshot = (price: number, feedStatus: "LIVE" | "STALE" = "LIVE") =>
+      ({ instrumentId: "BTC", price, prevPrice: price, eventTime: 1, receivedTime: 1, providerId: "p", seq: 7, feedStatus, isDemo: false, high24h: null, low24h: null, volume24h: null, changePct24h: null });
+
+    it("fires an ABOVE alert armed while the price is already above its level", async () => {
+      await registry.register(makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.ABOVE, targetValue: 100 as any }), 100);
+      await engine.fireIfLevelAlreadyMet("a1", ConditionType.ABOVE, snapshot(120));
+      expect(queueAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves CROSSES_ABOVE waiting for an actual crossing", async () => {
+      await registry.register(makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.CROSSES_ABOVE, targetValue: 100 as any }), 100);
+      await engine.fireIfLevelAlreadyMet("a1", ConditionType.CROSSES_ABOVE, snapshot(120));
+      expect(queueAdd).not.toHaveBeenCalled();
+    });
+
+    it("does not fire on a stale price or when the level isn't met", async () => {
+      await registry.register(makeAlert({ id: "a1", userId: "u1", instrumentId: "BTC", conditionType: ConditionType.BELOW, targetValue: 100 as any }), 100);
+      await engine.fireIfLevelAlreadyMet("a1", ConditionType.BELOW, snapshot(90, "STALE"));
+      await engine.fireIfLevelAlreadyMet("a1", ConditionType.BELOW, snapshot(110));
+      expect(queueAdd).not.toHaveBeenCalled();
+    });
+  });
 });

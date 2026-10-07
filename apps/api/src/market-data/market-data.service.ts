@@ -1,12 +1,13 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { EventEmitter2 } from "@nestjs/event-emitter";
+import { EventEmitter2, OnEvent } from "@nestjs/event-emitter";
 import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
 import type { NormalizedTick } from "@levelpulse/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
 import type { EnvConfig } from "../common/config/env.validation";
 import { PriceCacheService } from "./price-cache/price-cache.service";
+import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "../alert-engine/alert-engine.events";
 import { SubscriptionRegistryService } from "./subscription-registry.service";
 import { MockMarketDataProvider } from "./providers/mock/mock-market-data.provider";
 import { BinanceProvider } from "./providers/binance/binance.provider";
@@ -165,7 +166,12 @@ export class MarketDataService implements OnModuleInit {
     if (result.becameActive) await this.ensureSubscribedById(instrumentId);
   }
 
-  /** Called by AlertsService when an alert is paused/deleted/triggered-non-recurring/expired. */
+  @OnEvent(ALERT_TRIGGERED_EVENT)
+  async onAlertTriggered(event: AlertTriggeredPayload): Promise<void> {
+    if (event.deactivated) await this.onAlertDeactivated(event.instrumentId, event.alertId);
+  }
+
+  /** Called when an alert is paused, deleted, or expired (AlertsService) or fires for the last time (onAlertTriggered). */
   async onAlertDeactivated(instrumentId: string, alertId: string): Promise<void> {
     const result = await this.registry.removeAlertRef(instrumentId, alertId);
     if (result.becameInactive) await this.releaseSubscriptionById(instrumentId);
