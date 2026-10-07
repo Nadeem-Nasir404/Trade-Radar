@@ -52,8 +52,11 @@ export function CardStylePicker({
               ) : (
                 <LinearGradient colors={[...preview.fallback]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
               )}
-              <ThemedText allowFontScaling={false} style={[styles.sample, { color: preview.profit, fontFamily: CARD_FONTS.number }]}>
-                +%
+              <ThemedText
+                allowFontScaling={false}
+                style={[styles.sample, { color: outcome === "profit" ? preview.profit : preview.loss, fontFamily: CARD_FONTS.number }]}
+              >
+                {outcome === "profit" ? "+%" : "−%"}
               </ThemedText>
               {canShuffle && (
                 <View style={[styles.badge, { backgroundColor: active ? colors.brand : withAlpha("#000000", 0.55) }]}>

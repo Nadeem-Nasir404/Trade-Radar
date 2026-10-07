@@ -601,7 +601,7 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     fallback: ["#FFFFFF", "#F4F4F6"],
     // Soft colour blobs with a frosted-glass panel behind the numbers.
     background: require("../../assets/cards/minimal.jpg"),
-    tagline: { profit: "Closed in profit", loss: "Closed at a loss" },
+    tagline: { profit: "In profit", loss: "In the red" },
     corners: true,
   },
   noir: {

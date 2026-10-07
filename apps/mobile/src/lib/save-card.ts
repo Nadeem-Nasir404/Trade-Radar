@@ -6,10 +6,11 @@ import type { View } from "react-native";
  * in Expo Go even if a module there is missing; in that case this throws a readable error.
  */
 export async function saveCardToGallery(node: View): Promise<"saved" | "denied"> {
-  let MediaLibrary: typeof import("expo-media-library");
+  // The legacy entry point: the root package's saveToLibraryAsync now throws ("deprecated").
+  let MediaLibrary: typeof import("expo-media-library/legacy");
   let viewShot: typeof import("react-native-view-shot");
   try {
-    MediaLibrary = await import("expo-media-library");
+    MediaLibrary = await import("expo-media-library/legacy");
     viewShot = await import("react-native-view-shot");
   } catch {
     throw new Error("Saving cards is not available in this build");

@@ -1,5 +1,6 @@
 import { forwardRef, useState, type ComponentProps, type ReactNode } from "react";
-import { View, Image, StyleSheet, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { View, StyleSheet, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
@@ -67,10 +68,10 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
       {/* Until the first layout pass k is 0, and Android crashes on text with fontSize 0, so wait for a real width. */}
       {width > 0 && (
         <>
-          <Backdrop style={shown} background={t.background} />
+          <Backdrop style={shown} background={t.background} width={W * k} height={H * k} />
           {t.corners && <CornerBrackets k={k} color={t.text} />}
 
-          <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k, tintColor: t.text }]} />
+          <Image source={LOGO} tintColor={t.text} contentFit="contain" style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k }]} />
           <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: display }, shadow]}>
             {L.brand.text}
           </CardText>
@@ -157,11 +158,13 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
 });
 
 /** The style's artwork with its scrim, or its fallback gradient if the artwork is missing. */
-function Backdrop({ style, background }: { style: CardStyle; background: number | undefined }) {
+function Backdrop({ style, background, width, height }: { style: CardStyle; background: number | undefined; width: number; height: number }) {
   if (background) {
     return (
       <>
-        <Image source={background} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {/* expo-image with an explicit size: React Native's Image drew these at their pixel size
+            (zoomed far in) in release builds instead of filling the card. */}
+        <Image source={background} contentFit="cover" style={{ position: "absolute", left: 0, top: 0, width, height }} />
         {ARTWORK_SCRIMS[style]}
       </>
     );
