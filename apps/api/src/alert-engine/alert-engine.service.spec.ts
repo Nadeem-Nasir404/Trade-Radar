@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import Redis from "ioredis-mock";
 import { AlertStatus, ConditionType, type Alert } from "@prisma/client";
 import { AlertRegistryService } from "./alert-registry.service";
