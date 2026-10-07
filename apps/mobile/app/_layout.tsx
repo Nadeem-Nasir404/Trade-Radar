@@ -16,6 +16,7 @@ import { Manrope_700Bold } from "@expo-google-fonts/manrope/700Bold";
 import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
+import { EncodeSansExpanded_500Medium } from "@expo-google-fonts/encode-sans-expanded/500Medium";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, StyleSheet } from "react-native";
@@ -52,6 +53,7 @@ export default function RootLayout() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
+    EncodeSansExpanded_500Medium,
   });
 
   useEffect(() => {

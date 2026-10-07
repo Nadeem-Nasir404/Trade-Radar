@@ -14,6 +14,7 @@
     "chart-lib": "node scripts/bundle-chart-lib.js"
   },
   "dependencies": {
+    "@expo-google-fonts/encode-sans-expanded": "^0.4.2",
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo-google-fonts/space-grotesk": "^0.4.1",

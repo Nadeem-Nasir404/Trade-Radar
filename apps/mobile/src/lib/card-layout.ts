@@ -13,7 +13,7 @@ export const CARD_LAYOUT = {
   tagline: { x: 80, y: 612, fontSize: 28 },
   symbol: { x: 80, y: 660, fontSize: 56 },
   sidePill: { gap: 20, height: 64, fontSize: 32, radius: 14 },
-  pnlPercent: { x: 72, y: 736, fontSize: 158, tracking: -5 },
+  pnlPercent: { x: 72, y: 736, fontSize: 158, tracking: -2 },
   pnlUsd: { x: 80, y: 924, fontSize: 52 },
   // Same height as the rule in Noir's artwork, so on that card the two coincide.
   divider: { x: 80, y: 1020, thickness: 2 },
@@ -24,10 +24,12 @@ export const CARD_LAYOUT = {
   corners: { inset: 50, arm: 70, thickness: 5 },
 };
 
-/** One typeface for every card: the app's display face for numbers and titles, its text face for labels. */
+/** Same fonts on every card: the app's display face for titles and stats, its text face for labels, a wide face for the P&L. */
 export const CARD_FONTS = {
   display: fonts.display,
   body: fonts.bodySemibold,
+  /** Wide, flat figures for the P&L percent and dollar amount. */
+  number: "EncodeSansExpanded_500Medium",
 };
 
 export type CardStyle =

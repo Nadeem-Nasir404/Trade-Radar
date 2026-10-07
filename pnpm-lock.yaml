@@ -398,6 +398,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@expo-google-fonts/encode-sans-expanded':
+        specifier: ^0.4.2
+        version: 0.4.2
       '@expo-google-fonts/manrope':
         specifier: ^0.4.2
         version: 0.4.2
@@ -1281,6 +1284,9 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@expo-google-fonts/encode-sans-expanded@0.4.2':
+    resolution: {integrity: sha512-1QYSXw6LvD5vqq5X3caUKiwprIkPLiJvydjT3tohk+oFpCIEdRsipBdS2SbOjn9rEx8xEDf6fLFn7nvwAl6pRQ==}
 
   '@expo-google-fonts/manrope@0.4.2':
     resolution: {integrity: sha512-BZsKe8d9BJrVnIQIZcTS7/Kac0TbXnqs/+8EBSiQxrmK6GoCO6eTkmr50D1weIk/EoF20pTmAkpWICnovATr/g==}
@@ -9208,6 +9214,8 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@expo-google-fonts/encode-sans-expanded@0.4.2': {}
 
   '@expo-google-fonts/manrope@0.4.2': {}
 

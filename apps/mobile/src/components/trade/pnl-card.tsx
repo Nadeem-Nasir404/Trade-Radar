@@ -9,10 +9,11 @@ import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEM
 
 export { CARD_STYLE_LABELS, CARD_STYLES };
 
-const LOGO = require("../../../assets/splash-icon.png");
+/** White CoinRadar mark, tinted to each theme's text colour so it sits on any background. */
+const LOGO = require("../../../assets/brand/mark-white.png");
 const W = L.canvas.width;
 const H = L.canvas.height;
-const { display, body } = CARD_FONTS;
+const { display, body, number } = CARD_FONTS;
 
 /** Lining figures: serif faces like Playfair default to old-style numerals that bob above and below the line. */
 const NUMBER_VARIANT: TextStyle["fontVariant"] = ["lining-nums"];
@@ -64,7 +65,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
           <Backdrop style={style} k={k} background={t.background} />
           {t.corners && <CornerBrackets k={k} color={t.text} />}
 
-          <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k }]} />
+          <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k, tintColor: t.text }]} />
           <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: display }, shadow]}>
             {L.brand.text}
           </CardText>
@@ -98,7 +99,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
                 width: (W - 2 * L.pnlPercent.x) * k,
                 color: tone,
                 fontSize: pctSize * k,
-                fontFamily: display,
+                fontFamily: number,
                 letterSpacing: L.pnlPercent.tracking * k,
                 fontVariant: NUMBER_VARIANT,
                 lineHeight: pctSize * 1.12 * k,
@@ -110,7 +111,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
           </CardText>
 
           {usd != null && (
-            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: display, fontVariant: NUMBER_VARIANT }, shadow]}>
+            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: number, fontVariant: NUMBER_VARIANT }, shadow]}>
               {usd >= 0 ? "+" : "-"}${Math.abs(usd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </CardText>
           )}

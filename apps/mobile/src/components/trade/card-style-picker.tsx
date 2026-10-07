@@ -41,7 +41,7 @@ export function CardStylePicker({ value, onChange }: { value: CardStyle; onChang
               ) : (
                 <LinearGradient colors={[...preview.fallback]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
               )}
-              <ThemedText allowFontScaling={false} style={[styles.sample, { color: preview.profit, fontFamily: CARD_FONTS.display }]}>
+              <ThemedText allowFontScaling={false} style={[styles.sample, { color: preview.profit, fontFamily: CARD_FONTS.number }]}>
                 +%
               </ThemedText>
               {canShuffle && (
