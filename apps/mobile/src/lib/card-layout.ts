@@ -40,8 +40,10 @@ export type CardStyle =
   | "fine"
   | "rainy"
   | "anime"
+  | "kurumi"
   | "moonlit"
   | "diamond"
+  | "moneyrain"
   | "noir"
   | "blush"
   | "minimal";
@@ -200,18 +202,50 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
   },
   diamond: {
     label: "Diamond Hands",
-    text: "#FFFFFF",
-    sub: "#A5D8F5",
-    profit: "#67E8F9",
-    loss: "#FB7185",
-    pillBg: "#67E8F9",
-    pillText: "#062033",
-    pillBorder: "#67E8F9",
-    divider: "#FFFFFF2E",
-    shadow: true,
-    fallback: ["#041A2E", "#03080F"],
+    text: "#111118",
+    sub: "#5B6B82",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#0369A1",
+    pillText: "#FFFFFF",
+    pillBorder: "#0369A1",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#DCEFFF", "#FFFFFF"],
     background: require("../../assets/cards/diamond.jpg"),
     tagline: { profit: "Diamond hands", loss: "Still holding" },
+    corners: true,
+  },
+  moneyrain: {
+    label: "Money Rain",
+    text: "#111118",
+    sub: "#5B7066",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#DDF7E6", "#FFFFFF"],
+    background: require("../../assets/cards/moneyrain.jpg"),
+    tagline: { profit: "Make it rain", loss: "Rain check" },
+    corners: true,
+  },
+  kurumi: {
+    label: "Kurumi",
+    text: "#FFFFFF",
+    sub: "#FCE7F3",
+    profit: "#FFFFFF",
+    loss: "#FECDD3",
+    pillBg: "#EC4899",
+    pillText: "#FFFFFF",
+    pillBorder: "#EC4899",
+    divider: "#FFFFFF4D",
+    shadow: true,
+    fallback: ["#F9A8D4", "#4A0E3C"],
+    background: require("../../assets/cards/kurumi.jpg"),
+    tagline: { profit: "Main character energy", loss: "Emotional damage" },
     corners: true,
   },
   minimal: {
@@ -306,8 +340,8 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
   gigachad: { label: "Gigachad", styles: ["gigachad"] },
   apu: { label: "Apu", styles: ["feelsgood", "notover"] },
   wojak: { label: "Wojak", styles: ["wojak", "rainy", "fine"] },
-  stonks: { label: "Stonks", styles: ["stonks", "printer", "diamond"] },
-  anime: { label: "Anime", styles: ["anime"] },
+  stonks: { label: "Stonks", styles: ["stonks", "printer", "diamond", "moneyrain"] },
+  anime: { label: "Anime", styles: ["kurumi", "anime"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },
 };
@@ -337,8 +371,10 @@ export const CARD_STYLES: CardStyle[] = [
   "fine",
   "rainy",
   "anime",
+  "kurumi",
   "moonlit",
   "diamond",
+  "moneyrain",
   "noir",
   "blush",
   "minimal",

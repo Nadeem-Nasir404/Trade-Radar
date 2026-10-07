@@ -1,6 +1,6 @@
 # Local tooling script (not shipped) - turns meme images into 1080x1350 P&L card backgrounds.
 # "full": the meme runs full-width under the top bar, a blurred copy fills the rest, and the lower
-# part fades dark. "fit": the meme sits centred in the art area (between the top bar and the
+# part fades under a light shade. "fit": the meme sits centred in the art area (between the top bar and the
 # tagline) on a solid colour or a blurred copy of itself - light memes on matching light grey.
 # Sources live in assets/cards/source/ (not referenced by the app, so not bundled).
 # Run: python3 scripts/compose-meme-cards.py
@@ -25,6 +25,11 @@ MEMES = {
     "notover": dict(src="notover-meme.jpg", mode="fit", bg="#F8F8F8"),
     "feelsgood": dict(src="feelsgood-meme.jpg", mode="fit", bg="#F7F7F7"),
     "rainy": dict(src="rainy-meme.jpg", mode="fit", bg="blur", feather=36, fade=(620, 860)),
+    # Stickers: cut out of their grey backdrop and set larger on a soft tinted gradient.
+    "diamond": dict(src="diamond-meme.jpg", mode="fit", crop=(0, 232, 750, 712), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=70), bg=("#DCEFFF", "#FFFFFF"), glow="#BFE3FF"),
+    "moneyrain": dict(src="moneyrain-meme.jpg", mode="fit", crop=(0, 96, 387, 446), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=60, top=30, sides=70), bg=("#DDF7E6", "#FFFFFF"), glow="#BBF7D0"),
+    # Poster without its title; a soft plum tint (not black) behind the numbers keeps the pastels.
+    "kurumi": dict(src="kurumi-meme.jpg", mode="full", crop=(0, 0, 466, 468), top=0, fade=(470, 760), tint=(110, 22, 88), max_alpha=0.6),
 }
 
 
@@ -54,7 +59,7 @@ def feather_mask(w, h, top=0, bottom=0, sides=0):
     return mask
 
 
-def shade(card, fade, top_bar=True):
+def shade(card, fade, top_bar=True, tint=(4, 4, 8), max_alpha=0.45):
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     sd = ImageDraw.Draw(layer)
     if top_bar:
@@ -65,8 +70,28 @@ def shade(card, fade, top_bar=True):
         for y in range(f0, H):
             t = min(1, (y - f0) / (f1 - f0))
             # Light shade only: the picture carries on to the bottom; text shadows keep numbers readable.
-            sd.line([(0, y), (W, y)], fill=(4, 4, 8, int(255 * (0.08 + 0.37 * t))))
+            sd.line([(0, y), (W, y)], fill=(*tint, int(255 * (0.08 + (max_alpha - 0.08) * t))))
     return Image.alpha_composite(card, layer)
+
+
+def cutout(img, tolerance=18):
+    """Makes the flat backdrop transparent by flood-filling from the border (enclosed whites stay)."""
+    rgba = img.convert("RGBA")
+    marker = (255, 0, 255)
+    filled = img.copy()
+    for x, y in [(0, 0), (img.width - 1, 0), (0, img.height - 1), (img.width - 1, img.height - 1)]:
+        ImageDraw.floodfill(filled, (x, y), marker, thresh=tolerance)
+    import numpy as np
+    alpha = np.where(np.all(np.array(filled) == marker, axis=-1), 0, 255).astype("uint8")
+    # Soften the cut edge a touch so it doesn't look jagged when scaled up.
+    rgba.putalpha(Image.fromarray(alpha).filter(ImageFilter.GaussianBlur(0.8)))
+    return rgba
+
+
+def gradient(top, bottom):
+    a, b = Image.new("RGBA", (W, H), top), Image.new("RGBA", (W, H), bottom)
+    mask = Image.linear_gradient("L").resize((W, H))
+    return Image.composite(b, a, mask)
 
 
 def compose(spec):
@@ -78,22 +103,40 @@ def compose(spec):
         card = blurred_cover(src)
         mh = int(src.height * W / src.width)
         meme = src.resize((W, mh), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=2, percent=80, threshold=2)).convert("RGBA")
-        meme.putalpha(feather_mask(W, mh, top=40, bottom=140))
+        meme.putalpha(feather_mask(W, mh, top=40 if spec["top"] else 0, bottom=140))
         card.alpha_composite(meme, (0, spec["top"]))
-        return shade(card, spec["fade"]).convert("RGB")
+        extra = {k: spec[k] for k in ("tint", "max_alpha") if k in spec}
+        return shade(card, spec["fade"], **extra).convert("RGB")
 
-    # fit: centred in the art area, upscaled at most ~1.8x so it stays sharp.
-    box_w, box_h = W - 2 * 100, ART_BOTTOM - ART_TOP
+    # fit: centred in the art area (or a custom box), upscaled at most ~1.8x so it stays sharp.
+    top, bottom, margin = spec.get("box", (ART_TOP, ART_BOTTOM, 100))
+    box_w, box_h = W - 2 * margin, bottom - top
     scale = min(box_w / src.width, box_h / src.height)
     mw, mh = int(src.width * scale), int(src.height * scale)
-    meme = src.resize((mw, mh), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.5, percent=60, threshold=2)).convert("RGBA")
+    art = cutout(src) if spec.get("cutout") else src.convert("RGBA")
+    meme = art.resize((mw, mh), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.5, percent=60, threshold=2))
+    f = spec.get("feather", 0)
+    if f:
+        meme.putalpha(feather_mask(mw, mh, top=f, bottom=f, sides=f))
+    if spec.get("edge_fade"):
+        # Where the source cuts the art off (the waist, the bills at the edges), fade it out instead of a hard edge.
+        import numpy as np
+        a = np.array(meme.getchannel("A")).astype("float32")
+        a *= np.array(feather_mask(mw, mh, **spec["edge_fade"])).astype("float32") / 255
+        meme.putalpha(Image.fromarray(a.astype("uint8")))
     if spec["bg"] == "blur":
         card = blurred_cover(src)
-        f = spec.get("feather", 0)
-        meme.putalpha(feather_mask(mw, mh, top=f, bottom=f, sides=f))
+    elif isinstance(spec["bg"], tuple):
+        card = gradient(*spec["bg"])
     else:
         card = Image.new("RGBA", (W, H), spec["bg"])
-    card.alpha_composite(meme, ((W - mw) // 2, ART_TOP + (box_h - mh) // 2))
+    if spec.get("glow"):
+        # Blur only the mask: blurring a coloured shape on a transparent layer would bleed black into it.
+        mask = Image.new("L", (W, H), 0)
+        cy = top + box_h // 2
+        ImageDraw.Draw(mask).ellipse((W / 2 - 420, cy - 260, W / 2 + 420, cy + 260), fill=255)
+        card = Image.composite(Image.new("RGBA", (W, H), spec["glow"]), card, mask.filter(ImageFilter.GaussianBlur(90)))
+    card.alpha_composite(meme, ((W - mw) // 2, top + (box_h - mh) // 2))
     if spec["bg"] == "blur":
         card = shade(card, spec.get("fade"))
     return card.convert("RGB")
