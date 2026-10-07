@@ -3,7 +3,6 @@ import { View, FlatList, Pressable, RefreshControl, StyleSheet } from "react-nat
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/empty-state";

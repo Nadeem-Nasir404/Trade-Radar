@@ -5,7 +5,7 @@ import type { Instrument } from "@/lib/api/types";
 import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
@@ -49,9 +49,7 @@ export default function FullscreenChartScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: colors.glass }]}>
-          <Ionicons name="close" size={20} color={colors.foreground} />
-        </Pressable>
+        <IconButton icon="close" label="Close" onPress={() => router.back()} />
         <View style={styles.headerCenter}>
           <ThemedText style={styles.symbol}>{params.displaySymbol ?? instrument?.displaySymbol ?? ""}</ThemedText>
           <LiveChange instrument={instrument} />
@@ -136,9 +134,9 @@ export default function FullscreenChartScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   headerCenter: { alignItems: "center", gap: 2 },
-  iconButton: { minWidth: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  iconButton: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
   symbol: { fontSize: 16, fontWeight: "600" },
   headerPrice: { fontSize: 14 },
   tfScroll: { flexGrow: 0, marginBottom: 8 },

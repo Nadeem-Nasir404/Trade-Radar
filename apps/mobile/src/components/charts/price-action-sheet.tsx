@@ -3,7 +3,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 import { formatCompactPrice } from "@/lib/format";
 import { useDrawingsStore, newDrawingId } from "@/lib/stores/drawings-store";

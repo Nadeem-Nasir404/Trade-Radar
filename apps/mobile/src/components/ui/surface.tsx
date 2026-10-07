@@ -6,18 +6,25 @@ import { radius } from "@/lib/theme";
 
 interface SurfaceProps extends ViewProps {
   intensity?: number;
+  /**
+   * Live backdrop blur. Turn it off for repeated rows (lists): every BlurView is its own render
+   * pass on Android, and over the app's soft background the flat glass tint looks the same.
+   */
+  blur?: boolean;
 }
 
-export function Surface({ style, intensity = 32, children, ...props }: SurfaceProps) {
+export function Surface({ style, intensity = 32, blur = true, children, ...props }: SurfaceProps) {
   const { colors } = useTheme();
   return (
     <View style={[styles.surface, { borderColor: colors.glassBorder }, style]} {...props}>
-      <BlurView
-        intensity={intensity}
-        tint={colors.blurTint}
-        style={StyleSheet.absoluteFill}
-        experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
-      />
+      {blur && (
+        <BlurView
+          intensity={intensity}
+          tint={colors.blurTint}
+          style={StyleSheet.absoluteFill}
+          experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
+        />
+      )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
       {/* Faint top-edge highlight - the light-catching-glass detail flat translucent fills alone don't sell. */}
       <LinearGradient

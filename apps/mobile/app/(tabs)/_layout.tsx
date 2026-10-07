@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Tabs, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { View, Pressable, StyleSheet, type PressableProps, type GestureResponderEvent } from "react-native";
+import { View, Pressable, StyleSheet, Platform, type PressableProps, type GestureResponderEvent } from "react-native";
+import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
@@ -22,23 +23,24 @@ const FAB_SIZE = 58;
 export default function TabsLayout() {
   useAlertTriggeredListener();
   const user = useAuthStore((s) => s.user);
+  const userId = user?.id;
   const [showOnboarding, setShowOnboarding] = useState(false);
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let cancelled = false;
-    AsyncStorage.getItem(`lp-onboarding-done:${user.id}`).then((done) => {
+    AsyncStorage.getItem(`lp-onboarding-done:${userId}`).then((done) => {
       if (!cancelled && !done) setShowOnboarding(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
   const finishOnboarding = () => {
     setShowOnboarding(false);
     if (user) AsyncStorage.setItem(`lp-onboarding-done:${user.id}`, "1").catch(() => undefined);
   };
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const barBottom = Math.max(insets.bottom, 12) + 4;
 
@@ -65,8 +67,19 @@ export default function TabsLayout() {
             shadowOpacity: 0.45,
             shadowRadius: 30,
           },
+          // Frosted glass: live blur of the content scrolling underneath, a translucent tint so
+          // icons stay legible, and a light top edge like the app's glass panels.
           tabBarBackground: () => (
-            <View style={[StyleSheet.absoluteFill, styles.barBackground, { backgroundColor: colors.backgroundElevated, opacity: 0.94 }]} />
+            <View style={[StyleSheet.absoluteFill, styles.barBackground]}>
+              <BlurView
+                intensity={isDark ? 60 : 80}
+                tint={colors.blurTint}
+                experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(colors.backgroundElevated, 0.72) }]} />
+              <LinearGradient colors={[colors.glassBorderStrong, "transparent"]} style={styles.barHighlight} pointerEvents="none" />
+            </View>
           ),
         }}
       >
@@ -118,11 +131,11 @@ function TabBarButton(props: PressableProps) {
       {...props}
       style={[props.style, styles.tabButton, animatedStyle]}
       onPressIn={(e: GestureResponderEvent) => {
-        scale.value = withTiming(0.88, { duration: 100 });
+        scale.set(withTiming(0.88, { duration: 100 }));
         props.onPressIn?.(e);
       }}
       onPressOut={(e: GestureResponderEvent) => {
-        scale.value = withTiming(1, { duration: 150 });
+        scale.set(withTiming(1, { duration: 150 }));
         props.onPressOut?.(e);
       }}
     />
@@ -160,6 +173,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 
 const styles = StyleSheet.create({
   barBackground: { borderRadius: radius.full, overflow: "hidden" },
+  barHighlight: { position: "absolute", top: 0, left: 24, right: 24, height: 1 },
   tabIconWrap: { alignItems: "center", justifyContent: "center", width: "100%", height: "100%" },
   activePill: { position: "absolute", width: 40, height: 40, borderRadius: radius.full },
   activeDot: { position: "absolute", bottom: 6, width: 4, height: 4, borderRadius: radius.full },

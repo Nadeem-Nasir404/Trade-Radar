@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { saveCardToGallery } from "@/lib/save-card";
 import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,6 +9,9 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { IconButton } from "@/components/ui/icon-button";
+import { Button } from "@/components/ui/button";
 import { PnlCard } from "@/components/trade/pnl-card";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
@@ -17,7 +19,7 @@ import { useToastStore } from "@/lib/stores/toast-store";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTradesStore, type TradeSide } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
+import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 import { formatCompactPrice } from "@/lib/format";
 
@@ -92,15 +94,11 @@ export default function AlertTriggeredScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <AmbientOrbs />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="close" size={18} color={colors.foreground} />
-        </Pressable>
-        <ThemedText style={styles.headerTitle}>{activeTrade ? "Your trade" : "Alert hit"}</ThemedText>
-        <Pressable onPress={() => router.push("/trades")} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="journal-outline" size={18} color={colors.foreground} />
-        </Pressable>
-      </View>
+      <ModalHeader
+        kind="close"
+        title={activeTrade ? "Your trade" : "Alert hit"}
+        action={<IconButton icon="journal-outline" label="My trades" onPress={() => router.push("/trades")} />}
+      />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {activeTrade ? (
@@ -109,16 +107,12 @@ export default function AlertTriggeredScreen() {
             <SectionErrorBoundary label="Trade card">
               <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
             </SectionErrorBoundary>
-            <Pressable onPress={saveCard} style={[styles.saveWrap, { borderColor: colors.glassBorder, backgroundColor: colors.glass }]}>
-              <Ionicons name="download-outline" size={18} color={colors.foreground} />
-              <ThemedText style={{ fontWeight: "700" }}>Save card to gallery</ThemedText>
-            </Pressable>
-            <Pressable onPress={endTrade} style={styles.primaryWrap}>
-              <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primary}>
-                <Ionicons name="stop-circle-outline" size={18} color="#FFFFFF" />
-                <ThemedText style={styles.primaryText}>Close trade at {formatCompactPrice(price ?? activeTrade.entryPrice)}</ThemedText>
-              </LinearGradient>
-            </Pressable>
+            <Button title="Save card to gallery" variant="glass" icon={<Ionicons name="download-outline" size={18} color={colors.foreground} />} onPress={saveCard} />
+            <Button
+              title={`Close trade at ${formatCompactPrice(price ?? activeTrade.entryPrice)}`}
+              icon={<Ionicons name="stop-circle-outline" size={18} color={colors.brandForeground} />}
+              onPress={endTrade}
+            />
           </>
         ) : (
           <>
@@ -194,26 +188,18 @@ export default function AlertTriggeredScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  closeBtn: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700" },
-  spacer: { width: 40 },
   body: { padding: 20, gap: 16, paddingBottom: 40 },
   hero: { padding: 22, alignItems: "center", gap: 8 },
   symbolLine: { marginTop: 12, letterSpacing: 1 },
   headline: { fontSize: 17, fontWeight: "700", textAlign: "center" },
   bigPrice: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
   question: { marginTop: 8, fontSize: 11, letterSpacing: 1 },
-  amountRow: { flexDirection: "row", alignItems: "center", gap: 6, height: 52, paddingHorizontal: 16, borderRadius: radius.lg, borderWidth: 1 },
-  amountInput: { flex: 1, fontSize: 17, fontWeight: "600", padding: 0 },
-  saveWrap: { height: 50, borderRadius: radius.lg, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  amountRow: { flexDirection: "row", alignItems: "center", gap: 6, height: 50, paddingHorizontal: 16, borderRadius: radius.lg, borderWidth: 1 },
+  amountInput: { flex: 1, fontSize: 17, fontFamily: fonts.bodySemibold, padding: 0 },
   choiceWrap: { borderRadius: radius.xl, overflow: "hidden" },
   choice: { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, borderRadius: radius.xl },
   choiceText: { flex: 1, gap: 2 },
   choiceTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
   choiceSub: { color: "rgba(255,255,255,0.8)", fontSize: 13 },
-  thinking: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 52, borderRadius: radius.lg, borderWidth: 1 },
-  primaryWrap: { borderRadius: radius.lg, overflow: "hidden" },
-  primary: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.lg },
-  primaryText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
+  thinking: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: radius.lg, borderWidth: 1 },
 });

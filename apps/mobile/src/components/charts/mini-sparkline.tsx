@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useTheme } from "@/lib/use-theme";
@@ -18,7 +18,8 @@ export function MiniSparkline({
 }: MiniSparklineProps) {
   const { colors } = useTheme();
   const strokeColor = positive ? colors.positive : colors.negative;
-  const gradientId = useMemo(() => `sparkline-grad-${Math.random().toString(36).substring(2, 7)}`, []);
+  // useId is stable and unique per instance (Math.random during render is impure).
+  const gradientId = `sparkline-grad-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   const { pathData, areaPathData } = useMemo(() => {
     if (!data || data.length < 2) {

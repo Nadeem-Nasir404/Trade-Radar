@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View, Pressable, StyleSheet, ScrollView, useWindowDimensions } from "react-native";
+import { View, Pressable, StyleSheet, SectionList, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -7,6 +7,8 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { ScreenHeader } from "@/components/ui/screen-header";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { Button } from "@/components/ui/button";
 import { useTradesStore, pnlPct, type Trade } from "@/lib/stores/trades-store";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTheme } from "@/lib/use-theme";
@@ -53,76 +55,72 @@ export default function TradesScreen() {
     router.push("/new-trade");
   };
 
+  const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
+  // Virtualized: a long journal only mounts the rows on screen (each row subscribes to a live price).
+  const sections = [
+    ...(open.length > 0 ? [{ title: `Open · ${open.length}`, data: open }] : []),
+    ...(closed.length > 0 ? [{ title: `Closed · ${closed.length}`, data: closed }] : []),
+  ];
+
+  const header = (
+    <View style={styles.listHeader}>
+      <ScreenHeader title="My trades" subtitle={`${open.length} open · ${closed.length} closed`} />
+      {closed.length > 0 && (
+        <Surface style={styles.summary}>
+          <SummaryStat
+            label="Realized"
+            value={stats.realizedUsd == null ? "--" : formatUsd(stats.realizedUsd)}
+            tone={stats.realizedUsd == null ? undefined : stats.realizedUsd >= 0 ? colors.positive : colors.negative}
+          />
+          <View style={[styles.summaryDivider, { backgroundColor: colors.glassBorder }]} />
+          <SummaryStat label="Win rate" value={stats.winRate == null ? "--" : `${Math.round(stats.winRate)}%`} />
+          <View style={[styles.summaryDivider, { backgroundColor: colors.glassBorder }]} />
+          <SummaryStat
+            label="Best"
+            value={stats.best == null ? "--" : formatSignedPct(stats.best)}
+            tone={stats.best == null ? undefined : stats.best >= 0 ? colors.positive : colors.negative}
+          />
+        </Surface>
+      )}
+    </View>
+  );
+
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <AmbientOrbs />
-      <View style={[styles.topBar, styles.centered, { width: Math.min(width, MAX_CONTENT_WIDTH) }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityLabel="Back"
-          style={[styles.iconBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-        </Pressable>
-        <Pressable onPress={newTrade} style={[styles.newBtn, { backgroundColor: colors.brand }]}>
-          <Ionicons name="add" size={18} color={colors.brandForeground} />
-          <ThemedText style={{ color: colors.brandForeground, fontWeight: "700" }}>New trade</ThemedText>
-        </Pressable>
+      <View style={[styles.centered, { width: contentWidth }]}>
+        <ModalHeader action={<Button title="New trade" size="sm" icon={<Ionicons name="add" size={18} color={colors.brandForeground} />} onPress={newTrade} />} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.body, styles.centered, { width: Math.min(width, MAX_CONTENT_WIDTH) }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <ScreenHeader title="My trades" subtitle={`${open.length} open · ${closed.length} closed`} />
-
-        {trades.length === 0 ? (
+      <SectionList
+        sections={sections}
+        keyExtractor={(t) => t.id}
+        renderItem={({ item }) => <TradeRow trade={item} onPress={() => openDetail(item.id)} />}
+        renderSectionHeader={({ section }) => <SectionLabel>{section.title}</SectionLabel>}
+        stickySectionHeadersEnabled={false}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
           <Surface style={styles.empty}>
             <View style={[styles.emptyIcon, { backgroundColor: withAlpha(colors.brand, 0.14) }]}>
               <Ionicons name="journal-outline" size={26} color={colors.brand} />
             </View>
-            <ThemedText style={styles.emptyTitle}>Your trade journal is empty</ThemedText>
+            <ThemedText variant="subtitle">Your trade journal is empty</ThemedText>
             <ThemedText variant="subtle" style={styles.emptyText}>
               Log a trade to track its P&L live and turn it into a shareable card.
             </ThemedText>
-            <Pressable onPress={newTrade} style={[styles.emptyCta, { backgroundColor: colors.brand }]}>
-              <ThemedText style={{ color: colors.brandForeground, fontWeight: "700" }}>Log your first trade</ThemedText>
-            </Pressable>
+            <Button title="Log your first trade" onPress={newTrade} style={styles.emptyCta} />
           </Surface>
-        ) : (
-          <>
-            {closed.length > 0 && (
-              <Surface style={styles.summary}>
-                <SummaryStat
-                  label="Realized"
-                  value={stats.realizedUsd == null ? "--" : formatUsd(stats.realizedUsd)}
-                  tone={stats.realizedUsd == null ? undefined : stats.realizedUsd >= 0 ? colors.positive : colors.negative}
-                />
-                <View style={[styles.summaryDivider, { backgroundColor: colors.glassBorder }]} />
-                <SummaryStat label="Win rate" value={stats.winRate == null ? "--" : `${Math.round(stats.winRate)}%`} />
-                <View style={[styles.summaryDivider, { backgroundColor: colors.glassBorder }]} />
-                <SummaryStat
-                  label="Best"
-                  value={stats.best == null ? "--" : formatSignedPct(stats.best)}
-                  tone={stats.best == null ? undefined : stats.best >= 0 ? colors.positive : colors.negative}
-                />
-              </Surface>
-            )}
-
-            {open.length > 0 && <SectionLabel>Open · {open.length}</SectionLabel>}
-            {open.map((t) => (
-              <TradeRow key={t.id} trade={t} onPress={() => openDetail(t.id)} />
-            ))}
-            {closed.length > 0 && <SectionLabel>Closed · {closed.length}</SectionLabel>}
-            {closed.map((t) => (
-              <TradeRow key={t.id} trade={t} onPress={() => openDetail(t.id)} />
-            ))}
-          </>
-        )}
-      </ScrollView>
+        }
+        ItemSeparatorComponent={RowGap}
+        contentContainerStyle={[styles.body, styles.centered, { width: contentWidth }]}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
+}
+
+function RowGap() {
+  return <View style={styles.rowGap} />;
 }
 
 /** One trade: side, symbol, entry -> exit (or live price), and P&L - live for open trades with a market feed. */
@@ -141,7 +139,7 @@ function TradeRow({ trade, onPress }: { trade: Trade; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${trade.side} ${trade.symbol}`}>
       {({ pressed }) => (
-        <Surface style={[styles.row, pressed && { opacity: 0.85 }]}>
+        <Surface blur={false} style={[styles.row, pressed && { opacity: 0.85 }]}>
           <View style={[styles.sidePill, { backgroundColor: withAlpha(sideTone, 0.14) }]}>
             <Ionicons name={trade.side === "LONG" ? "trending-up" : "trending-down"} size={14} color={sideTone} />
             <ThemedText style={[styles.sideText, { color: sideTone }]}>{trade.side}</ThemedText>
@@ -215,11 +213,10 @@ function formatHeld(ms: number): string {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { alignSelf: "center" },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  iconBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  newBtn: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, paddingHorizontal: 16, borderRadius: radius.full },
-  body: { padding: 20, gap: 10, paddingBottom: 40 },
-  section: { marginTop: 12, marginLeft: 4, fontSize: 11, letterSpacing: 1 },
+  body: { padding: 20, paddingTop: 4, paddingBottom: 40 },
+  listHeader: { gap: 14 },
+  rowGap: { height: 10 },
+  section: { marginTop: 22, marginBottom: 10, marginLeft: 4, fontSize: 11, letterSpacing: 1 },
   summary: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 8, marginTop: 4 },
   summaryStat: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: 6 },
   summaryLabel: { fontSize: 12 },
@@ -236,9 +233,8 @@ const styles = StyleSheet.create({
   liveRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontSize: 11 },
-  empty: { padding: 28, alignItems: "center", gap: 10, marginTop: 8 },
+  empty: { padding: 28, alignItems: "center", gap: 10, marginTop: 18 },
   emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontWeight: "700", fontSize: 17 },
   emptyText: { textAlign: "center", maxWidth: 300 },
-  emptyCta: { marginTop: 6, height: 46, paddingHorizontal: 20, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
+  emptyCta: { marginTop: 6, alignSelf: "stretch" },
 });

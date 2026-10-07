@@ -1,3 +1,4 @@
+/* global __dirname */
 // Local tooling script - embeds lightweight-charts' standalone build into the app, so the chart
 // WebView renders from the bundle instead of downloading the library from a CDN on every open
 // (slower first paint, and a blank chart on a weak or offline connection).

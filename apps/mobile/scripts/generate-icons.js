@@ -1,3 +1,4 @@
+/* global __dirname, Buffer */
 // One-off local tooling script (not shipped, not run by EAS) - regenerates every app icon /
 // splash / notification asset from the brand SVGs in assets/brand/, so they all stay consistent.
 // Run with: node scripts/generate-icons.js

@@ -1,10 +1,10 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { View, ScrollView, Pressable, StyleSheet, Alert as RNAlert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
+import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { Badge } from "@/components/ui/badge";
@@ -56,10 +56,14 @@ export default function MarketDetailScreen() {
   const deleteAlert = useDeleteAlert();
   const [tappedPrice, setTappedPrice] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Switching coins clears the tapped price and drawing mode. Done during render (React's
+  // "adjust state on prop change" pattern) so the old coin's state never paints for a frame.
+  const [shownSymbol, setShownSymbol] = useState(symbol);
+  if (shownSymbol !== symbol) {
+    setShownSymbol(symbol);
     setTappedPrice(null);
     setDrawMode(false);
-  }, [symbol]);
+  }
 
   // Live prices are rendered by small components (LivePriceHeader, LiveLegend, AlertDistance) and
   // drawn straight into the chart, so a price update never re-renders this whole screen.
@@ -84,12 +88,12 @@ export default function MarketDetailScreen() {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
         <View style={styles.header}>
-          <Skeleton width={40} height={40} radius={999} />
+          <Skeleton width={44} height={44} radius={radius.md} />
           <View style={[styles.headerCenter, { gap: 6 }]}>
             <Skeleton width={96} height={16} />
             <Skeleton width={64} height={12} />
           </View>
-          <Skeleton width={40} height={40} radius={999} />
+          <Skeleton width={44} height={44} radius={radius.md} />
         </View>
         <View style={[styles.content, { gap: 10 }]}>
           <Skeleton width={180} height={32} />
@@ -111,23 +115,20 @@ export default function MarketDetailScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.iconButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-        </Pressable>
+        <IconButton icon="chevron-back" label="Back" onPress={() => router.back()} />
         <View style={styles.headerCenter}>
           <ThemedText style={styles.headerSymbol}>{instrument.displaySymbol}</ThemedText>
           <ThemedText variant="subtle">{instrument.name ?? instrument.provider}</ThemedText>
         </View>
-        <Pressable
-          hitSlop={12}
+        <IconButton
+          icon={isFavorite ? "star" : "star-outline"}
+          label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          color={isFavorite ? colors.warning : colors.foreground}
           onPress={() => {
             haptics.light();
             toggleFavorite.mutate(instrument.id);
           }}
-          style={[styles.iconButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-        >
-          <Ionicons name={isFavorite ? "star" : "star-outline"} size={18} color={isFavorite ? colors.warning : colors.foreground} />
-        </Pressable>
+        />
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
@@ -383,7 +384,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  iconButton: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   headerCenter: { alignItems: "center", gap: 2 },
   headerSymbol: { fontSize: 17, fontWeight: "600" },
   header: {

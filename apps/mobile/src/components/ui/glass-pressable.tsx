@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, View, type StyleProp, type ViewStyle, type Insets } from "react-native";
 import { BlurView } from "expo-blur";
 import { useTheme } from "@/lib/use-theme";
@@ -10,6 +10,8 @@ interface GlassPressableProps {
   active?: boolean;
   disabled?: boolean;
   hitSlop?: number | Insets;
+  /** Read out by screen readers. */
+  accessibilityLabel?: string;
   /** Stack the children vertically instead of in a row. */
   vertical?: boolean;
   /** Size, radius and padding of the button. */
@@ -21,9 +23,10 @@ interface GlassPressableProps {
  * Frosted-glass button: real backdrop blur behind a translucent tint, with a springy press
  * (the button shrinks slightly and the tint deepens while the finger is down).
  */
-export function GlassPressable({ onPress, onLongPress, active = false, disabled, hitSlop, vertical, style, children }: GlassPressableProps) {
+export function GlassPressable({ onPress, onLongPress, active = false, disabled, hitSlop, accessibilityLabel, vertical, style, children }: GlassPressableProps) {
   const { colors, isDark } = useTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  // Held in state rather than a ref so render never reads ref.current.
+  const [scale] = useState(() => new Animated.Value(1));
   const [pressed, setPressed] = useState(false);
 
   const animateTo = (to: number) =>
@@ -52,6 +55,9 @@ export function GlassPressable({ onPress, onLongPress, active = false, disabled,
         onLongPress={onLongPress}
         disabled={disabled}
         hitSlop={hitSlop}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ selected: active, disabled: !!disabled }}
         onPressIn={() => {
           setPressed(true);
           animateTo(0.93);

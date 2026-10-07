@@ -1,21 +1,23 @@
 import { useMemo, useRef, useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
+import { View, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { saveCardToGallery } from "@/lib/save-card";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { IconButton } from "@/components/ui/icon-button";
+import { Button } from "@/components/ui/button";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { PnlCard } from "@/components/trade/pnl-card";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { useTradesStore } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
+import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 import { formatCompactPrice } from "@/lib/format";
 
@@ -65,11 +67,7 @@ export default function TradeDetailScreen() {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
         <AmbientOrbs />
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-            <Ionicons name="chevron-back" size={18} color={colors.foreground} />
-          </Pressable>
-        </View>
+        <ModalHeader />
         <ThemedText variant="subtle" style={{ padding: 20 }}>This trade was removed.</ThemedText>
       </SafeAreaView>
     );
@@ -100,15 +98,7 @@ export default function TradeDetailScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
       <AmbientOrbs />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="chevron-back" size={18} color={colors.foreground} />
-        </Pressable>
-        <ThemedText style={styles.headerTitle}>{trade.symbol}</ThemedText>
-        <Pressable onPress={confirmRemove} hitSlop={12} style={[styles.closeBtn, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Ionicons name="trash-outline" size={18} color={colors.negative} />
-        </Pressable>
-      </View>
+      <ModalHeader title={trade.symbol} action={<IconButton icon="trash-outline" label="Delete trade" color={colors.negative} onPress={confirmRemove} />} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
@@ -121,14 +111,7 @@ export default function TradeDetailScreen() {
               <PnlCard ref={cardRef} trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
             </SectionErrorBoundary>
 
-            <Pressable
-              onPress={save}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.saveWrap, { borderColor: colors.glassBorder, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 }]}
-            >
-              <Ionicons name="download-outline" size={18} color={colors.foreground} />
-              <ThemedText style={{ fontWeight: "700" }}>Save card to gallery</ThemedText>
-            </Pressable>
+            <Button title="Save card to gallery" variant="glass" icon={<Ionicons name="download-outline" size={18} color={colors.foreground} />} onPress={save} />
           </View>
 
           <View style={[styles.detailColumn, wide ? styles.detailColumnWide : { width: cardWidth }]}>
@@ -164,11 +147,7 @@ export default function TradeDetailScreen() {
                     />
                   </View>
                 )}
-                <Pressable onPress={endTrade} disabled={currentPrice == null} style={[styles.closeWrap, { opacity: currentPrice == null ? 0.5 : 1 }]}>
-                  <LinearGradient colors={[colors.brand, colors.brandGradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.close}>
-                    <ThemedText style={styles.closeText}>Close trade{currentPrice != null ? ` at ${formatCompactPrice(currentPrice)}` : ""}</ThemedText>
-                  </LinearGradient>
-                </Pressable>
+                <Button title={`Close trade${currentPrice != null ? ` at ${formatCompactPrice(currentPrice)}` : ""}`} onPress={endTrade} disabled={currentPrice == null} />
               </Surface>
             )}
           </View>
@@ -189,9 +168,6 @@ function InfoRow({ label, value, tone }: { label: string; value: string; tone?: 
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  closeBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700" },
   body: { padding: 20, gap: 16, paddingBottom: 40, alignItems: "center" },
   bodyWide: { flexDirection: "row", alignItems: "flex-start", justifyContent: "center", gap: 24 },
   cardColumn: { gap: 12 },
@@ -200,10 +176,6 @@ const styles = StyleSheet.create({
   pickerLabel: { marginLeft: 4, fontSize: 11, letterSpacing: 1 },
   info: { padding: 16, gap: 12 },
   infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  numRow: { height: 48, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14, justifyContent: "center" },
-  numInput: { fontSize: 16, fontWeight: "600", padding: 0 },
-  closeWrap: { borderRadius: radius.lg, overflow: "hidden" },
-  close: { height: 52, alignItems: "center", justifyContent: "center", borderRadius: radius.lg },
-  closeText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
-  saveWrap: { height: 50, borderRadius: radius.lg, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  numRow: { height: 50, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: 14, justifyContent: "center" },
+  numInput: { fontSize: 16, fontFamily: fonts.bodySemibold, padding: 0 },
 });
