@@ -1,5 +1,5 @@
-# Local tooling script (not shipped) - generates the illustrated P&L card backgrounds Anime, Money
-# Printer, Stonks and Diamond Hands at 1080x1350 (drawn at 2x, downsampled for clean edges). Artwork
+# Local tooling script (not shipped) - generates the illustrated P&L card backgrounds Anime and
+# Diamond Hands (printer()/stonks() are earlier drawn versions, now replaced by the original memes) at 1080x1350 (drawn at 2x, downsampled for clean edges). Artwork
 # stays between the card's top bar and its tagline (y 190-560); the lower part fades dark for the
 # numbers. Needs Pillow, the repo's node_modules (for Anton) and the WenQuanYi font (for katakana).
 # Run: python3 scripts/generate-card-art.py
@@ -55,7 +55,7 @@ def save(im, name):
 # ---------------------------------------------------------------- Anime
 def anime():
     random.seed(7)
-    im = vgrad([(0, "#1B0B3F"), (0.35, "#4C1D95"), (0.6, "#2A0E52"), (1, "#0A0616")])
+    im = vgrad([(0, "#1B0B3F"), (0.35, "#4C1D95"), (0.7, "#3B1170"), (1, "#24094A")])
     fx, fy = 700 * S, 360 * S
     im = glow(im, fx, fy, 420 * S, "#F472B6", 120)
     im = glow(im, fx, fy, 200 * S, "#FDE68A", 150)
@@ -86,7 +86,7 @@ def anime():
     for _ in range(26):
         x, y = random.uniform(80, 1000) * S, random.uniform(200, 560) * S
         sparkle(d, x, y, random.uniform(6, 20) * S, (255, 255, 255, random.randint(150, 240)))
-    im = bottom_scrim(im, 0.42, 0.85)
+    im = bottom_scrim(im, 0.42, 0.4)
     save(im, "anime")
 
 # ---------------------------------------------------------------- Money printer
@@ -185,7 +185,7 @@ def diamond(im, cx, cy, size, alpha=255, blur=0):
 
 def diamonds():
     random.seed(5)
-    im = vgrad([(0, "#041A2E"), (0.45, "#0A2F4D"), (1, "#03080F")])
+    im = vgrad([(0, "#041A2E"), (0.45, "#0A2F4D"), (1, "#0B3555")])
     im = glow(im, 700 * S, 360 * S, 420 * S, "#22D3EE", 120)
     for (x, y, s, bl) in [(170, 300, 120, 3), (380, 500, 80, 4), (975, 500, 100, 3), (110, 470, 70, 5)]:
         im = diamond(im, x * S, y * S, s * S, 170, bl * S)
@@ -195,9 +195,9 @@ def diamonds():
         sparkle(d, x * S, y * S, r * S)
     for _ in range(30):
         sparkle(d, random.uniform(60, 1020) * S, random.uniform(200, 560) * S, random.uniform(3, 9) * S, (207, 250, 254, random.randint(110, 220)))
-    im = bottom_scrim(im, 0.42, 0.86)
+    im = bottom_scrim(im, 0.42, 0.4)
     save(im, "diamond")
 
-anime(); printer(); stonks(); diamonds()
+anime(); diamonds()
 import os
-for n in ["anime", "printer", "stonks", "diamond"]: print(n, os.path.getsize(OUT + n + ".jpg") // 1024, "KB")
+for n in ["anime", "diamond"]: print(n, os.path.getsize(OUT + n + ".jpg") // 1024, "KB")

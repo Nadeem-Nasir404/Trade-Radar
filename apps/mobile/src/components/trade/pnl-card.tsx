@@ -168,10 +168,10 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
 
 /** Shading laid over each artwork only where text sits, so numbers stay readable without dulling the picture. */
 const ARTWORK_SCRIMS: Partial<Record<CardStyle, ReactNode>> = {
-  // Face stays untouched in the top half; the numbers sit on a dark fade at the bottom.
+  // Face stays untouched; a light shade at the bottom keeps the photo visible behind the numbers.
   gigachad: (
     <LinearGradient
-      colors={["rgba(0,0,0,0.35)", "rgba(0,0,0,0)", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.92)"]}
+      colors={["rgba(0,0,0,0.35)", "rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.6)"]}
       locations={[0, 0.2, 0.55, 0.85]}
       style={StyleSheet.absoluteFill}
     />

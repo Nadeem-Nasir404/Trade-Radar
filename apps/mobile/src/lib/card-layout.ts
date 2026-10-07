@@ -30,7 +30,21 @@ export const CARD_FONTS = {
   body: fonts.bodySemibold,
 };
 
-export type CardStyle = "gigachad" | "anime" | "moonlit" | "printer" | "stonks" | "diamond" | "noir" | "blush" | "minimal";
+export type CardStyle =
+  | "gigachad"
+  | "stonks"
+  | "printer"
+  | "feelsgood"
+  | "wojak"
+  | "notover"
+  | "fine"
+  | "rainy"
+  | "anime"
+  | "moonlit"
+  | "diamond"
+  | "noir"
+  | "blush"
+  | "minimal";
 
 /** Used when nothing (or a since-removed style) is saved. */
 export const DEFAULT_CARD_STYLE: CardStyle = "gigachad";
@@ -56,6 +70,86 @@ export interface CardTheme {
 }
 
 export const CARD_THEMES: Record<CardStyle, CardTheme> = {
+  feelsgood: {
+    label: "Feels Good",
+    text: "#111118",
+    sub: "#6B7082",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#F7F7F7", "#F7F7F7"],
+    background: require("../../assets/cards/feelsgood.jpg"),
+    tagline: { profit: "Feels good man", loss: "Feels bad man" },
+    corners: true,
+  },
+  wojak: {
+    label: "Wojak",
+    text: "#111118",
+    sub: "#6B7082",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#1D4ED8",
+    pillText: "#FFFFFF",
+    pillBorder: "#1D4ED8",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#FFFFFF", "#FFFFFF"],
+    background: require("../../assets/cards/wojak.jpg"),
+    tagline: { profit: "Tears of joy", loss: "It's over" },
+    corners: true,
+  },
+  notover: {
+    label: "Not Over",
+    text: "#111118",
+    sub: "#6B7082",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#F8F8F8", "#F8F8F8"],
+    background: require("../../assets/cards/notover.jpg"),
+    tagline: { profit: "Told you so", loss: "Revenge trade loading" },
+    corners: true,
+  },
+  fine: {
+    label: "It's Fine",
+    text: "#FFFFFF",
+    sub: "#C7C9D3",
+    profit: "#FFFFFF",
+    loss: "#FECACA",
+    pillBg: "#FDBA74",
+    pillText: "#111118",
+    pillBorder: "#FDBA74",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#141414", "#050505"],
+    background: require("../../assets/cards/fine.jpg"),
+    tagline: { profit: "Finally made it", loss: "It's fine. I'm fine." },
+    corners: true,
+  },
+  rainy: {
+    label: "Rainy Day",
+    text: "#FFFFFF",
+    sub: "#C7C9D3",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#E5E7EB",
+    pillText: "#111118",
+    pillBorder: "#E5E7EB",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#141414", "#050505"],
+    background: require("../../assets/cards/rainy.jpg"),
+    tagline: { profit: "After the storm", loss: "Raining red" },
+    corners: true,
+  },
   anime: {
     label: "Anime",
     text: "#FFFFFF",
@@ -202,8 +296,53 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
   },
 };
 
+/**
+ * Styles grouped into families. The picker shows one tile per family; tapping a family shows a
+ * random style from it, and tapping it again shuffles to another.
+ */
+export type CardPackId = "gigachad" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
+
+export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[] }> = {
+  gigachad: { label: "Gigachad", styles: ["gigachad"] },
+  apu: { label: "Apu", styles: ["feelsgood", "notover"] },
+  wojak: { label: "Wojak", styles: ["wojak", "rainy", "fine"] },
+  stonks: { label: "Stonks", styles: ["stonks", "printer", "diamond"] },
+  anime: { label: "Anime", styles: ["anime"] },
+  aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
+  minimal: { label: "Minimal", styles: ["minimal"] },
+};
+
 /** Picker order. */
-export const CARD_STYLES: CardStyle[] = ["gigachad", "anime", "moonlit", "printer", "stonks", "diamond", "noir", "blush", "minimal"];
+export const CARD_PACK_ORDER: CardPackId[] = ["gigachad", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
+
+export function packOf(style: CardStyle): CardPackId {
+  return CARD_PACK_ORDER.find((id) => CARD_PACKS[id].styles.includes(style)) ?? "minimal";
+}
+
+/** A random style from `pack`, never `current` when the pack has others to choose from. */
+export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyle {
+  const options = CARD_PACKS[pack].styles.filter((s) => s !== current);
+  const pool = options.length > 0 ? options : CARD_PACKS[pack].styles;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Every style, in family order. */
+export const CARD_STYLES: CardStyle[] = [
+  "gigachad",
+  "stonks",
+  "printer",
+  "feelsgood",
+  "wojak",
+  "notover",
+  "fine",
+  "rainy",
+  "anime",
+  "moonlit",
+  "diamond",
+  "noir",
+  "blush",
+  "minimal",
+];
 
 export function isCardStyle(value: unknown): value is CardStyle {
   return typeof value === "string" && (CARD_STYLES as string[]).includes(value);

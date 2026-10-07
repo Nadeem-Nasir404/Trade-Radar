@@ -10,11 +10,12 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";
-import { PnlCard, CARD_STYLE_LABELS } from "@/components/trade/pnl-card";
+import { PnlCard } from "@/components/trade/pnl-card";
+import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { useLivePrice } from "@/lib/ws/use-live-price";
-import { useTradesStore, type TradeSide, type CardStyle } from "@/lib/stores/trades-store";
+import { useTradesStore, type TradeSide } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -104,23 +105,7 @@ export default function AlertTriggeredScreen() {
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {activeTrade ? (
           <>
-            <View style={styles.styleRow}>
-              {(Object.keys(CARD_STYLE_LABELS) as CardStyle[]).map((st) => {
-                const active = st === cardStyle;
-                return (
-                  <Pressable
-                    key={st}
-                    onPress={() => {
-                      haptics.selection();
-                      setCardStyle(st);
-                    }}
-                    style={[styles.styleChip, { backgroundColor: active ? colors.brand : colors.glass, borderColor: colors.glassBorder }]}
-                  >
-                    <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "600", fontSize: 12 }}>{CARD_STYLE_LABELS[st]}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <CardStylePicker value={cardStyle} onChange={setCardStyle} />
             <SectionErrorBoundary label="Trade card">
               <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
             </SectionErrorBoundary>
@@ -214,8 +199,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: "700" },
   spacer: { width: 40 },
   body: { padding: 20, gap: 16, paddingBottom: 40 },
-  styleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  styleChip: { paddingHorizontal: 14, height: 32, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   hero: { padding: 22, alignItems: "center", gap: 8 },
   symbolLine: { marginTop: 12, letterSpacing: 1 },
   headline: { fontSize: 17, fontWeight: "700", textAlign: "center" },
