@@ -4,7 +4,7 @@ import { use, useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/api/query-keys";
 import Link from "next/link";
-import { ArrowUp, ArrowDown, Bell, Plus, Star } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { PriceChart } from "@/components/charts/price-chart";
+import { FavoriteButton } from "@/components/markets/favorite-button";
+import { MarketAlertRow } from "@/components/alerts/market-alert-row";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts } from "@/lib/api/hooks/use-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useAlertDraftStore } from "@/lib/stores/alert-draft-store";
 import { formatCompactNumber, formatCompactPrice, formatPct, cn } from "@/lib/utils";
-import { formatAlertTarget, formatConditionLabel, isUpwardCondition } from "@/lib/format-condition";
+import { isUpwardCondition } from "@/lib/format-condition";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 
@@ -75,14 +77,12 @@ export default function MarketDetailPage({ params }: { params: Promise<{ symbol:
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{instrument.displaySymbol}</h1>
-            <Button variant="ghost" size="icon-sm">
-              <Star className="size-4" />
-            </Button>
+            <FavoriteButton instrumentId={instrument.id} />
             {instrument.isDemo && <Badge variant="warning">Demo data</Badge>}
             {live.feedStatus === "STALE" && <Badge variant="negative">Feed delayed</Badge>}
           </div>
           <p className="text-sm text-foreground-subtle">
-            {instrument.provider} {instrument.exchange ? `· ${instrument.exchange}` : ""}
+            {instrument.exchange ?? instrument.provider}
           </p>
         </div>
         <Button onClick={handleCreateAlert}>
@@ -137,18 +137,9 @@ export default function MarketDetailPage({ params }: { params: Promise<{ symbol:
           />
         ) : (
           <div className="flex flex-col gap-2">
-            {instrumentAlerts.map((alert) => {
-              const up = isUpwardCondition(alert.conditionType);
-              return (
-                <div key={alert.id} className="flex items-center justify-between rounded-lg border border-glass-border bg-glass px-4 py-3">
-                  <span className={cn("flex items-center gap-2 font-tabular text-sm", up ? "text-positive" : "text-negative")}>
-                    {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
-                    {formatAlertTarget(alert)}
-                  </span>
-                  <span className="text-xs text-foreground-subtle">{formatConditionLabel(alert.conditionType)}</span>
-                </div>
-              );
-            })}
+            {instrumentAlerts.map((alert) => (
+              <MarketAlertRow key={alert.id} alert={alert} />
+            ))}
           </div>
         )}
       </div>
