@@ -1,9 +1,12 @@
 import { jest } from "@jest/globals";
+import type { AlertTriggerJobPayload } from "@levelpulse/shared-types";
 import Redis from "ioredis-mock";
 import { AlertStatus, ConditionType, type Alert } from "@prisma/client";
 import { AlertRegistryService } from "./alert-registry.service";
 import { AlertEngineService } from "./alert-engine.service";
 import type { MarketTickEvent } from "../market-data/market-data.events";
+
+type QueueAdd = (name: string, payload: AlertTriggerJobPayload, opts?: unknown) => Promise<void>;
 
 function makeAlert(overrides: Partial<Alert> & Pick<Alert, "id" | "userId" | "instrumentId" | "conditionType" | "targetValue">): Alert {
   return {
@@ -46,13 +49,13 @@ describe("AlertEngineService.evaluateTick (crossing logic)", () => {
   let redis: InstanceType<typeof Redis>;
   let registry: AlertRegistryService;
   let engine: AlertEngineService;
-  let queueAdd: jest.Mock;
+  let queueAdd: jest.Mock<QueueAdd>;
 
   beforeEach(async () => {
     redis = new Redis();
     await redis.flushall(); // ioredis-mock instances share a default in-memory store unless flushed
     registry = new AlertRegistryService(redis as any);
-    queueAdd = jest.fn().mockResolvedValue(undefined);
+    queueAdd = jest.fn<QueueAdd>().mockResolvedValue(undefined);
     engine = new AlertEngineService(registry, { add: queueAdd } as any);
   });
 
