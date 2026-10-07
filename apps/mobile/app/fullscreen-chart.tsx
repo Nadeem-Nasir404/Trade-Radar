@@ -12,6 +12,8 @@ import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
+import { useAlerts } from "@/lib/api/hooks/use-alerts";
+import { useChartAlerts } from "@/lib/hooks/use-chart-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -38,6 +40,8 @@ export default function FullscreenChartScreen() {
 
   const { data: instrument } = useMarket(symbol);
   const { data: candles, isLoading: historyLoading, isError: historyFailed } = useMarketHistory(symbol, timeframe);
+  const { data: alerts } = useAlerts({ search: symbol });
+  const { levels: alertLevels, onAlertMove, onAlertDelete } = useChartAlerts(instrument, alerts);
   // Price and change render in their own small components, so live updates don't re-render the screen.
   const queryClient = useQueryClient();
   const refetchHistory = useCallback(() => {
@@ -95,6 +99,9 @@ export default function FullscreenChartScreen() {
           drawTool={drawTool}
           drawingsKey={symbol}
           onPriceTap={setTappedPrice}
+          alertLevels={alertLevels}
+          onAlertMove={onAlertMove}
+          onAlertDelete={onAlertDelete}
           onDrawStage={setDrawStage}
         />
       </View>

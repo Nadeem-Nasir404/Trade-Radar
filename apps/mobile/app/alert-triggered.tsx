@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import { saveCardToGallery } from "@/lib/save-card";
 import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -13,6 +12,7 @@ import { ModalHeader } from "@/components/ui/modal-header";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { PnlCard } from "@/components/trade/pnl-card";
+import { CardActions } from "@/components/trade/card-actions";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useToastStore } from "@/lib/stores/toast-store";
@@ -58,22 +58,6 @@ export default function AlertTriggeredScreen() {
   const showToast = useToastStore((s) => s.show);
   const cardRef = useRef<View>(null);
 
-  const saveCard = async () => {
-    if (!cardRef.current) return;
-    try {
-      const result = await saveCardToGallery(cardRef.current);
-      if (result === "saved") {
-        haptics.success();
-        showToast("Saved to gallery", "Find the card in your Photos app", "success");
-      } else {
-        showToast("Permission needed", "Allow photo access to save the card", "error");
-      }
-    } catch (err) {
-      console.error("[save card]", err);
-      showToast("Could not save the card", (err as Error).message, "error");
-    }
-  };
-
   const start = (side: TradeSide) => {
     try {
       haptics.success();
@@ -111,7 +95,7 @@ export default function AlertTriggeredScreen() {
             <SectionErrorBoundary label="Trade card">
               <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
             </SectionErrorBoundary>
-            <Button title="Save card to gallery" variant="glass" icon={<Ionicons name="download-outline" size={18} color={colors.foreground} />} onPress={saveCard} />
+            <CardActions cardRef={cardRef} />
             <Button
               title={`Close trade at ${formatCompactPrice(price ?? activeTrade.entryPrice)}`}
               icon={<Ionicons name="stop-circle-outline" size={18} color={colors.brandForeground} />}

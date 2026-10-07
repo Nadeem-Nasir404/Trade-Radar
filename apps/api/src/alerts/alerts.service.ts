@@ -151,6 +151,9 @@ export class AlertsService {
 
   async update(userId: string, id: string, dto: UpdateAlertDto) {
     const existing = await this.findOwned(userId, id);
+    if (dto.conditionType !== undefined && !isDirectionFlip(existing.conditionType, dto.conditionType)) {
+      throw new BadRequestException("An alert's condition can only switch between above and below");
+    }
     if (isRangeCondition(existing.conditionType)) {
       assertValidRange(dto.targetValue ?? Number(existing.targetValue), dto.secondaryValue ?? Number(existing.secondaryValue));
     }
@@ -159,6 +162,7 @@ export class AlertsService {
     const updated = await this.prisma.alert.update({
       where: { id },
       data: {
+        conditionType: dto.conditionType,
         targetValue: dto.targetValue !== undefined ? new Prisma.Decimal(dto.targetValue) : undefined,
         secondaryValue: dto.secondaryValue !== undefined ? new Prisma.Decimal(dto.secondaryValue) : undefined,
         timeframe: dto.timeframe,
@@ -361,4 +365,15 @@ export class AlertsService {
       createdAt: alert.createdAt,
     };
   }
+}
+
+/** Level alerts whose direction can flip when their line is dragged across the price. */
+const DIRECTION_PAIRS: ConditionType[][] = [
+  [ConditionType.CROSSES_ABOVE, ConditionType.CROSSES_BELOW],
+  [ConditionType.ABOVE, ConditionType.BELOW],
+];
+
+/** True when `next` is `current` or its opposite direction (crosses above <-> below, above <-> below). */
+export function isDirectionFlip(current: ConditionType, next: ConditionType): boolean {
+  return current === next || DIRECTION_PAIRS.some((pair) => pair.includes(current) && pair.includes(next));
 }

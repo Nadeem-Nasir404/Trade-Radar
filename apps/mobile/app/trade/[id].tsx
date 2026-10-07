@@ -1,11 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { useLivePrice } from "@/lib/ws/use-live-price";
-import { saveCardToGallery } from "@/lib/save-card";
-import { useToastStore } from "@/lib/stores/toast-store";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
@@ -14,6 +11,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { PnlCard } from "@/components/trade/pnl-card";
+import { CardActions } from "@/components/trade/card-actions";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { useTradesStore, pnlPct } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
@@ -39,29 +37,12 @@ export default function TradeDetailScreen() {
   // Hand-logged trades have no instrument, so the user types the current price for those.
   const live = useLivePrice(trade?.instrumentId || undefined);
   const cardRef = useRef<View>(null);
-  const showToast = useToastStore((s) => s.show);
   const [current, setCurrent] = useState("");
   const typedPrice = useMemo(() => {
     const n = Number(current);
     return current.trim() !== "" && Number.isFinite(n) && n > 0 ? n : null;
   }, [current]);
   const currentPrice = live.price ?? typedPrice;
-
-  const save = async () => {
-    if (!cardRef.current) return;
-    try {
-      const result = await saveCardToGallery(cardRef.current);
-      if (result === "saved") {
-        haptics.success();
-        showToast("Saved to gallery", "Find the card in your Photos app", "success");
-      } else {
-        showToast("Permission needed", "Allow photo access to save the card", "error");
-      }
-    } catch (err) {
-      console.error("[save card]", err);
-      showToast("Could not save the card", (err as Error).message, "error");
-    }
-  };
 
   if (!trade) {
     return (
@@ -114,7 +95,7 @@ export default function TradeDetailScreen() {
               <PnlCard ref={cardRef} trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
             </SectionErrorBoundary>
 
-            <Button title="Save card to gallery" variant="glass" icon={<Ionicons name="download-outline" size={18} color={colors.foreground} />} onPress={save} />
+            <CardActions cardRef={cardRef} />
           </View>
 
           <View style={[styles.detailColumn, wide ? styles.detailColumnWide : { width: cardWidth }]}>

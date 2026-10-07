@@ -12,11 +12,9 @@ import { useDrawingsStore, type Drawing } from "@/lib/stores/drawings-store";
 import { exchangeNow, subscribeLivePrice, unsubscribeLivePrice, useLivePriceStore, type LivePriceState } from "@/lib/ws/live-price-store";
 import { LIGHTWEIGHT_CHARTS_SOURCE } from "./chart-lib.generated";
 import { haptics } from "@/lib/haptics";
+import type { ChartAlertLevel } from "@/lib/alert-lines";
 
-export interface ChartAlertLevel {
-  price: number;
-  up: boolean;
-}
+export type { ChartAlertLevel } from "@/lib/alert-lines";
 
 export type DrawTool = "trend" | "horizontal" | "rect";
 
@@ -41,6 +39,10 @@ interface TradingChartProps {
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
+  /** An alert line was dragged to a new price (only levels marked draggable). */
+  onAlertMove?: (alertId: string, price: number) => void;
+  /** An alert line was swiped off to the left. */
+  onAlertDelete?: (alertId: string) => void;
   onDrawStage?: (stage: "start" | "end") => void;
   timeframe?: string;
   /** Changes when the instrument or timeframe changes, so the view resets instead of preserving zoom. */
@@ -58,7 +60,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, alertLevels = [], height = 260, onPriceTap, onAlertMove, onAlertDelete, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   // isDark is the theme actually showing; `mode` is the user's setting and can be "system".
@@ -102,7 +104,15 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === "ready") setReady(true);
-      else if (msg.type === "plusShown") haptics.selection();
+      else if (msg.type === "plusShown" || msg.type === "alertGrab") haptics.selection();
+      else if (msg.type === "alertDeleteArmed") (msg.armed ? haptics.warning : haptics.selection)();
+      else if (msg.type === "alertMove") {
+        haptics.success();
+        onAlertMove?.(msg.id, msg.price);
+      } else if (msg.type === "alertDelete") {
+        haptics.medium();
+        onAlertDelete?.(msg.id);
+      }
       else if (msg.type === "priceTap") {
         haptics.medium();
         onPriceTap?.(msg.price);
@@ -336,6 +346,20 @@ function buildChartHtml(): string {
       }
       #plusBadge.pressed #plusFace { transform: scale(0.88); }
       #plusFace svg { display: block; }
+      /* Alert line handles: grab to drag the level, swipe left to delete. Siblings of the chart
+         (above its canvases), so touches on them never scroll the chart. */
+      #alertHandles { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+      .alertHandle {
+        position: absolute; height: 32px; min-width: 40px; transform: translateY(-50%); pointer-events: auto;
+        display: flex; align-items: center; justify-content: flex-end; touch-action: none; -webkit-tap-highlight-color: transparent;
+      }
+      .alertGrip {
+        height: 20px; padding: 0 6px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.35); transition: transform 0.1s ease-out, background-color 0.12s;
+      }
+      .alertGrip svg { display: block; }
+      .alertHandle.dragging .alertGrip { transform: scale(1.15); }
+      .alertHandle.deleting .alertGrip { background: #ef4444 !important; }
       /* Last price and time left in the bar, as one tag on the price axis (the series' own label is off). */
       #lastTag {
         position: absolute; right: 0; transform: translateY(-50%); box-sizing: border-box;
@@ -355,6 +379,7 @@ function buildChartHtml(): string {
     <div id="tapMarker">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
+    <div id="alertHandles"></div>
     <div id="plusBadge" role="button" aria-label="Add alert at this price">
       <div id="plusFace">
         <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
@@ -501,6 +526,7 @@ function buildChartHtml(): string {
 
         chart.timeScale().subscribeVisibleTimeRangeChange(function () {
           hideTapMarker();
+          placeAlertHandles();
         });
         post({ type: 'ready' });
       }
@@ -682,7 +708,10 @@ function buildChartHtml(): string {
         el.style.top = y + 'px';
         el.style.opacity = 1;
       }
-      setInterval(updateLastTag, 250);
+      setInterval(function () {
+        updateLastTag();
+        placeAlertHandles(); // the price scale rescales as prices move
+      }, 250);
 
       var clockOffsetMs = 0, tagFrame = 0;
       window.updateLastCandle = function (c, offsetMs) {
@@ -699,19 +728,137 @@ function buildChartHtml(): string {
         if (watermark) watermark.applyOptions({ lines: [{ text: text, color: theme ? theme.watermarkColor : 'rgba(255,255,255,0.05)', fontSize: 30, fontStyle: '700' }] });
       };
 
+      // ---- Alert lines: dashed price lines with a draggable handle per editable alert.
+      var alertLevels = [], alertDrag = null, DELETE_SWIPE_PX = 70;
+      var GRIP_SVG = '<svg width="10" height="12" viewBox="0 0 10 12" fill="#fff"><circle cx="2.5" cy="2" r="1.3"/><circle cx="7.5" cy="2" r="1.3"/><circle cx="2.5" cy="6" r="1.3"/><circle cx="7.5" cy="6" r="1.3"/><circle cx="2.5" cy="10" r="1.3"/><circle cx="7.5" cy="10" r="1.3"/></svg>';
+      function levelColor(level, price) {
+        // While dragging, the colour follows which side of the live price the line is on.
+        var up = lastBarClose === null || price === undefined ? level.up : price > lastBarClose;
+        return up ? upHex : downHex;
+      }
       window.setAlertLevels = function (levels) {
-        priceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
+        if (alertDrag) return; // never rebuild under the finger; the next update after release applies
+        priceLines.forEach(function (l) { if (l) candleSeries.removePriceLine(l); });
+        alertLevels = levels;
         priceLines = levels.map(function (level) {
           return candleSeries.createPriceLine({
-            price: level.price,
-            color: level.up ? upHex : downHex,
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: true,
-            title: '\uD83D\uDD14',
+            price: level.price, color: level.up ? upHex : downHex, lineWidth: 1, lineStyle: 2,
+            axisLabelVisible: true, title: '\uD83D\uDD14',
           });
         });
+        renderAlertHandles();
       };
+      function renderAlertHandles() {
+        var box = document.getElementById('alertHandles');
+        box.innerHTML = '';
+        alertLevels.forEach(function (level, i) {
+          if (!level.draggable) return;
+          var el = document.createElement('div');
+          el.className = 'alertHandle';
+          el.setAttribute('data-index', String(i));
+          el.setAttribute('role', 'button');
+          el.setAttribute('aria-label', 'Drag to move this alert, swipe left to delete');
+          el.innerHTML = '<div class="alertGrip">' + GRIP_SVG + '</div>';
+          el.firstChild.style.backgroundColor = level.up ? upHex : downHex;
+          attachAlertDrag(el, i);
+          box.appendChild(el);
+        });
+        placeAlertHandles();
+      }
+      function placeAlertHandles() {
+        if (!candleSeries) return;
+        var right = chart.priceScale('right').width() + 2;
+        var els = document.querySelectorAll('.alertHandle');
+        for (var n = 0; n < els.length; n++) {
+          var el = els[n], i = Number(el.getAttribute('data-index'));
+          var price = alertDrag && alertDrag.index === i ? alertDrag.price : alertLevels[i].price;
+          var y = candleSeries.priceToCoordinate(price);
+          if (y === null) { el.style.display = 'none'; continue; }
+          el.style.display = 'flex';
+          el.style.top = y + 'px';
+          el.style.right = right + 'px';
+        }
+      }
+      function attachAlertDrag(el, index) {
+        el.addEventListener('pointerdown', function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          try { el.setPointerCapture(e.pointerId); } catch (err) {}
+          var level = alertLevels[index];
+          alertDrag = {
+            index: index, el: el, id: level.id, startPrice: level.price, price: level.price,
+            startX: e.clientX, startY: e.clientY, y0: candleSeries.priceToCoordinate(level.price), moved: false, deleting: false,
+          };
+          el.classList.add('dragging');
+          hidePlus();
+          chart.clearCrosshairPosition();
+          post({ type: 'alertGrab' });
+        });
+        el.addEventListener('pointermove', function (e) {
+          var d = alertDrag;
+          if (!d || d.index !== index || d.y0 === null) return;
+          e.stopPropagation();
+          var dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+          // A mostly-horizontal swipe to the left arms delete; sliding back disarms it.
+          var deleting = dx < -DELETE_SWIPE_PX && Math.abs(dx) > Math.abs(dy);
+          if (deleting !== d.deleting) {
+            d.deleting = deleting;
+            el.classList.toggle('deleting', deleting);
+            post({ type: 'alertDeleteArmed', armed: deleting });
+          }
+          var line = priceLines[index], level = alertLevels[index];
+          if (deleting) {
+            el.style.transform = 'translate(' + dx + 'px, -50%)';
+            el.style.opacity = '0.8';
+            line.applyOptions({ price: d.startPrice, color: '#ef4444' });
+            d.price = d.startPrice;
+            placeAlertHandles();
+            return;
+          }
+          el.style.transform = '';
+          el.style.opacity = '';
+          var p = candleSeries.coordinateToPrice(d.y0 + dy);
+          if (p === null) return;
+          d.price = p;
+          var color = levelColor(level, p);
+          line.applyOptions({ price: p, color: color });
+          el.firstChild.style.backgroundColor = color;
+          placeAlertHandles();
+        });
+        el.addEventListener('pointerup', function (e) { e.stopPropagation(); endAlertDrag(false); });
+        el.addEventListener('pointercancel', function () { endAlertDrag(true); });
+      }
+      function endAlertDrag(cancelled) {
+        var d = alertDrag;
+        if (!d) return;
+        alertDrag = null;
+        var i = d.index, line = priceLines[i], level = alertLevels[i];
+        d.el.classList.remove('dragging', 'deleting');
+        d.el.style.transform = '';
+        d.el.style.opacity = '';
+        // Back where it started (a tap, or a swipe that slid back): nothing to save.
+        var unchanged = !d.deleting && Number(fmt(d.price)) === Number(fmt(d.startPrice));
+        if (cancelled || unchanged || (!d.moved && !d.deleting)) {
+          line.applyOptions({ price: d.startPrice, color: level.up ? upHex : downHex });
+          d.el.firstChild.style.backgroundColor = level.up ? upHex : downHex;
+          placeAlertHandles();
+          return;
+        }
+        if (d.deleting) {
+          // Gone at once; the app deletes it (and puts it back if that fails).
+          candleSeries.removePriceLine(line);
+          priceLines[i] = null;
+          d.el.remove();
+          post({ type: 'alertDelete', id: d.id });
+          return;
+        }
+        var price = Number(fmt(d.price));
+        level.price = price;
+        line.applyOptions({ price: price });
+        placeAlertHandles();
+        post({ type: 'alertMove', id: d.id, price: price });
+      }
 
       window.applySettings = function (s) {
         upHex = s.up; downHex = s.down;

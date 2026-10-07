@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { View, ScrollView, Pressable, StyleSheet, Alert as RNAlert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
+import { useChartAlerts } from "@/lib/hooks/use-chart-alerts";
 import { useIsFavorite, useToggleFavorite } from "@/lib/api/hooks/use-watchlists";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useLivePriceStore } from "@/lib/ws/live-price-store";
@@ -76,11 +77,7 @@ export default function MarketDetailScreen() {
   }, [queryClient, symbol, timeframe]);
   const onLiveBar = useCallback((bar: Candle) => legendRef.current?.update(bar), []);
 
-  const instrumentAlerts = useMemo(() => (alerts ?? []).filter((a) => a.instrumentId === instrument?.id), [alerts, instrument?.id]);
-  const chartLevels = useMemo(
-    () => instrumentAlerts.map((a) => ({ price: a.targetValue, up: isUpwardCondition(a.conditionType, a.targetValue) })),
-    [instrumentAlerts],
-  );
+  const { instrumentAlerts, levels: chartLevels, onAlertMove, onAlertDelete } = useChartAlerts(instrument, alerts);
 
   const isFavorite = useIsFavorite(instrument?.id);
   const toggleFavorite = useToggleFavorite();
@@ -183,6 +180,8 @@ export default function MarketDetailScreen() {
             failed={historyFailed}
             onLiveBar={onLiveBar}
             alertLevels={chartLevels}
+            onAlertMove={onAlertMove}
+            onAlertDelete={onAlertDelete}
             drawMode={drawMode}
             onDrawStage={setDrawStage}
             timeframe={timeframe}

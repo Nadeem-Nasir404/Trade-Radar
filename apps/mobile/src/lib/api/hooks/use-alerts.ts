@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { api } from "../client";
 import { queryKeys } from "../query-keys";
 import type { Alert, AlertGroup, ChannelPref } from "../types";
@@ -64,11 +64,45 @@ export function useUpdateAlert() {
   });
 }
 
+/**
+ * Applies `update` to every cached alert list right away (the alert queries share the "alerts"
+ * prefix) and returns what was there, so a failed request can put it back.
+ */
+async function patchCachedAlerts(queryClient: QueryClient, update: (alerts: Alert[]) => Alert[]) {
+  await queryClient.cancelQueries({ queryKey: ["alerts"] });
+  const previous = queryClient.getQueriesData<Alert[]>({ queryKey: ["alerts"] });
+  queryClient.setQueriesData<Alert[]>({ queryKey: ["alerts"] }, (old) => (Array.isArray(old) ? update(old) : old));
+  return previous;
+}
+
+function restoreCachedAlerts(queryClient: QueryClient, previous: [QueryKey, Alert[] | undefined][] | undefined) {
+  previous?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+}
+
+/** Deletes an alert, removing it from lists (and the chart) at once and restoring it if the request fails. */
 export function useDeleteAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/alerts/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onMutate: (id: string) => patchCachedAlerts(queryClient, (alerts) => alerts.filter((a) => a.id !== id)),
+    onError: (_error, _id, previous) => restoreCachedAlerts(queryClient, previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+  });
+}
+
+/**
+ * Moves an alert's level (dragging its chart line). The direction may flip when the line crosses
+ * the price; the new level shows at once and springs back if the request fails.
+ */
+export function useMoveAlert() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, targetValue, conditionType }: { id: string; targetValue: number; conditionType: ConditionType }) =>
+      api.patch<Alert>(`/alerts/${id}`, { targetValue, conditionType }),
+    onMutate: ({ id, targetValue, conditionType }) =>
+      patchCachedAlerts(queryClient, (alerts) => alerts.map((a) => (a.id === id ? { ...a, targetValue, conditionType } : a))),
+    onError: (_error, _input, previous) => restoreCachedAlerts(queryClient, previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
   });
 }
 
