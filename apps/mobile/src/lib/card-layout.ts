@@ -31,6 +31,9 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
+  | "wolf"
+  | "wolfpen"
+  | "wolfyacht"
   | "gigachad"
   | "stonks"
   | "printer"
@@ -49,7 +52,7 @@ export type CardStyle =
   | "minimal";
 
 /** Used when nothing (or a since-removed style) is saved. */
-export const DEFAULT_CARD_STYLE: CardStyle = "gigachad";
+export const DEFAULT_CARD_STYLE: CardStyle = "wolf";
 
 export interface CardTheme {
   label: string;
@@ -200,6 +203,54 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
     tagline: { profit: "Stonks", loss: "Not stonks" },
     corners: true,
   },
+  wolf: {
+    label: "Wolf",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#EAB308",
+    pillText: "#1A1600",
+    pillBorder: "#EAB308",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/wolf.jpg"),
+    tagline: { profit: "I'm not leaving", loss: "Still not leaving" },
+    corners: true,
+  },
+  wolfpen: {
+    label: "Sell Me This Pen",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#EAB308",
+    pillText: "#1A1600",
+    pillBorder: "#EAB308",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/wolfpen.jpg"),
+    tagline: { profit: "Sell me this pen", loss: "Pen still for sale" },
+    corners: true,
+  },
+  wolfyacht: {
+    label: "Yacht Life",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#EAB308",
+    pillText: "#1A1600",
+    pillBorder: "#EAB308",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/wolfyacht.jpg"),
+    tagline: { profit: "Throwing money around", loss: "Yacht's still mine" },
+    corners: true,
+  },
   diamond: {
     label: "Diamond Hands",
     text: "#111118",
@@ -331,23 +382,24 @@ export const CARD_THEMES: Record<CardStyle, CardTheme> = {
 };
 
 /**
- * Styles grouped into families. The picker shows one tile per family; tapping a family shows a
- * random style from it, and tapping it again shuffles to another.
+ * Styles grouped into families. The picker shows one tile per family with its first style as the
+ * cover; tapping a family shows that cover, and tapping it again shuffles to another style.
  */
-export type CardPackId = "gigachad" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
+export type CardPackId = "diamond" | "gigachad" | "apu" | "wojak" | "stonks" | "anime" | "aesthetic" | "minimal";
 
 export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[] }> = {
+  diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "diamond", "moneyrain"] },
   gigachad: { label: "Gigachad", styles: ["gigachad"] },
   apu: { label: "Apu", styles: ["feelsgood", "notover"] },
   wojak: { label: "Wojak", styles: ["wojak", "rainy", "fine"] },
-  stonks: { label: "Stonks", styles: ["stonks", "printer", "diamond", "moneyrain"] },
+  stonks: { label: "Stonks", styles: ["stonks", "printer"] },
   anime: { label: "Anime", styles: ["kurumi", "anime"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },
 };
 
 /** Picker order. */
-export const CARD_PACK_ORDER: CardPackId[] = ["gigachad", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
+export const CARD_PACK_ORDER: CardPackId[] = ["diamond", "gigachad", "apu", "wojak", "stonks", "anime", "aesthetic", "minimal"];
 
 export function packOf(style: CardStyle): CardPackId {
   return CARD_PACK_ORDER.find((id) => CARD_PACKS[id].styles.includes(style)) ?? "minimal";
@@ -362,6 +414,9 @@ export function randomStyleFrom(pack: CardPackId, current?: CardStyle): CardStyl
 
 /** Every style, in family order. */
 export const CARD_STYLES: CardStyle[] = [
+  "wolf",
+  "wolfpen",
+  "wolfyacht",
   "gigachad",
   "stonks",
   "printer",

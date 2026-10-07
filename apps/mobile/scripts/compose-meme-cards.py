@@ -25,6 +25,11 @@ MEMES = {
     "notover": dict(src="notover-meme.jpg", mode="fit", bg="#F8F8F8"),
     "feelsgood": dict(src="feelsgood-meme.jpg", mode="fit", bg="#F7F7F7"),
     "rainy": dict(src="rainy-meme.jpg", mode="fit", bg="blur", feather=36, fade=(620, 860)),
+    # Wolf of Wall Street stills, full-bleed behind the numbers.
+    "wolf": dict(src="wolf-meme.jpg", mode="full", top=0, fade=(470, 720), max_alpha=0.55),
+    "wolfpen": dict(src="wolfpen-meme.jpg", mode="full", top=110, fade=(620, 860)),
+    # Cropped from the left so Leo sits nearer the middle, clear of the numbers.
+    "wolfyacht": dict(src="wolfyacht-meme.jpg", mode="full", crop=(120, 0, 683, 449), top=90, fade=(600, 880)),
     # Stickers: cut out of their grey backdrop and set larger on a soft tinted gradient.
     "diamond": dict(src="diamond-meme.jpg", mode="fit", crop=(0, 232, 750, 712), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=70), bg=("#DCEFFF", "#FFFFFF"), glow="#BFE3FF"),
     "moneyrain": dict(src="moneyrain-meme.jpg", mode="fit", crop=(0, 96, 387, 446), cutout=True, box=(118, 608, 30), edge_fade=dict(bottom=60, top=30, sides=70), bg=("#DDF7E6", "#FFFFFF"), glow="#BBF7D0"),

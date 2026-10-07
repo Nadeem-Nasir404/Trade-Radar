@@ -9,8 +9,8 @@ import { withAlpha } from "@/lib/color";
 import { haptics } from "@/lib/haptics";
 
 /**
- * One tile per card family. Tapping a family shows a random style from it; tapping the selected
- * family again shuffles to a different one. Tiles preview the style that would show.
+ * One tile per card family. Tapping a family shows its cover style (the one on the tile); tapping
+ * the selected family again shuffles to a different one.
  */
 export function CardStylePicker({ value, onChange }: { value: CardStyle; onChange: (style: CardStyle) => void }) {
   const { colors } = useTheme();
@@ -28,7 +28,7 @@ export function CardStylePicker({ value, onChange }: { value: CardStyle; onChang
             key={packId}
             onPress={() => {
               haptics.selection();
-              onChange(randomStyleFrom(packId, active ? value : undefined));
+              onChange(active ? randomStyleFrom(packId, value) : pack.styles[0]);
             }}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
