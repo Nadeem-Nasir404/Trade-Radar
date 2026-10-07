@@ -36,6 +36,8 @@ export const CARD_FONTS = {
 };
 
 export type CardStyle =
+  | "xmr"
+  | "apucandle"
   | "wolf"
   | "wolfpen"
   | "wolfyacht"
@@ -101,6 +103,40 @@ export interface CardTheme {
 }
 
 export const CARD_THEMES: Record<CardStyle, CardTheme> = {
+  xmr: {
+    label: "Chart Check",
+    text: "#FFFFFF",
+    sub: "#D6DAE6",
+    profit: "#4ADE80",
+    loss: "#F87171",
+    pillBg: "#26A69A",
+    pillText: "#FFFFFF",
+    pillBorder: "#26A69A",
+    divider: "#FFFFFF33",
+    shadow: true,
+    fallback: ["#1F2937", "#0A0A0A"],
+    background: require("../../assets/cards/xmr.jpg"),
+    tagline: { profit: "Number go up", loss: "Number go down" },
+    corners: true,
+    mood: "profit",
+  },
+  apucandle: {
+    label: "Green Candle",
+    text: "#111118",
+    sub: "#5B6B66",
+    profit: "#16A34A",
+    loss: "#DC2626",
+    pillBg: "#15803D",
+    pillText: "#FFFFFF",
+    pillBorder: "#15803D",
+    divider: "#11111822",
+    shadow: false,
+    fallback: ["#DCFCE7", "#FFFFFF"],
+    background: require("../../assets/cards/apucandle.jpg"),
+    tagline: { profit: "Green candle energy", loss: "Shrinkage" },
+    corners: true,
+    mood: "profit",
+  },
   bogdanoff: {
     label: "Dump It",
     text: "#FFFFFF",
@@ -644,9 +680,9 @@ export const CARD_PACKS: Record<CardPackId, { label: string; styles: CardStyle[]
   diamond: { label: "Diamond Hands", styles: ["wolf", "wolfpen", "wolfyacht", "moneyrain", "diamond"] },
   gigachad: { label: "Gigachad", styles: ["gigachad", "bateman", "gigaphone", "gigadesk", "stoic"] },
   cartoons: { label: "Cartoons", styles: ["patrick", "peter", "tom"] },
-  apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "pepedump"] },
+  apu: { label: "Apu", styles: ["feelsgood", "apuyacht", "apucandle", "pepedump"] },
   wojak: { label: "Wojak", styles: ["onepercent", "wojak", "rainy", "fine"] },
-  stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "bogdanoff", "bear"] },
+  stonks: { label: "Stonks", styles: ["stonks", "catpump", "printer", "xmr", "bogdanoff", "bear"] },
   anime: { label: "Anime", styles: ["kurumi", "atomic", "atomicmoon"] },
   aesthetic: { label: "Aesthetic", styles: ["moonlit", "noir", "blush"] },
   minimal: { label: "Minimal", styles: ["minimal"] },

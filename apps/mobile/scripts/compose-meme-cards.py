@@ -43,6 +43,9 @@ MEMES = {
     # the black-and-white one is just the moon, set in the art area on black.
     "atomic": dict(src="atomic-meme.jpg", mode="full", crop=(0, 150, 857, 1200), top=0, fade=(520, 800), tint=(36, 8, 40), max_alpha=0.6),
     "atomicmoon": dict(src="atomicmoon-meme.jpg", mode="fit", crop=(75, 258, 675, 858), bg="#000000", box=(112, 608, 30)),
+    # Phone chart framed in the art area so its own numbers stay clear of the card's.
+    "xmr": dict(src="xmr-meme.jpg", mode="fit", crop=(0, 120, 736, 919), bg="blur", feather=36, box=(118, 608, 30), fade=(620, 860)),
+    "apucandle": dict(src="apucandle-meme.jpg", mode="fit", cutout=True, box=(118, 608, 30), bg=("#DCFCE7", "#FFFFFF"), glow="#BBF7D0", edge_fade=dict(bottom=60)),
     # Loss memes.
     "bogdanoff": dict(src="bogdanoff-meme.jpg", mode="fit", crop=(74, 74, 480, 480), bg="blur", feather=30, box=(176, 604, 30), fade=(620, 860)),
     "pepedump": dict(src="pepedump-meme.jpg", mode="full", top=110, fade=(600, 840)),
