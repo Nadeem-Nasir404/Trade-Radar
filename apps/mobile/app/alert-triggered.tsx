@@ -4,7 +4,7 @@ import { saveCardToGallery } from "@/lib/save-card";
 import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";

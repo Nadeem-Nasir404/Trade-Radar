@@ -1,16 +1,24 @@
-import { forwardRef, useState, type ReactNode } from "react";
+import { forwardRef, useState, type ComponentProps, type ReactNode } from "react";
 import { View, Image, StyleSheet, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
 import { pnlPct, type Trade } from "@/lib/stores/trades-store";
-import { CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_THEMES, type CardStyle } from "@/lib/card-layout";
+import { useCardFonts } from "@/lib/card-fonts";
+import { useMinuteClock } from "@/lib/hooks/use-minute-clock";
+import { fonts as appFonts } from "@/lib/theme";
+import { CARD_LAYOUT, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, type CardStyle } from "@/lib/card-layout";
 
-export { CARD_STYLE_LABELS };
+export { CARD_STYLE_LABELS, CARD_STYLES };
 
 const LOGO = require("../../../assets/splash-icon.png");
-const W = L.canvas.width;
-const H = L.canvas.height;
+const W = CARD_LAYOUT.canvas.width;
+const H = CARD_LAYOUT.canvas.height;
+
+/** The card is a fixed-proportion image, so its text ignores the system font size (which would break the layout). */
+function CardText(props: ComponentProps<typeof ThemedText>) {
+  return <ThemedText allowFontScaling={false} {...props} />;
+}
 
 // Base gradient for each style. Decorations are drawn on top in Backdrop.
 const BASE: Record<CardStyle, [string, string]> = {
@@ -32,18 +40,27 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
 ) {
   const [width, setWidth] = useState(0);
   const k = width / W;
-  const t = CARD_THEMES[style];
+  const t = CARD_THEMES[style] ?? CARD_THEMES.neon;
+  const L = t.layout;
+  const fontState = useCardFonts();
+  // Fall back to the app's own faces if the theme fonts couldn't load, instead of system defaults.
+  const display = fontState === "failed" ? appFonts.display : t.fonts.display;
+  const body = fontState === "failed" ? appFonts.bodySemibold : t.fonts.body;
+  const brandFont = appFonts.display;
 
   const closed = trade.exitPrice != null;
   const current = closed ? (trade.exitPrice as number) : livePrice ?? trade.entryPrice;
   const pct = pnlPct(trade.side, trade.entryPrice, current);
   const tone = pct >= 0 ? t.profit : t.loss;
-  const held = formatHeld((trade.closedAt ?? Date.now()) - trade.openedAt);
+  const now = useMinuteClock(trade.closedAt == null);
+  const held = formatHeld((trade.closedAt ?? now) - trade.openedAt);
   // Spot-style P&L: the position's USD notional moved by the same percentage.
   const usd = trade.sizeUsd != null ? (trade.sizeUsd * pct) / 100 : null;
   const pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
   // Big moves (+1250.00%) would be truncated at full size, so shrink the hero number as it grows.
-  const pctSize = L.pnlPercent.fontSize * Math.min(1, 7 / pctText.length);
+  // Wide faces fit fewer characters, so the cut-off point comes from the theme.
+  const pctSize = L.pnlPercent.fontSize * Math.min(1, t.heroFitChars / pctText.length);
+  const tagline = t.tagline ? (pct >= 0 ? t.tagline.profit : t.tagline.loss) : null;
 
   const at = (x: number, y: number) => ({ position: "absolute" as const, left: x * k, top: y * k });
   const shadow: TextStyle = t.shadow
@@ -60,14 +77,15 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   return (
     <View ref={ref} collapsable={false} style={styles.card} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
       {/* Until the first layout pass k is 0, and Android crashes on text with fontSize 0, so wait for a real width. */}
-      {width > 0 && (
+      {/* Wait for the theme's fonts too, so the card never flashes (or gets saved) in a fallback face. */}
+      {width > 0 && fontState !== "loading" && (
         <>
           <Backdrop style={style} k={k} background={t.background} />
 
           <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k }]} />
-          <ThemedText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontWeight: "700" }, shadow]}>
+          <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: brandFont }, shadow]}>
             {L.brand.text}
-          </ThemedText>
+          </CardText>
 
           <View
             style={[
@@ -75,42 +93,63 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
               pill,
             ]}
           >
-            <ThemedText style={{ color: t.pillText, fontSize: L.statusPill.fontSize * k, fontWeight: "600" }}>{closed ? "Trade closed" : "Live"}</ThemedText>
+            <CardText style={{ color: t.pillText, fontSize: L.statusPill.fontSize * k, fontFamily: body }}>{closed ? "Trade closed" : "Live"}</CardText>
           </View>
 
+          {tagline && (
+            <CardText style={[at(L.tagline.x, L.tagline.y), { color: t.sub, fontSize: L.tagline.fontSize * k, fontFamily: body, letterSpacing: 4 * k, textTransform: "uppercase" }, shadow]}>
+              {tagline}
+            </CardText>
+          )}
+
           <View style={[at(L.symbol.x, L.symbol.y), { flexDirection: "row", alignItems: "center", gap: L.sidePill.gap * k }]}>
-            <ThemedText style={[{ color: t.text, fontSize: L.symbol.fontSize * k, fontWeight: "700" }, shadow]}>{trade.symbol}</ThemedText>
+            <CardText style={[{ color: t.text, fontSize: L.symbol.fontSize * k, fontFamily: display }, shadow]}>{trade.symbol}</CardText>
             <View style={[{ height: L.sidePill.height * k, paddingHorizontal: 22 * k, borderRadius: L.sidePill.radius * k }, pill]}>
-              <ThemedText style={{ color: t.pillText, fontSize: L.sidePill.fontSize * k, fontWeight: "700" }}>{trade.side}</ThemedText>
+              <CardText style={{ color: t.pillText, fontSize: L.sidePill.fontSize * k, fontFamily: body }}>{trade.side}</CardText>
             </View>
           </View>
 
-          <ThemedText
+          <CardText
             numberOfLines={1}
-            style={[at(L.pnlPercent.x, L.pnlPercent.y), { color: tone, fontSize: pctSize * k, fontWeight: "800", letterSpacing: -4 * k, lineHeight: pctSize * k }, shadow]}
+            adjustsFontSizeToFit
+            style={[
+              at(L.pnlPercent.x, L.pnlPercent.y),
+              {
+                width: (W - 2 * L.pnlPercent.x) * k,
+                color: tone,
+                fontSize: pctSize * k,
+                fontFamily: display,
+                letterSpacing: t.heroTracking * k,
+                // Display faces carry tall ascenders; a little extra line height keeps them from clipping.
+                lineHeight: pctSize * 1.18 * k,
+              },
+              shadow,
+            ]}
           >
             {pctText}
-          </ThemedText>
+          </CardText>
 
           {usd != null && (
-            <ThemedText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontWeight: "600" }, shadow]}>
+            <CardText style={[at(L.pnlUsd.x, L.pnlUsd.y), { color: tone, fontSize: L.pnlUsd.fontSize * k, fontFamily: display }, shadow]}>
               {usd >= 0 ? "+" : "-"}${Math.abs(usd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </ThemedText>
+            </CardText>
           )}
 
-          <View style={[at(L.divider.x, L.divider.y), { width: (W - 2 * L.divider.x) * k, height: L.divider.thickness * k, backgroundColor: t.divider }]} />
+          {L.divider.visible && (
+            <View style={[at(L.divider.x, L.divider.y), { width: (W - 2 * L.divider.x) * k, height: L.divider.thickness * k, backgroundColor: t.divider }]} />
+          )}
 
           {stats.map((col, i) => {
             const x = L.stats.columns[i];
             return (
               <View key={col.label} style={at(x, L.stats.y)}>
-                <ThemedText style={{ color: t.sub, fontSize: L.stats.labelSize * k, textTransform: "uppercase", letterSpacing: 1 * k }}>{col.label}</ThemedText>
-                <ThemedText style={{ color: t.text, fontSize: L.stats.valueSize * k, fontWeight: "700", marginTop: (L.stats.valueGap - L.stats.labelSize) * k }}>{col.value}</ThemedText>
+                <CardText style={{ color: t.sub, fontSize: L.stats.labelSize * k, fontFamily: body, textTransform: "uppercase", letterSpacing: 2 * k }}>{col.label}</CardText>
+                <CardText style={[{ color: t.text, fontSize: L.stats.valueSize * k, fontFamily: display, marginTop: (L.stats.valueGap - L.stats.labelSize) * k }, shadow]}>{col.value}</CardText>
               </View>
             );
           })}
 
-          <ThemedText style={[at(L.padding, L.footer.y), { color: t.sub, fontSize: L.footer.fontSize * k }]}>coinradar.app</ThemedText>
+          <CardText style={[at(L.padding, L.footer.y), { color: t.sub, fontSize: L.footer.fontSize * k, fontFamily: body }, shadow]}>coinradar.app</CardText>
         </>
       )}
     </View>
@@ -130,6 +169,15 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
     <View key={`l-${x}-${y}-${w}-${h}`} style={{ position: "absolute", left: s(x), top: s(y), width: s(w), height: s(h), backgroundColor: color, opacity, transform: rotate ? [{ rotate }] : undefined }} />
   );
 
+  if (background) {
+    return (
+      <>
+        <Image source={background} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {ARTWORK_SCRIMS[style]}
+      </>
+    );
+  }
+
   const shapes = (() => {
     switch (style) {
       case "minimal":
@@ -142,25 +190,10 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
         return [ring(880, 1040, 170, "#FFFFFF", 0.4), blob(880, 1040, 170, "#FFFFFF", 0.1), ring(700, 1220, 80, "#FFFFFF", 0.4), blob(960, 120, 95, "#FFFFFF", 0.14), ring(960, 120, 95, "#FFFFFF", 0.4)];
       case "grid":
         return gridAndCandles(s);
-      case "noir":
-        return [blob(W / 2, H + 60, 560, "#B07A2E", 0.35), <View key="frame" style={{ position: "absolute", left: s(44), top: s(44), width: s(W - 88), height: s(H - 88), borderWidth: Math.max(1, 1.5 * k), borderColor: "#3A3A3C" }} />];
-      case "blush":
-        return [blob(W / 2, H * 0.38, 430, "#FFF1EE", 0.55), ...corners(s, "#2A2626")];
-      case "moonlit":
-        return [blob(W * 0.76, H * 0.16, 340, "#8B5CF6", 0.25), blob(W * 0.76, H * 0.16, 200, "#C4B5FD"), blob(W * 0.72, H * 0.14, 40, "#A78BFA", 0.5), blob(W * 0.8, H * 0.2, 26, "#A78BFA", 0.45), blob(W / 2, H + 500, 900, "#05030B"), ...stars(s)];
       default:
         return [];
     }
   })();
-
-  if (style === "gigachad" && background) {
-    return (
-      <>
-        <Image source={background} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        <LinearGradient colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.85)"]} locations={[0.35, 1]} style={StyleSheet.absoluteFill} />
-      </>
-      );
-  }
 
   return (
     <>
@@ -171,6 +204,20 @@ function Backdrop({ style, k, background }: { style: CardStyle; k: number; backg
     </>
   );
 }
+
+/** Shading laid over each artwork only where text sits, so numbers stay readable without dulling the picture. */
+const ARTWORK_SCRIMS: Partial<Record<CardStyle, ReactNode>> = {
+  // Face stays untouched in the top half; the numbers sit on a dark fade at the bottom.
+  gigachad: (
+    <LinearGradient
+      colors={["rgba(0,0,0,0.35)", "rgba(0,0,0,0)", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.92)"]}
+      locations={[0, 0.2, 0.55, 0.85]}
+      style={StyleSheet.absoluteFill}
+    />
+  ),
+  // Text runs down the left, away from the moon and the antenna on the right.
+  moonlit: <LinearGradient colors={["rgba(10,6,24,0.55)", "rgba(10,6,24,0)"]} start={{ x: 0, y: 0.5 }} end={{ x: 0.75, y: 0.5 }} style={StyleSheet.absoluteFill} />,
+};
 
 /** Faint grid, plus a row of candles along the bottom third. */
 function gridAndCandles(s: (v: number) => number) {
@@ -192,36 +239,7 @@ function gridAndCandles(s: (v: number) => number) {
   return items;
 }
 
-function corners(s: (v: number) => number, color: string) {
-  const L2 = 48;
-  const T = 5;
-  const inset = 28;
-  const bars: ReactNode[] = [];
-  const spots = [
-    { x: inset, y: inset, dx: 1, dy: 1 },
-    { x: W - inset, y: inset, dx: -1, dy: 1 },
-    { x: inset, y: H - inset, dx: 1, dy: -1 },
-    { x: W - inset, y: H - inset, dx: -1, dy: -1 },
-  ];
-  spots.forEach((c, i) => {
-    const hx = c.dx > 0 ? c.x : c.x - L2;
-    const vy = c.dy > 0 ? c.y : c.y - L2;
-    bars.push(<View key={`h${i}`} style={{ position: "absolute", left: s(hx), top: s(c.dy > 0 ? c.y : c.y - T), width: s(L2), height: s(T), backgroundColor: color }} />);
-    bars.push(<View key={`v${i}`} style={{ position: "absolute", left: s(c.dx > 0 ? c.x : c.x - T), top: s(vy), width: s(T), height: s(L2), backgroundColor: color }} />);
-  });
-  return bars;
-}
 
-function stars(s: (v: number) => number) {
-  const out: ReactNode[] = [];
-  for (let i = 0; i < 40; i++) {
-    const x = (i * 271) % W;
-    const y = 80 + ((i * 397) % (H * 0.6));
-    const r = 1.5 + (i % 3);
-    out.push(<View key={`s${i}`} style={{ position: "absolute", left: s(x), top: s(y), width: s(r * 2), height: s(r * 2), borderRadius: s(r), backgroundColor: "#D8CCFF", opacity: 0.25 + (i % 5) * 0.12 }} />);
-  }
-  return out;
-}
 
 /** Compact duration: 45m, 3h 10m, 2d. */
 function formatHeld(ms: number): string {

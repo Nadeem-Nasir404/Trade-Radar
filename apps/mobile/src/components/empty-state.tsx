@@ -1,5 +1,5 @@
 import { View, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "./ui/themed-text";
 import { Button } from "./ui/button";

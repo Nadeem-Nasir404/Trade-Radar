@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "@/lib/use-theme";
@@ -58,7 +58,8 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
-  const { colors, mode } = useTheme();
+  // isDark is the theme actually showing; `mode` is the user's setting and can be "system".
+  const { colors, isDark } = useTheme();
   const settings = useChartSettings();
   const webviewRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
@@ -84,13 +85,14 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   const theme = {
     background: colors.background,
     textColor: colors.foregroundSubtle,
-    gridColor: mode === "light" ? "rgba(0,0,0,0.045)" : "rgba(255,255,255,0.045)",
+    gridColor: isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.06)",
     borderColor: colors.glassBorder,
     crosshairColor: colors.foregroundMuted,
     brand: colors.brand,
     brandForeground: colors.brandForeground,
-    labelBackground: mode === "light" ? "#4b5563" : "#2a2d3a",
-    watermarkColor: mode === "light" ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)",
+    labelBackground: isDark ? "#2a2d3a" : "#4b5563",
+    watermarkColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)",
+    legendBackground: isDark ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.75)",
   };
 
   const onMessage = (e: WebViewMessageEvent) => {
@@ -110,7 +112,7 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     webviewRef.current?.injectJavaScript(`window.applyTheme(${JSON.stringify(theme)}); true;`);
     // theme fields are primitives derived fresh each render - safe to depend on the object itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, colors, mode]);
+  }, [ready, colors, isDark]);
 
   useEffect(() => {
     if (!ready) return;
@@ -721,6 +723,7 @@ function buildChartHtml(): string {
             horzLine: { color: t.crosshairColor, labelBackgroundColor: t.brand },
           },
         });
+        document.getElementById('ohlc').style.background = t.legendBackground;
         window.setWatermark(watermarkText);
       };
 

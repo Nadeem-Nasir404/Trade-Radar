@@ -1,6 +1,6 @@
 import { View, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { PressableScale } from "@/components/ui/pressable-scale";
 import { PriceText } from "@/components/ui/price-text";

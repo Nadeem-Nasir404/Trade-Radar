@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View, Pressable, StyleSheet, Modal, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { GlassPressable } from "@/components/ui/glass-pressable";
@@ -85,7 +85,7 @@ function ChartSettingsSheet({ visible, onClose }: { visible: boolean; onClose: (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <Surface style={[styles.sheet, { backgroundColor: colors.backgroundElevated }]}>
-        <View style={styles.sheetHandle} />
+        <View style={[styles.sheetHandle, { backgroundColor: colors.glassBorderStrong }]} />
         <ThemedText variant="subtitle" style={styles.sheetTitle}>
           Chart settings
         </ThemedText>
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   iconPill: { width: 32, height: 32, borderRadius: radius.full },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderRadius: 0, paddingBottom: 32, maxHeight: "72%" },
-  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", marginTop: 10 },
+  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginTop: 10 },
   sheetTitle: { paddingHorizontal: 20, paddingTop: 14 },
   sheetBody: { padding: 20, gap: 14 },
   group: { marginTop: 6, fontSize: 11, letterSpacing: 0.8 },

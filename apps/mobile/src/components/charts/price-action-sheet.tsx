@@ -1,5 +1,5 @@
 import { View, Pressable, StyleSheet, Modal } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { ThemedText } from "@/components/ui/themed-text";
 import { useTheme } from "@/lib/use-theme";
@@ -40,7 +40,7 @@ export function PriceActionSheet({ price, displaySymbol, symbol, instrumentId, o
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={[styles.sheet, { backgroundColor: colors.backgroundElevated }]}>
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: colors.glassBorderStrong }]} />
         <Row icon="alarm-outline" label={`Add alert on ${displaySymbol} at ${label}`} onPress={addAlert} />
         <View style={[styles.divider, { backgroundColor: colors.glassBorder }]} />
         <Row icon="remove-outline" label={`Draw horizontal line at ${label}`} onPress={drawLevel} />
@@ -74,7 +74,7 @@ function Row({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 28, paddingTop: 8 },
-  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", marginBottom: 8 },
+  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 22, paddingVertical: 18 },
   rowText: { flex: 1, fontSize: 16 },
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 22 },

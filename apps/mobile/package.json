@@ -14,9 +14,16 @@
     "chart-lib": "node scripts/bundle-chart-lib.js"
   },
   "dependencies": {
+    "@expo-google-fonts/anton": "^0.4.2",
+    "@expo-google-fonts/archivo-black": "^0.4.1",
+    "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/manrope": "^0.4.2",
+    "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@expo-google-fonts/sora": "^0.4.2",
     "@expo-google-fonts/space-grotesk": "^0.4.1",
+    "@expo-google-fonts/unbounded": "^0.4.1",
     "@expo/vector-icons": "15.1.1",
     "@levelpulse/shared-types": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",

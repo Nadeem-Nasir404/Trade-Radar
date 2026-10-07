@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { Link } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";

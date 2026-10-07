@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
@@ -21,6 +21,7 @@ function parseNumber(v: string): number | null {
 export default function NewTradeScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const add = useTradesStore((s) => s.add);
   const showToast = useToastStore((s) => s.show);
 
@@ -61,57 +62,64 @@ export default function NewTradeScreen() {
         <View style={styles.spacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Surface style={styles.card}>
-          <Field label="Symbol">
-            <TextInput
-              value={symbol}
-              onChangeText={setSymbol}
-              placeholder="BTC/USDT"
-              placeholderTextColor={colors.foregroundMuted}
-              autoCapitalize="characters"
-              style={[styles.input, { color: colors.foreground, borderColor: colors.glassBorder }]}
-            />
-          </Field>
+      {/* Keeps Save above the keyboard; the form stays phone-width on tablets. */}
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          contentContainerStyle={[styles.body, { width: Math.min(width, 560), alignSelf: "center" }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Surface style={styles.card}>
+            <Field label="Symbol">
+              <TextInput
+                value={symbol}
+                onChangeText={setSymbol}
+                placeholder="BTC/USDT"
+                placeholderTextColor={colors.foregroundMuted}
+                autoCapitalize="characters"
+                style={[styles.input, { color: colors.foreground, borderColor: colors.glassBorder }]}
+              />
+            </Field>
 
-          <Field label="Direction">
-            <View style={styles.sideRow}>
-              {(["LONG", "SHORT"] as TradeSide[]).map((s) => {
-                const active = s === side;
-                const tone = s === "LONG" ? colors.positive : colors.negative;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => {
-                      haptics.selection();
-                      setSide(s);
-                    }}
-                    style={[styles.sideBtn, { borderColor: colors.glassBorder, backgroundColor: active ? tone : colors.glass }]}
-                  >
-                    <ThemedText style={{ color: active ? "#FFFFFF" : colors.foregroundMuted, fontWeight: "700" }}>{s}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Field>
+            <Field label="Direction">
+              <View style={styles.sideRow}>
+                {(["LONG", "SHORT"] as TradeSide[]).map((s) => {
+                  const active = s === side;
+                  const tone = s === "LONG" ? colors.positive : colors.negative;
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => {
+                        haptics.selection();
+                        setSide(s);
+                      }}
+                      style={[styles.sideBtn, { borderColor: colors.glassBorder, backgroundColor: active ? tone : colors.glass }]}
+                    >
+                      <ThemedText style={{ color: active ? "#FFFFFF" : colors.foregroundMuted, fontWeight: "700" }}>{s}</ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Field>
 
-          <Field label="Entry price">
-            <NumberInput value={entry} onChange={setEntry} placeholder="e.g. 142.80" />
-          </Field>
+            <Field label="Entry price">
+              <NumberInput value={entry} onChange={setEntry} placeholder="e.g. 142.80" />
+            </Field>
 
-          <Field label="Exit price (leave empty if still open)">
-            <NumberInput value={exit} onChange={setExit} placeholder="e.g. 179.43" />
-          </Field>
+            <Field label="Exit price (leave empty if still open)">
+              <NumberInput value={exit} onChange={setExit} placeholder="e.g. 179.43" />
+            </Field>
 
-          <Field label="Position size in $ (optional)">
-            <NumberInput value={size} onChange={setSize} placeholder="e.g. 1000" prefix="$" />
-          </Field>
-        </Surface>
+            <Field label="Position size in $ (optional)">
+              <NumberInput value={size} onChange={setSize} placeholder="e.g. 1000" prefix="$" />
+            </Field>
+          </Surface>
 
-        <Pressable onPress={save} style={[styles.save, { backgroundColor: colors.brand }]}>
-          <ThemedText style={{ color: colors.brandForeground, fontWeight: "700", fontSize: 15 }}>Save trade</ThemedText>
-        </Pressable>
-      </ScrollView>
+          <Pressable onPress={save} style={[styles.save, { backgroundColor: colors.brand }]}>
+            <ThemedText style={{ color: colors.brandForeground, fontWeight: "700", fontSize: 15 }}>Save trade</ThemedText>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -145,9 +153,9 @@ function NumberInput({ value, onChange, placeholder, prefix }: { value: string; 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 },
-  closeBtn: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  closeBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 16, fontWeight: "700" },
-  spacer: { width: 40 },
+  spacer: { width: 44 },
   body: { padding: 20, gap: 16, paddingBottom: 40 },
   card: { padding: 18, gap: 16 },
   field: { gap: 8 },

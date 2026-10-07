@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { View, FlatList, Pressable, RefreshControl, StyleSheet, Alert as RNAlert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Surface } from "@/components/ui/surface";

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { View, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { Icon3D } from "@/components/ui/icon-3d";

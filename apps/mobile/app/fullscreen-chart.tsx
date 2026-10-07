@@ -5,7 +5,7 @@ import type { Instrument } from "@/lib/api/types";
 import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";

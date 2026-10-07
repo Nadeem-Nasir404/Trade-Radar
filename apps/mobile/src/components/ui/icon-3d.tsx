@@ -1,6 +1,6 @@
 import { View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 interface Icon3DProps {
   icon: keyof typeof Ionicons.glyphMap;
