@@ -19,7 +19,7 @@ import { useAlertDraftStore } from "@/lib/stores/alert-draft-store";
 import { formatCompactNumber, formatCompactPrice, formatPct, cn } from "@/lib/utils";
 import { formatAlertTarget, formatConditionLabel, isUpwardCondition } from "@/lib/format-condition";
 
-const TIMEFRAMES = ["15m", "1h", "4h", "1d"] as const;
+const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 export default function MarketDetailPage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol } = use(params);
@@ -111,18 +111,17 @@ export default function MarketDetailPage({ params }: { params: Promise<{ symbol:
           </Tabs>
           <p className="hidden text-xs text-foreground-subtle sm:block">Click the chart to set an alert at that price</p>
         </div>
-        {loadingCandles ? (
-          <Skeleton className="h-[420px] w-full" />
-        ) : (
-          <PriceChart
-            candles={candles ?? []}
-            instrumentId={instrument.id}
-            timeframe={timeframe}
-            onBarClose={refetchHistory}
-            alertLevels={chartLevels}
-            onPriceClick={handleChartClick}
-          />
-        )}
+        {/* The chart stays mounted across timeframe switches and shows its own loading/empty state. */}
+        <PriceChart
+          candles={candles ?? []}
+          loading={loadingCandles}
+          instrumentId={instrument.id}
+          timeframe={timeframe}
+          watermark={`${instrument.displaySymbol} · ${timeframe}`}
+          onBarClose={refetchHistory}
+          alertLevels={chartLevels}
+          onPriceClick={handleChartClick}
+        />
       </Card>
 
       <div>

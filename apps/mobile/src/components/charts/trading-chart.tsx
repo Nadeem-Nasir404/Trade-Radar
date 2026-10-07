@@ -1,5 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { ThemedText } from "@/components/ui/themed-text";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -29,6 +31,10 @@ interface TradingChartProps {
   onBarClose?: () => void;
   /** Called with the live (last) bar whenever it changes - e.g. for an O/H/L/C legend. */
   onLiveBar?: (bar: Candle) => void;
+  /** Faint background label, e.g. "BTC/USDT · 1h". */
+  watermark?: string;
+  /** History is still loading - shows a loading state instead of an empty chart. */
+  loading?: boolean;
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
@@ -49,7 +55,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, instrumentId, onBarClose, onLiveBar, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, alertLevels = [], height = 260, onPriceTap, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   const { colors, mode } = useTheme();
@@ -83,6 +89,8 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
     crosshairColor: colors.foregroundMuted,
     brand: colors.brand,
     brandForeground: colors.brandForeground,
+    labelBackground: mode === "light" ? "#4b5563" : "#2a2d3a",
+    watermarkColor: mode === "light" ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)",
   };
 
   const onMessage = (e: WebViewMessageEvent) => {
@@ -118,7 +126,13 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   }, [ready, settings.palette, settings.showGrid, settings.showVolume, settings.showWicks]);
 
   useEffect(() => {
-    if (!ready || candles.length === 0) return;
+    if (!ready) return;
+    if (candles.length === 0) {
+      // Another timeframe's bars must not linger under the loading or "no history" state.
+      lastCandleRef.current = null;
+      webviewRef.current?.injectJavaScript(`window.setCandles([], false); true;`);
+      return;
+    }
     const keepView = loadedViewKeyRef.current === (viewKey ?? timeframe);
     loadedViewKeyRef.current = viewKey ?? timeframe;
     lastCandleRef.current = candles[candles.length - 1] ?? null;
@@ -205,6 +219,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   useEffect(() => {
     if (!ready) return;
+    webviewRef.current?.injectJavaScript(`window.setWatermark(${JSON.stringify(watermark)}); true;`);
+  }, [ready, watermark]);
+
+  useEffect(() => {
+    if (!ready) return;
     webviewRef.current?.injectJavaScript(`window.setDrawings(${JSON.stringify(drawings)}); true;`);
   }, [ready, drawings]);
 
@@ -238,6 +257,19 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
         javaScriptEnabled
         domStorageEnabled={false}
       />
+      {(!ready || loading) && candles.length === 0 ? (
+        <View style={styles.overlay} pointerEvents="none">
+          <ActivityIndicator color={colors.foregroundSubtle} />
+        </View>
+      ) : candles.length === 0 ? (
+        // Charts only show real exchange data, so a market without history says so instead of drawing a blank grid.
+        <View style={styles.overlay} pointerEvents="none">
+          <Ionicons name="bar-chart-outline" size={22} color={colors.foregroundSubtle} />
+          <ThemedText variant="subtle" style={styles.overlayText}>
+            No price history for this timeframe yet
+          </ThemedText>
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -267,9 +299,14 @@ function buildChartHtml(): string {
       html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; height: 100%; }
       #chart { width: 100%; height: 100%; }
       #ohlc {
-        position: absolute; top: 4px; left: 8px; font: 11px -apple-system, Roboto, sans-serif;
-        pointer-events: none; opacity: 0; transition: opacity 0.1s; white-space: nowrap;
+        position: absolute; top: 6px; left: 8px; font: 500 11px -apple-system, Roboto, sans-serif;
+        font-variant-numeric: tabular-nums; padding: 3px 7px; border-radius: 6px;
+        background: rgba(0,0,0,0.35); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+        pointer-events: none; opacity: 0; transition: opacity 0.1s; z-index: 5;
+        display: flex; flex-wrap: wrap; column-gap: 8px; row-gap: 1px;
       }
+      #ohlc > span { white-space: nowrap; }
+      #ohlc b { font-weight: 500; opacity: 0.55; margin-right: 2px; }
       #tapMarker {
         position: absolute; width: 26px; height: 26px; margin-left: -13px; margin-top: -13px;
         border-radius: 999px; align-items: center; justify-content: center; display: flex;
@@ -284,14 +321,22 @@ function buildChartHtml(): string {
         -webkit-tap-highlight-color: transparent;
       }
       #plusBadge svg { display: block; }
-      #countdown { position: absolute; right: 2px; font: 600 11px -apple-system, Roboto, sans-serif; color: #9598a3; pointer-events: none; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
+      /* Last price and time left in the bar, as one tag on the price axis (the series' own label is off). */
+      #lastTag {
+        position: absolute; right: 0; transform: translateY(-50%); box-sizing: border-box;
+        padding: 3px 5px; border-radius: 4px 0 0 4px; color: #fff; text-align: left;
+        font: 600 11px -apple-system, Roboto, sans-serif; font-variant-numeric: tabular-nums; line-height: 1.25;
+        pointer-events: none; opacity: 0; box-shadow: 0 1px 6px rgba(0,0,0,0.3); white-space: nowrap;
+        z-index: 5; /* above the chart's own label canvas, so axis ticks never show through */
+      }
+      #lastTag span { display: block; font-size: 10px; font-weight: 500; opacity: 0.85; }
     </style>
   </head>
   <body>
     <div id="chart"></div>
     <svg id="overlay" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
     <div id="ohlc"></div>
-    <div id="countdown"></div>
+    <div id="lastTag"><div id="lastTagPrice"></div><span id="lastTagTime"></span></div>
     <div id="tapMarker">
       <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5V19M5 12H19" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
     </div>
@@ -304,7 +349,7 @@ function buildChartHtml(): string {
       var chart, candleSeries, volumeSeries, priceLines = [], theme = null;
       var drawMode = false, drawTool = 'trend', drawSeries = [], drawPriceLines = [], pendingPoint = null;
       var rects = [], overlayRunning = false;
-      var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)';
+      var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)', watermark = null, watermarkText = '';
 
       function accent() { return theme ? theme.brand : '#a855f7'; }
       function accentAlpha(a) {
@@ -317,14 +362,23 @@ function buildChartHtml(): string {
       function init() {
         var container = document.getElementById('chart');
         chart = LightweightCharts.createChart(container, {
-          layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#9598a3', fontSize: 11, attributionLogo: false },
-          grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
-          rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
-          timeScale: {
-            borderColor: 'rgba(255,255,255,0.08)', timeVisible: true,
-            rightOffset: 6, barSpacing: 7, minBarSpacing: 2, fixLeftEdge: false,
+          layout: {
+            background: { type: 'solid', color: 'transparent' }, textColor: '#9598a3', fontSize: 11, attributionLogo: false,
+            fontFamily: '-apple-system, Roboto, "Segoe UI", sans-serif',
           },
-          crosshair: { mode: 0 },
+          localization: { priceFormatter: function (p) { return fmt(p); } },
+          // Horizontal guides only: vertical lines add noise without helping read a level.
+          grid: { vertLines: { visible: false }, horzLines: { color: gridColor } },
+          rightPriceScale: { borderVisible: false, minimumWidth: 64 },
+          timeScale: {
+            borderVisible: false, timeVisible: true, secondsVisible: false,
+            rightOffset: 8, barSpacing: 8, minBarSpacing: 2, fixLeftEdge: false,
+          },
+          crosshair: {
+            mode: 0,
+            vertLine: { width: 1, style: 3, labelBackgroundColor: '#2a2d3a' },
+            horzLine: { width: 1, style: 3, labelBackgroundColor: '#a855f7' },
+          },
           handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
           handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
           kineticScroll: { touch: true, mouse: false },
@@ -334,6 +388,11 @@ function buildChartHtml(): string {
         candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
           upColor: '#22c55e', downColor: '#f43f5e', borderVisible: false,
           wickUpColor: '#22c55e', wickDownColor: '#f43f5e',
+          lastValueVisible: false, priceLineStyle: 3, priceLineWidth: 1,
+        });
+        watermark = LightweightCharts.createTextWatermark(chart.panes()[0], {
+          horzAlign: 'center', vertAlign: 'center',
+          lines: [{ text: '', color: 'rgba(255,255,255,0.05)', fontSize: 30, fontStyle: '700' }],
         });
 
         volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
@@ -352,7 +411,11 @@ function buildChartHtml(): string {
           if (!bar) { ohlcEl.style.opacity = 0; return; }
           var up = bar.close >= bar.open;
           ohlcEl.style.color = up ? '#22c55e' : '#f43f5e';
-          ohlcEl.innerHTML = 'O ' + fmt(bar.open) + '  H ' + fmt(bar.high) + '  L ' + fmt(bar.low) + '  C ' + fmt(bar.close);
+          var pct = bar.open ? ((bar.close - bar.open) / bar.open) * 100 : 0;
+          // Wraps within the plot area on narrow screens instead of running under the price axis.
+          ohlcEl.style.maxWidth = (container.clientWidth - chart.priceScale('right').width() - 24) + 'px';
+          ohlcEl.innerHTML = '<span><b>O</b>' + fmt(bar.open) + '</span><span><b>H</b>' + fmt(bar.high) + '</span><span><b>L</b>' + fmt(bar.low) +
+            '</span><span><b>C</b>' + fmt(bar.close) + '</span><span>' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</span>';
           ohlcEl.style.opacity = 1;
         });
 
@@ -551,19 +614,22 @@ function buildChartHtml(): string {
         hideTapMarker();
       };
 
+      // Decimals by magnitude, with thousands separators: 100,600.00 / 3.4512 / 0.000123.
       function fmt(n) {
-        return n < 1 ? n.toFixed(6) : n < 100 ? n.toFixed(4) : n.toFixed(2);
+        var digits = n < 1 ? 6 : n < 100 ? 4 : 2;
+        return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
       }
 
       function volColor(c) {
         var up = c.close >= c.open;
-        return (up ? upHex : downHex) + '55';
+        return (up ? upHex : downHex) + '40';
       }
       var upHex = '#22c55e', downHex = '#f43f5e';
 
       window.setCandles = function (candles, keepView) {
         var lastC = candles[candles.length - 1];
-        if (lastC) { lastBarTime = lastC.time; lastBarClose = lastC.close; }
+        if (lastC) { lastBarTime = lastC.time; lastBarClose = lastC.close; lastBarOpen = lastC.open; }
+        else { lastBarTime = null; lastBarClose = null; lastBarOpen = null; }
         var range = keepView && hasData ? chart.timeScale().getVisibleLogicalRange() : null;
         candleSeries.setData(candles.map(function (c) {
           return { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close };
@@ -576,31 +642,42 @@ function buildChartHtml(): string {
         hasData = true;
       };
 
-      var tfSeconds = 60, lastBarTime = null, lastBarClose = null;
+      var tfSeconds = 60, lastBarTime = null, lastBarClose = null, lastBarOpen = null;
       window.setTf = function (sec) { tfSeconds = sec; };
-      function updateCountdown() {
-        var el = document.getElementById('countdown');
+      function updateLastTag() {
+        var el = document.getElementById('lastTag');
         if (!candleSeries || lastBarTime === null || lastBarClose === null) { el.style.opacity = 0; return; }
         var y = candleSeries.priceToCoordinate(lastBarClose);
-        if (y === null) { el.style.opacity = 0; return; }
+        var width = chart.priceScale('right').width();
+        if (y === null || !width) { el.style.opacity = 0; return; }
         var remaining = Math.max(0, lastBarTime + tfSeconds - Math.floor((Date.now() + clockOffsetMs) / 1000));
         var h = Math.floor(remaining / 3600), m = Math.floor((remaining % 3600) / 60), sec = remaining % 60;
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-        el.textContent = (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(sec);
-        el.style.top = (y + 14) + 'px';
+        document.getElementById('lastTagPrice').textContent = fmt(lastBarClose);
+        document.getElementById('lastTagTime').textContent = (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(sec);
+        el.style.background = lastBarClose >= (lastBarOpen === null ? lastBarClose : lastBarOpen) ? upHex : downHex;
+        el.style.width = width + 'px';
+        el.style.top = y + 'px';
         el.style.opacity = 1;
       }
       setInterval(function () {
-        updateCountdown();
+        updateLastTag();
         placePlus();
       }, 250);
 
-      var clockOffsetMs = 0;
+      var clockOffsetMs = 0, tagFrame = 0;
       window.updateLastCandle = function (c, offsetMs) {
         if (typeof offsetMs === 'number') clockOffsetMs = offsetMs;
-        lastBarTime = c.time; lastBarClose = c.close;
+        lastBarTime = c.time; lastBarClose = c.close; lastBarOpen = c.open;
         candleSeries.update({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close });
         if (c.volume != null) volumeSeries.update({ time: c.time, value: c.volume, color: volColor(c) });
+        // Repaint the price tag with the next frame rather than inside every update.
+        if (!tagFrame) tagFrame = requestAnimationFrame(function () { tagFrame = 0; updateLastTag(); });
+      };
+
+      window.setWatermark = function (text) {
+        watermarkText = text;
+        if (watermark) watermark.applyOptions({ lines: [{ text: text, color: theme ? theme.watermarkColor : 'rgba(255,255,255,0.05)', fontSize: 30, fontStyle: '700' }] });
       };
 
       window.setAlertLevels = function (levels) {
@@ -608,11 +685,11 @@ function buildChartHtml(): string {
         priceLines = levels.map(function (level) {
           return candleSeries.createPriceLine({
             price: level.price,
-            color: level.up ? '#22c55e' : '#f43f5e',
+            color: level.up ? upHex : downHex,
             lineWidth: 1,
             lineStyle: 2,
             axisLabelVisible: true,
-            title: 'alert',
+            title: '\uD83D\uDD14',
           });
         });
       };
@@ -627,7 +704,7 @@ function buildChartHtml(): string {
         volumeSeries.applyOptions({ visible: s.volume });
         chart.applyOptions({
           grid: {
-            vertLines: { visible: s.grid, color: gridColor },
+            vertLines: { visible: false },
             horzLines: { visible: s.grid, color: gridColor },
           },
         });
@@ -638,11 +715,13 @@ function buildChartHtml(): string {
         gridColor = t.gridColor;
         chart.applyOptions({
           layout: { textColor: t.textColor },
-          grid: { vertLines: { color: t.gridColor }, horzLines: { color: t.gridColor } },
-          rightPriceScale: { borderColor: t.borderColor },
-          timeScale: { borderColor: t.borderColor },
-          crosshair: { vertLine: { color: t.crosshairColor }, horzLine: { color: t.crosshairColor } },
+          grid: { horzLines: { color: t.gridColor } },
+          crosshair: {
+            vertLine: { color: t.crosshairColor, labelBackgroundColor: t.labelBackground },
+            horzLine: { color: t.crosshairColor, labelBackgroundColor: t.brand },
+          },
         });
+        window.setWatermark(watermarkText);
       };
 
       init();
@@ -654,4 +733,6 @@ function buildChartHtml(): string {
 const styles = StyleSheet.create({
   wrap: { width: "100%", borderRadius: radius.sm, overflow: "hidden" },
   webview: { backgroundColor: "transparent" },
+  overlay: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", gap: 8 },
+  overlayText: { fontSize: 13 },
 });

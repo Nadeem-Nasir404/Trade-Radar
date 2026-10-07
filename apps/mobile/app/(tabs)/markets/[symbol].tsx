@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
@@ -49,7 +50,7 @@ export default function MarketDetailScreen() {
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
 
   const { data: instrument, isLoading } = useMarket(symbol);
-  const { data: candles } = useMarketHistory(symbol, timeframe);
+  const { data: candles, isLoading: historyLoading } = useMarketHistory(symbol, timeframe);
   const lastCandle = candles && candles.length > 0 ? candles[candles.length - 1] : null;
   const { data: alerts } = useAlerts({ search: symbol });
   const deleteAlert = useDeleteAlert();
@@ -78,10 +79,31 @@ export default function MarketDetailScreen() {
   const isFavorite = useIsFavorite(instrument?.id);
   const toggleFavorite = useToggleFavorite();
 
-  if (isLoading || !instrument) {
+  if (isLoading) {
+    // Same shape as the loaded screen, so content settles in place instead of jumping.
+    return (
+      <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top"]}>
+        <View style={styles.header}>
+          <Skeleton width={40} height={40} radius={999} />
+          <View style={[styles.headerCenter, { gap: 6 }]}>
+            <Skeleton width={96} height={16} />
+            <Skeleton width={64} height={12} />
+          </View>
+          <Skeleton width={40} height={40} radius={999} />
+        </View>
+        <View style={[styles.content, { gap: 10 }]}>
+          <Skeleton width={180} height={32} />
+          <Skeleton width={70} height={14} />
+          <Skeleton height={340} radius={radius.lg} style={{ marginTop: 8 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!instrument) {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-        <EmptyState icon="alert-circle-outline" title="Loading market..." description="" />
+        <EmptyState icon="search-outline" title="Market not found" description="This market isn't available right now." />
       </SafeAreaView>
     );
   }
@@ -153,6 +175,8 @@ export default function MarketDetailScreen() {
             candles={candles ?? []}
             instrumentId={instrument.id}
             onBarClose={refetchHistory}
+            watermark={`${instrument.displaySymbol} · ${timeframe}`}
+            loading={historyLoading}
             onLiveBar={onLiveBar}
             alertLevels={chartLevels}
             drawMode={drawMode}

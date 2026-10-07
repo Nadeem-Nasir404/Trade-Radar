@@ -37,7 +37,7 @@ export default function FullscreenChartScreen() {
   const [tappedPrice, setTappedPrice] = useState<number | null>(null);
 
   const { data: instrument } = useMarket(symbol);
-  const { data: candles } = useMarketHistory(symbol, timeframe);
+  const { data: candles, isLoading: historyLoading } = useMarketHistory(symbol, timeframe);
   // Price and change render in their own small components, so live updates don't re-render the screen.
   const queryClient = useQueryClient();
   const refetchHistory = useCallback(() => {
@@ -88,6 +88,8 @@ export default function FullscreenChartScreen() {
           candles={candles ?? []}
           instrumentId={instrument?.id}
           onBarClose={refetchHistory}
+          watermark={`${params.displaySymbol ?? instrument?.displaySymbol ?? symbol} · ${timeframe}`}
+          loading={historyLoading}
           timeframe={timeframe}
           viewKey={`${symbol}|${timeframe}`}
           drawMode={drawMode}
