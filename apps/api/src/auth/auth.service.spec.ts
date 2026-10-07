@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import Redis from "ioredis-mock";
 import type { Session, User } from "@prisma/client";
 import { AuthService } from "./auth.service";
 
@@ -8,6 +9,8 @@ const CONFIG: Record<string, string> = {
   JWT_REFRESH_SECRET: "refresh-secret-for-tests-only",
   JWT_ACCESS_TTL: "15m",
   JWT_REFRESH_TTL: "30d",
+  MAGIC_LINK_SECRET: "magic-link-secret-for-tests-only",
+  FRONTEND_URL: "http://localhost:3000",
 };
 
 const user = { id: "u1", email: "trader@test.dev", role: "USER" } as User;
@@ -42,6 +45,15 @@ function fakePrisma() {
   };
 }
 
+function makeService(prisma: ReturnType<typeof fakePrisma>, extras: { mailer?: unknown; usersService?: unknown } = {}) {
+  const config = { get: (key: string) => CONFIG[key] };
+  const redis = new Redis();
+  return {
+    redis,
+    service: new AuthService(prisma as any, (extras.usersService ?? {}) as any, new JwtService(), config as any, (extras.mailer ?? {}) as any, redis as any),
+  };
+}
+
 describe("AuthService.refresh (rotation and reuse detection)", () => {
   let prisma: ReturnType<typeof fakePrisma>;
   let service: AuthService;
@@ -49,8 +61,7 @@ describe("AuthService.refresh (rotation and reuse detection)", () => {
 
   beforeEach(() => {
     prisma = fakePrisma();
-    const config = { get: (key: string) => CONFIG[key] };
-    service = new AuthService(prisma as any, {} as any, new JwtService(), config as any, {} as any);
+    service = makeService(prisma).service;
   });
 
   const activeSessions = () => [...prisma.sessions.values()].filter((s) => !s.revokedAt);
@@ -92,5 +103,38 @@ describe("AuthService.refresh (rotation and reuse detection)", () => {
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(activeSessions()).toHaveLength(1);
+  });
+});
+
+describe("AuthService magic links", () => {
+  let service: AuthService;
+  let sentLinks: string[];
+
+  beforeEach(async () => {
+    sentLinks = [];
+    const mailer = { send: async ({ text }: { text: string }) => void sentLinks.push(text) };
+    const usersService = { findOrCreateByEmail: async (email: string) => ({ ...user, email }) };
+    const made = makeService(fakePrisma(), { mailer, usersService });
+    await made.redis.flushall();
+    service = made.service;
+  });
+
+  const tokenFromLink = (text: string) => decodeURIComponent(/token=([^\s]+)/.exec(text)![1]);
+
+  it("signs the user in once and rejects a second use of the same link", async () => {
+    await service.requestMagicLink("trader@test.dev");
+    const token = tokenFromLink(sentLinks[0]);
+
+    await expect(service.verifyMagicLink(token)).resolves.toMatchObject({ email: "trader@test.dev" });
+    await expect(service.verifyMagicLink(token)).rejects.toThrow(/already been used/);
+  });
+
+  it("keeps separately requested links independent", async () => {
+    await service.requestMagicLink("trader@test.dev");
+    await service.requestMagicLink("trader@test.dev");
+    const [first, second] = sentLinks.map(tokenFromLink);
+
+    await expect(service.verifyMagicLink(first)).resolves.toBeDefined();
+    await expect(service.verifyMagicLink(second)).resolves.toBeDefined();
   });
 });

@@ -8,6 +8,8 @@ Auth: JWT access/refresh tokens, supported two ways simultaneously:
 
 Every route requires authentication by default except those marked **Public**. All request/response bodies are JSON.
 
+Rate limits are per client IP and return `429` when exceeded: `THROTTLE_LIMIT` requests per `THROTTLE_TTL_MS` (default 120/min) on most routes, 10/min on register, login and both magic-link routes, and 30/min on refresh. `/health` is not limited. Behind a reverse proxy, set `TRUST_PROXY` so limits use the real client IP.
+
 ## Auth (`/auth`)
 
 | Method | Path | Notes |
@@ -20,7 +22,7 @@ Every route requires authentication by default except those marked **Public**. A
 | GET | `/auth/google` | **Public**. Redirects to Google OAuth. Web only - see ARCHITECTURE.md for the mobile gap |
 | GET | `/auth/google/callback` | **Public**. Sets cookies, redirects to `FRONTEND_URL/dashboard` |
 | POST | `/auth/magic-link/request` | **Public**. `{email}` → emails a sign-in link |
-| POST | `/auth/magic-link/verify` | **Public**. `{token}` → same response shape as register |
+| POST | `/auth/magic-link/verify` | **Public**. `{token}` → same response shape as register. Each link works once |
 
 ## Users (`/users`)
 

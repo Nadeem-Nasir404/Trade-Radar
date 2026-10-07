@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 import { AuthService, type TokenPair } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
@@ -25,6 +26,9 @@ import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "./auth.constants";
 import type { EnvConfig } from "../common/config/env.validation";
 import type { GoogleProfile } from "./strategies/google.strategy";
 import type { User } from "@prisma/client";
+
+/** Credential and email-sending endpoints get a much tighter per-IP budget than the global default. */
+const STRICT = { default: { limit: 10, ttl: 60_000 } };
 
 @Controller("auth")
 export class AuthController {
@@ -74,6 +78,7 @@ export class AuthController {
 
   @Public()
   @Post("register")
+  @Throttle(STRICT)
   async register(
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -89,6 +94,7 @@ export class AuthController {
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post("login")
+  @Throttle(STRICT)
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() _dto: LoginDto, // unused directly - passport's LocalStrategy already read email/password off req.body; this triggers DTO validation on the same body
@@ -104,6 +110,7 @@ export class AuthController {
 
   @Public()
   @Post("refresh")
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Body("refreshToken") bodyToken: string | undefined,
@@ -160,6 +167,7 @@ export class AuthController {
 
   @Public()
   @Post("magic-link/request")
+  @Throttle(STRICT)
   @HttpCode(HttpStatus.OK)
   async requestMagicLink(@Body() dto: MagicLinkRequestDto) {
     await this.authService.requestMagicLink(dto.email);
@@ -168,6 +176,7 @@ export class AuthController {
 
   @Public()
   @Post("magic-link/verify")
+  @Throttle(STRICT)
   @HttpCode(HttpStatus.OK)
   async verifyMagicLink(
     @Body("token") token: string,

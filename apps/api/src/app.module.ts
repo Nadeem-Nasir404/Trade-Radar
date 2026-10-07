@@ -1,10 +1,12 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
 import { BullModule } from "@nestjs/bullmq";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { validateEnv, type EnvConfig } from "./common/config/env.validation";
+import { HttpThrottlerGuard } from "./common/guards/http-throttler.guard";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
 import { MailerModule } from "./common/mailer/mailer.module";
@@ -75,5 +77,6 @@ import { WebsocketModule } from "./websocket/websocket.module";
     AdminModule,
     WebsocketModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
 })
 export class AppModule {}
