@@ -398,34 +398,13 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@expo-google-fonts/anton':
-        specifier: ^0.4.2
-        version: 0.4.2
-      '@expo-google-fonts/archivo-black':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@expo-google-fonts/fraunces':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@expo-google-fonts/jetbrains-mono':
-        specifier: ^0.4.1
-        version: 0.4.1
       '@expo-google-fonts/manrope':
-        specifier: ^0.4.2
-        version: 0.4.2
-      '@expo-google-fonts/playfair-display':
         specifier: ^0.4.2
         version: 0.4.2
       '@expo-google-fonts/plus-jakarta-sans':
         specifier: ^0.4.2
         version: 0.4.2
-      '@expo-google-fonts/sora':
-        specifier: ^0.4.2
-        version: 0.4.2
       '@expo-google-fonts/space-grotesk':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@expo-google-fonts/unbounded':
         specifier: ^0.4.1
         version: 0.4.1
       '@expo/vector-icons':
@@ -1303,38 +1282,17 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@expo-google-fonts/anton@0.4.2':
-    resolution: {integrity: sha512-VXxS6ZppH1W/0ch06c52iVpZhVwHX9sXEctyFy/NiF/gb3i697R4va+qpiDQHB71NI8pLyecdBjNrc5FA9qKrw==}
-
-  '@expo-google-fonts/archivo-black@0.4.1':
-    resolution: {integrity: sha512-Zi4M9NPyKBllCd8TobvYRRAAm/dbhnrYTywbkfGVOJ7cThEetli+jYBh/deAjzOEqYMTrlSM89uEiherIPjkpQ==}
-
-  '@expo-google-fonts/fraunces@0.4.1':
-    resolution: {integrity: sha512-gYc9P92ObyWvz1rWPOeWSvVKyBFIuA8hgOdhvo4DSiPBaWLbFA6v8uLIEIBwW+0oWTlXbBzjeBReHQI2H7UNjQ==}
-
-  '@expo-google-fonts/jetbrains-mono@0.4.1':
-    resolution: {integrity: sha512-CslACrtMOcRwoWXCO7OMEI+9w3fukWSoBtvNz46OqPoogEuuoY0tkDY1O8sFumk8t0pC6Cx0Xr95O0TOQhpkug==}
-
   '@expo-google-fonts/manrope@0.4.2':
     resolution: {integrity: sha512-BZsKe8d9BJrVnIQIZcTS7/Kac0TbXnqs/+8EBSiQxrmK6GoCO6eTkmr50D1weIk/EoF20pTmAkpWICnovATr/g==}
 
   '@expo-google-fonts/material-symbols@0.4.48':
     resolution: {integrity: sha512-aZztj44PyA/sj3TXSwwpLJwqMlTUJ49okbZJYURzEcuERxMQB0KbX7RrLBi8WJnuWz5HFOLlTRxORrJfNnUPNQ==}
 
-  '@expo-google-fonts/playfair-display@0.4.2':
-    resolution: {integrity: sha512-mWhBV59RUjSS3aYpytUb7UyHHTnXcHh7epAn7gq+M4XAEh5PuMKUrP8eiUfkJLb6UwHZCi7EhQpUzxHu5OL96w==}
-
   '@expo-google-fonts/plus-jakarta-sans@0.4.2':
     resolution: {integrity: sha512-6LYVmVGwjQvH+uzzWlVc9+oMj4lkNQ41aymVDjO+x8aFk8kCye20wOyLomYMZaMezA++Uf1mZRCw3W3Fy/hxEA==}
 
-  '@expo-google-fonts/sora@0.4.2':
-    resolution: {integrity: sha512-X86Kl1cfObcSUzTLIbtmrPCLRlIbCNh0uBOo8bjmXb8gWgVVhnI8CZJEK2btsdq85JPn5k4P6sbV9JLbAm7dqQ==}
-
   '@expo-google-fonts/space-grotesk@0.4.1':
     resolution: {integrity: sha512-ZVQYw4Ok/pgcSJiufP8oRZE3AVxS9xtmKEUfsurbHkHNdMc/GA1gDXP9G4Cr7KL4KqSc0haexR2TuMigotCn4Q==}
-
-  '@expo-google-fonts/unbounded@0.4.1':
-    resolution: {integrity: sha512-L5wlbPo/TWCmkNwtxeurXxo8D8koCPzajYWIMBqVRmcW1riG48fiK2bOBwopVzL/ifWvuAUXYvcunIMcem/2Dg==}
 
   '@expo/cli@57.0.27':
     resolution: {integrity: sha512-Jauk4chxmpVG5ElrMLTCwjFP20jbYU7PB4l3LYV8j+4e/3HU5jdl7qTQ4eVy1AaDUE9Ia2NCQ5A9kar2V1gaLg==}
@@ -9251,27 +9209,13 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@expo-google-fonts/anton@0.4.2': {}
-
-  '@expo-google-fonts/archivo-black@0.4.1': {}
-
-  '@expo-google-fonts/fraunces@0.4.1': {}
-
-  '@expo-google-fonts/jetbrains-mono@0.4.1': {}
-
   '@expo-google-fonts/manrope@0.4.2': {}
 
   '@expo-google-fonts/material-symbols@0.4.48': {}
 
-  '@expo-google-fonts/playfair-display@0.4.2': {}
-
   '@expo-google-fonts/plus-jakarta-sans@0.4.2': {}
 
-  '@expo-google-fonts/sora@0.4.2': {}
-
   '@expo-google-fonts/space-grotesk@0.4.1': {}
-
-  '@expo-google-fonts/unbounded@0.4.1': {}
 
   '@expo/cli@57.0.27(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.16)(expo-constants@57.0.20)(expo-font@57.0.4)(expo-router@57.0.24)(expo@57.0.26)(react-dom@19.3.0(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:

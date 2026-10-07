@@ -13,8 +13,7 @@ import { Surface } from "@/components/ui/surface";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { PnlCard, CARD_STYLE_LABELS, CARD_STYLES } from "@/components/trade/pnl-card";
-import { CARD_THEMES } from "@/lib/card-layout";
-import { useCardFonts } from "@/lib/card-fonts";
+import { CARD_FONTS, CARD_THEMES } from "@/lib/card-layout";
 import { useTradesStore, type CardStyle } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -195,10 +194,9 @@ function InfoRow({ label, value, tone }: { label: string; value: string; tone?: 
   );
 }
 
-/** Swipeable strip of mini card previews: each shows its artwork (or colours) and an "Aa" in its own typeface. */
+/** Swipeable strip of mini card previews: each shows its artwork (or colours) with a sample in its profit colour. */
 function StylePicker({ value, onChange }: { value: CardStyle; onChange: (style: CardStyle) => void }) {
   const { colors } = useTheme();
-  const fontState = useCardFonts();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
       {CARD_STYLES.map((st) => {
@@ -221,9 +219,9 @@ function StylePicker({ value, onChange }: { value: CardStyle; onChange: (style: 
               )}
               <ThemedText
                 allowFontScaling={false}
-                style={[styles.swatchSample, { color: theme.text, fontFamily: fontState === "ready" ? theme.fonts.display : undefined }]}
+                style={[styles.swatchSample, { color: theme.profit, fontFamily: CARD_FONTS.display }]}
               >
-                Aa
+                +%
               </ThemedText>
             </View>
             <ThemedText style={[styles.swatchLabel, { color: active ? colors.foreground : colors.foregroundMuted }]} numberOfLines={1}>

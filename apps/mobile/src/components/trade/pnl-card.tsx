@@ -4,16 +4,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
 import { formatCompactPrice } from "@/lib/format";
 import { pnlPct, type Trade } from "@/lib/stores/trades-store";
-import { useCardFonts } from "@/lib/card-fonts";
 import { useMinuteClock } from "@/lib/hooks/use-minute-clock";
-import { fonts as appFonts } from "@/lib/theme";
-import { CARD_LAYOUT, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, type CardStyle } from "@/lib/card-layout";
+import { CARD_FONTS, CARD_LAYOUT as L, CARD_STYLE_LABELS, CARD_STYLES, CARD_THEMES, type CardStyle } from "@/lib/card-layout";
 
 export { CARD_STYLE_LABELS, CARD_STYLES };
 
 const LOGO = require("../../../assets/splash-icon.png");
-const W = CARD_LAYOUT.canvas.width;
-const H = CARD_LAYOUT.canvas.height;
+const W = L.canvas.width;
+const H = L.canvas.height;
+const { display, body } = CARD_FONTS;
 
 /** Lining figures: serif faces like Playfair default to old-style numerals that bob above and below the line. */
 const NUMBER_VARIANT: TextStyle["fontVariant"] = ["lining-nums"];
@@ -44,12 +43,6 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   const [width, setWidth] = useState(0);
   const k = width / W;
   const t = CARD_THEMES[style] ?? CARD_THEMES.neon;
-  const L = t.layout;
-  const fontState = useCardFonts();
-  // Fall back to the app's own faces if the theme fonts couldn't load, instead of system defaults.
-  const display = fontState === "failed" ? appFonts.display : t.fonts.display;
-  const body = fontState === "failed" ? appFonts.bodySemibold : t.fonts.body;
-  const brandFont = appFonts.display;
 
   const closed = trade.exitPrice != null;
   const current = closed ? (trade.exitPrice as number) : livePrice ?? trade.entryPrice;
@@ -61,9 +54,8 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   const usd = trade.sizeUsd != null ? (trade.sizeUsd * pct) / 100 : null;
   const pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
   // Big moves (+1250.00%) would be truncated at full size, so shrink the hero number as it grows.
-  // Wide faces fit fewer characters, so the cut-off point comes from the theme.
-  const pctSize = L.pnlPercent.fontSize * Math.min(1, t.heroFitChars / pctText.length);
-  const tagline = t.tagline ? (pct >= 0 ? t.tagline.profit : t.tagline.loss) : null;
+  const pctSize = L.pnlPercent.fontSize * Math.min(1, 7.5 / pctText.length);
+  const tagline = pct >= 0 ? t.tagline.profit : t.tagline.loss;
 
   const at = (x: number, y: number) => ({ position: "absolute" as const, left: x * k, top: y * k });
   const shadow: TextStyle = t.shadow
@@ -80,13 +72,13 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
   return (
     <View ref={ref} collapsable={false} style={styles.card} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
       {/* Until the first layout pass k is 0, and Android crashes on text with fontSize 0, so wait for a real width. */}
-      {/* Wait for the theme's fonts too, so the card never flashes (or gets saved) in a fallback face. */}
-      {width > 0 && fontState !== "loading" && (
+      {width > 0 && (
         <>
           <Backdrop style={style} k={k} background={t.background} />
+          {t.corners && <CornerBrackets k={k} color={t.text} />}
 
           <Image source={LOGO} style={[at(L.logo.x, L.logo.y), { width: L.logo.size * k, height: L.logo.size * k }]} />
-          <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: brandFont }, shadow]}>
+          <CardText style={[at(L.brand.x, L.brand.y), { color: t.text, fontSize: L.brand.fontSize * k, fontFamily: display }, shadow]}>
             {L.brand.text}
           </CardText>
 
@@ -99,11 +91,9 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
             <CardText style={{ color: t.pillText, fontSize: L.statusPill.fontSize * k, fontFamily: body }}>{closed ? "Trade closed" : "Live"}</CardText>
           </View>
 
-          {tagline && (
-            <CardText style={[at(L.tagline.x, L.tagline.y), { color: t.sub, fontSize: L.tagline.fontSize * k, fontFamily: body, letterSpacing: 4 * k, textTransform: "uppercase" }, shadow]}>
-              {tagline}
-            </CardText>
-          )}
+          <CardText style={[at(L.tagline.x, L.tagline.y), { color: t.sub, fontSize: L.tagline.fontSize * k, fontFamily: body, letterSpacing: 4 * k, textTransform: "uppercase" }, shadow]}>
+            {tagline}
+          </CardText>
 
           <View style={[at(L.symbol.x, L.symbol.y), { flexDirection: "row", alignItems: "center", gap: L.sidePill.gap * k }]}>
             <CardText style={[{ color: t.text, fontSize: L.symbol.fontSize * k, fontFamily: display }, shadow]}>{trade.symbol}</CardText>
@@ -122,10 +112,9 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
                 color: tone,
                 fontSize: pctSize * k,
                 fontFamily: display,
-                letterSpacing: t.heroTracking * k,
+                letterSpacing: L.pnlPercent.tracking * k,
                 fontVariant: NUMBER_VARIANT,
-                // Display faces carry tall ascenders; a little extra line height keeps them from clipping.
-                lineHeight: pctSize * 1.18 * k,
+                lineHeight: pctSize * 1.12 * k,
               },
               shadow,
             ]}
@@ -139,9 +128,7 @@ export const PnlCard = forwardRef<View, { trade: Trade; livePrice: number | null
             </CardText>
           )}
 
-          {L.divider.visible && (
-            <View style={[at(L.divider.x, L.divider.y), { width: (W - 2 * L.divider.x) * k, height: L.divider.thickness * k, backgroundColor: t.divider }]} />
-          )}
+          <View style={[at(L.divider.x, L.divider.y), { width: (W - 2 * L.divider.x) * k, height: L.divider.thickness * k, backgroundColor: t.divider }]} />
 
           {stats.map((col, i) => {
             const x = L.stats.columns[i];
@@ -222,6 +209,28 @@ const ARTWORK_SCRIMS: Partial<Record<CardStyle, ReactNode>> = {
   // Text runs down the left, away from the moon and the antenna on the right.
   moonlit: <LinearGradient colors={["rgba(10,6,24,0.55)", "rgba(10,6,24,0)"]} start={{ x: 0, y: 0.5 }} end={{ x: 0.75, y: 0.5 }} style={StyleSheet.absoluteFill} />,
 };
+
+/** Viewfinder-style brackets in the four corners, in the theme's text colour. */
+function CornerBrackets({ k, color }: { k: number; color: string }) {
+  const { inset, arm, thickness } = L.corners;
+  const bar = (key: string, left: number, top: number, width: number, height: number) => (
+    <View key={key} style={{ position: "absolute", left: left * k, top: top * k, width: width * k, height: height * k, backgroundColor: color }} />
+  );
+  const right = W - inset;
+  const bottom = H - inset;
+  return (
+    <View style={[StyleSheet.absoluteFill, { opacity: 0.8 }]} pointerEvents="none">
+      {bar("tl-h", inset, inset, arm, thickness)}
+      {bar("tl-v", inset, inset, thickness, arm)}
+      {bar("tr-h", right - arm, inset, arm, thickness)}
+      {bar("tr-v", right - thickness, inset, thickness, arm)}
+      {bar("bl-h", inset, bottom - thickness, arm, thickness)}
+      {bar("bl-v", inset, bottom - arm, thickness, arm)}
+      {bar("br-h", right - arm, bottom - thickness, arm, thickness)}
+      {bar("br-v", right - thickness, bottom - arm, thickness, arm)}
+    </View>
+  );
+}
 
 /** Faint grid, plus a row of candles along the bottom third. */
 function gridAndCandles(s: (v: number) => number) {
