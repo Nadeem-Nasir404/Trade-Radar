@@ -39,16 +39,18 @@ export class AlertsService {
   ) {}
 
   async create(userId: string, dto: CreateAlertDto) {
-    await this.subscriptions.assertCanCreateAlert(userId);
-
-    const instrument = await this.prisma.instrument.findUnique({ where: { id: dto.instrumentId } });
-    if (!instrument || !instrument.isActive) throw new NotFoundException("Instrument not found");
-
     if (isRangeCondition(dto.conditionType)) {
       if (dto.secondaryValue === undefined) throw new BadRequestException("Range alerts require a secondaryValue (the upper bound)");
       assertValidRange(dto.targetValue, dto.secondaryValue);
     }
-    await this.assertOwnsGroup(userId, dto.alertGroupId);
+
+    // Independent checks, so they share one round trip to the database instead of three.
+    const [, instrument] = await Promise.all([
+      this.subscriptions.assertCanCreateAlert(userId),
+      this.prisma.instrument.findUnique({ where: { id: dto.instrumentId } }),
+      this.assertOwnsGroup(userId, dto.alertGroupId),
+    ]);
+    if (!instrument || !instrument.isActive) throw new NotFoundException("Instrument not found");
 
     let secondaryValue = dto.secondaryValue;
     if (dto.conditionType === ConditionType.PCT_CHANGE) {
@@ -304,8 +306,9 @@ export class AlertsService {
 
   /** Puts an active alert into the engine's index, keeps its market feed open, and fires it at once if its level is already met. */
   private async arm(alert: Alert) {
-    await this.indexer.indexAlert(alert);
-    await this.marketData.onAlertActivated(alert.instrumentId, alert.id);
+    // Indexing and opening the feed are independent. The price is read only after indexing, so a
+    // tick landing in between is caught either by the engine or by this check - never by neither.
+    await Promise.all([this.indexer.indexAlert(alert), this.marketData.onAlertActivated(alert.instrumentId, alert.id)]);
     await this.fireIfLevelAlreadyMet(alert);
   }
 

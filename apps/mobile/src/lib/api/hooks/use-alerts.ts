@@ -52,7 +52,10 @@ export function useCreateAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateAlertInput) => api.post<Alert>("/alerts", input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    // Not awaited: the form closes as soon as the server confirms; the lists refresh behind it.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 }
 
@@ -60,7 +63,9 @@ export function useUpdateAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: Partial<CreateAlertInput> & { id: string }) => api.patch<Alert>(`/alerts/${id}`, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 }
 

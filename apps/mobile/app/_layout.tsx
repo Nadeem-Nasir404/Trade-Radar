@@ -23,6 +23,7 @@ import { View, StyleSheet } from "react-native";
 import { useTheme } from "@/lib/use-theme";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { bootstrapAuth } from "@/lib/api/hooks/use-auth";
+import { persistQueryCache, restoreQueryCache } from "@/lib/api/query-persistence";
 import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import { setupNotificationHandler, subscribeNotificationTaps } from "@/lib/safe-notifications";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
@@ -39,6 +40,7 @@ setupNotificationHandler();
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1 } },
 });
+persistQueryCache(queryClient);
 
 export default function RootLayout() {
   const { colors } = useTheme();
@@ -89,7 +91,12 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
 
   useEffect(() => {
     bootstrapAuth()
-      .then((user) => (user ? setAuthenticated(user) : setUnauthenticated()))
+      .then(async (user) => {
+        if (!user) return setUnauthenticated();
+        // Before the first screen mounts, so lists open with the last data instead of a spinner.
+        await restoreQueryCache(queryClient, user.id);
+        setAuthenticated(user);
+      })
       .finally(() => setAuthReady(true));
   }, [setAuthenticated, setUnauthenticated]);
 

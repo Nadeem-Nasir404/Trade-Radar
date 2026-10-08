@@ -16,7 +16,9 @@ export class MarketDataController {
   @Public()
   @Get(":symbol/history")
   async history(@Param("symbol") symbol: string, @Query("timeframe") timeframe?: string) {
-    const instrument = await this.instruments.getBySymbol(symbol);
+    // Candles come from the exchange, not the price cache - looking up only the row keeps charts
+    // loading when Redis is full or unreachable.
+    const instrument = await this.instruments.findActiveBySymbol(symbol);
     const tf = VALID_TIMEFRAMES.includes(timeframe as Timeframe) ? (timeframe as Timeframe) : "15m";
     return this.marketData.getHistoricalCandles(instrument.id, tf);
   }

@@ -36,10 +36,10 @@ export class SubscriptionsService {
    * call this before writing a new Alert row.
    */
   async assertCanCreateAlert(userId: string): Promise<void> {
-    const subscription = await this.getForUser(userId);
-    const activeCount = await this.prisma.alert.count({
-      where: { userId, status: AlertStatus.ACTIVE },
-    });
+    const [subscription, activeCount] = await Promise.all([
+      this.getForUser(userId),
+      this.prisma.alert.count({ where: { userId, status: AlertStatus.ACTIVE } }),
+    ]);
     if (activeCount >= subscription.maxActiveAlerts) {
       throw new ForbiddenException(
         `You've reached your ${subscription.plan} plan's limit of ${subscription.maxActiveAlerts} active alerts. Upgrade your plan or pause an existing alert to create a new one.`,

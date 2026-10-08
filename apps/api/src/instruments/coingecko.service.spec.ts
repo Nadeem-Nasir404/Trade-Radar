@@ -48,4 +48,20 @@ describe("CoinGeckoService.getMarketCaps", () => {
     const caps = await make().getMarketCaps();
     expect(caps.bySymbol.size).toBe(0);
   });
+
+  it("after a failed refresh, answers at once and backs off instead of retrying on every request", async () => {
+    let calls = 0;
+    global.fetch = (async () => {
+      calls++;
+      return new Response("rate limited", { status: 429 });
+    }) as typeof fetch;
+
+    const service = make();
+    await service.getMarketCaps(); // first attempt fails (one call: page 1 gives up)
+    const started = Date.now();
+    await service.getMarketCaps();
+    await service.getMarketCaps();
+    expect(Date.now() - started).toBeLessThan(100);
+    expect(calls).toBe(1);
+  });
 });

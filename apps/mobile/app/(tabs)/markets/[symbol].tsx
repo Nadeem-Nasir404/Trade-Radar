@@ -180,6 +180,7 @@ export default function MarketDetailScreen() {
             watermark={`${instrument.displaySymbol} · ${timeframe}`}
             loading={historyLoading}
             failed={historyFailed}
+            fallbackPrice={instrument.price}
             onLiveBar={onLiveBar}
             alertLevels={chartLevels}
             onAlertMove={onAlertMove}

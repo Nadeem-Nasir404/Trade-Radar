@@ -34,7 +34,9 @@ export class CoinGeckoService {
 
   /** Top coins by market cap for the Markets list, refreshed at most every MARKET_CAP_TTL_MS. */
   private marketCaps: MarketCapIndex = { byId: new Map(), bySymbol: new Map() };
-  private marketCapsFetchedAt = 0;
+  /** When the next refresh is due: the TTL after a success, a short backoff after a failure. */
+  private marketCapsNextRefreshAt = 0;
+  private marketCapsAttempted = false;
   private marketCapsRefresh: Promise<void> | null = null;
 
   constructor(config: ConfigService<EnvConfig, true>) {
@@ -46,7 +48,7 @@ export class CoinGeckoService {
     try {
       const headers: Record<string, string> = {};
       if (this.apiKey) headers["x-cg-demo-api-key"] = this.apiKey;
-      const res = await fetch(`${this.baseUrl}${path}`, { headers });
+      const res = await fetch(`${this.baseUrl}${path}`, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (!res.ok) {
         this.logger.warn(`CoinGecko request failed: ${path} -> ${res.status}`);
         return null;
@@ -114,13 +116,16 @@ export class CoinGeckoService {
    * data, and after that a slow or failing CoinGecko never holds up the list.
    */
   async getMarketCaps(): Promise<MarketCapIndex> {
-    const stale = Date.now() - this.marketCapsFetchedAt > MARKET_CAP_TTL_MS;
-    if (stale && !this.marketCapsRefresh) {
+    if (Date.now() >= this.marketCapsNextRefreshAt && !this.marketCapsRefresh) {
       this.marketCapsRefresh = this.refreshMarketCaps().finally(() => {
         this.marketCapsRefresh = null;
+        this.marketCapsAttempted = true;
       });
     }
-    if (this.marketCaps.byId.size === 0 && this.marketCapsRefresh) {
+    // Only the very first list after boot waits (briefly) for caps. Once an attempt has failed -
+    // CoinGecko rate-limits shared cloud IPs - lists are served at once without them, instead of
+    // every request stalling on a retry that keeps failing.
+    if (this.marketCaps.byId.size === 0 && this.marketCapsRefresh && !this.marketCapsAttempted) {
       let timer: NodeJS.Timeout | undefined;
       const wait = new Promise<void>((resolve) => {
         timer = setTimeout(resolve, FIRST_FETCH_WAIT_MS);
@@ -148,7 +153,9 @@ export class CoinGeckoService {
     }
     if (byId.size > 0) {
       this.marketCaps = { byId, bySymbol };
-      this.marketCapsFetchedAt = Date.now();
+      this.marketCapsNextRefreshAt = Date.now() + MARKET_CAP_TTL_MS;
+    } else {
+      this.marketCapsNextRefreshAt = Date.now() + MARKET_CAP_RETRY_MS;
     }
   }
 }
@@ -164,7 +171,10 @@ export interface MarketCapIndex {
 }
 
 const MARKET_CAP_TTL_MS = 10 * 60 * 1000;
+/** After a failed refresh (rate limit, outage), wait this long before asking CoinGecko again. */
+const MARKET_CAP_RETRY_MS = 2 * 60 * 1000;
 const FIRST_FETCH_WAIT_MS = 2_500;
+const FETCH_TIMEOUT_MS = 8_000;
 /** Two pages of 250: every coin a typical exchange lists outside the long tail. */
 const MARKET_CAP_PAGES = 2;
 /** CoinGecko's /coins/markets returns at most 250 coins per page. */

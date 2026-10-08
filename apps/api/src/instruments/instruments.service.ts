@@ -48,12 +48,18 @@ export class InstrumentsService {
     return instruments.map((instrument) => this.serialize(instrument, snapshots.get(instrument.id), marketCapFor(instrument, caps)));
   }
 
-  async getBySymbol(symbol: string) {
+  /** The instrument row alone - no price snapshot, so callers that only need its id never touch Redis. */
+  async findActiveBySymbol(symbol: string): Promise<InstrumentWithRelations> {
     const instrument = await this.prisma.instrument.findFirst({
       where: { symbol: { equals: symbol, mode: "insensitive" }, isActive: true },
       include: { provider: true, exchange: true },
     });
     if (!instrument) throw new NotFoundException(`Instrument ${symbol} not found`);
+    return instrument;
+  }
+
+  async getBySymbol(symbol: string) {
+    const instrument = await this.findActiveBySymbol(symbol);
     const snapshot = await this.priceCache.getSnapshot(instrument.id);
     return this.serialize(instrument, snapshot ?? undefined);
   }
