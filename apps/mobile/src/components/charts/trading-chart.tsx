@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
+import { Button } from "@/components/ui/button";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
@@ -36,6 +37,8 @@ interface TradingChartProps {
   loading?: boolean;
   /** The history request failed (it is being retried) - says so instead of "no history". */
   failed?: boolean;
+  /** Price used for the "set alert" action when there are no candles to tap (the live price wins). */
+  fallbackPrice?: number | null;
   alertLevels?: ChartAlertLevel[];
   height?: number;
   onPriceTap?: (price: number) => void;
@@ -60,7 +63,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, alertLevels = [], height = 260, onPriceTap, onAlertMove, onAlertDelete, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, fallbackPrice = null, alertLevels = [], height = 260, onPriceTap, onAlertMove, onAlertDelete, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   // isDark is the theme actually showing; `mode` is the user's setting and can be "system".
@@ -282,11 +285,27 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
         </View>
       ) : candles.length === 0 ? (
         // Charts only show real exchange data, so a market without history says so instead of drawing a blank grid.
-        <View style={styles.overlay} pointerEvents="none">
+        <View style={styles.overlay} pointerEvents="box-none">
           <Ionicons name={failed ? "cloud-offline-outline" : "bar-chart-outline"} size={22} color={colors.foregroundSubtle} />
           <ThemedText variant="subtle" style={styles.overlayText}>
             {failed ? "Couldn't load the chart. Retrying…" : "No price history for this timeframe yet"}
           </ThemedText>
+          {/* The chart's + needs candles to read a price from; without them, alerts start from the live price. */}
+          {onPriceTap && (
+            <Button
+              title="Set alert at current price"
+              variant="glass"
+              size="sm"
+              icon={<Ionicons name="add" size={16} color={colors.foreground} />}
+              onPress={() => {
+                const price = (instrumentId ? useLivePriceStore.getState().byId[instrumentId]?.price : null) ?? fallbackPrice;
+                if (price == null) return;
+                haptics.medium();
+                onPriceTap(price);
+              }}
+              style={styles.overlayAction}
+            />
+          )}
         </View>
       ) : null}
     </View>
@@ -902,4 +921,5 @@ const styles = StyleSheet.create({
   webview: { backgroundColor: "transparent" },
   overlay: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", gap: 8 },
   overlayText: { fontSize: 13 },
+  overlayAction: { marginTop: 4 },
 });
