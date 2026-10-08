@@ -26,8 +26,9 @@ export default function CreateAlertScreen() {
   );
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search.trim());
+  // Same filters as the Markets tab when not searching, so the picker opens on its cached list.
   const { data: markets, isLoading } = useMarkets(
-    { search: debounced || undefined, limit: debounced ? 50 : 100 },
+    { search: debounced || undefined, limit: debounced ? 50 : 250 },
     { enabled: !selected },
   );
 
