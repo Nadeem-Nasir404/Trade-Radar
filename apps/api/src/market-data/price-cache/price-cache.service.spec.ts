@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import Redis from "ioredis-mock";
 import { PriceCacheService, STALE_AFTER_MS } from "./price-cache.service";
 
@@ -103,5 +104,40 @@ describe("PriceCacheService.applyTick (tick-guard)", () => {
     await service.applyTick(tick({ instrumentId: staleCheckInstrument, eventTime: now - STALE_AFTER_MS - 1_000 }));
     const stale = await service.getSnapshot(staleCheckInstrument);
     expect(stale?.feedStatus).toBe("STALE");
+  });
+});
+
+describe("PriceCacheService read resilience (Redis unreachable or full)", () => {
+  // A coin's detail page and the markets list both treat the live price as a nice-to-have on top
+  // of the Postgres row - a Redis read failure (e.g. "max number of clients reached") must not
+  // turn the whole request into a 500.
+  let redis: InstanceType<typeof Redis>;
+  let service: PriceCacheService;
+
+  beforeEach(async () => {
+    redis = new Redis();
+    await redis.flushall();
+    service = new PriceCacheService(redis as any);
+  });
+
+  it("getSnapshot returns null instead of throwing when the read fails", async () => {
+    jest.spyOn(redis, "hgetall").mockRejectedValueOnce(new Error("ERR max number of clients reached"));
+    await expect(service.getSnapshot("BTC")).resolves.toBeNull();
+  });
+
+  it("getSnapshots returns an empty map instead of throwing when the pipeline fails", async () => {
+    jest.spyOn(redis, "pipeline").mockImplementationOnce(() => {
+      throw new Error("ERR max number of clients reached");
+    });
+    await expect(service.getSnapshots(["BTC", "ETH"])).resolves.toEqual(new Map());
+  });
+
+  it("recovers on the next call once Redis is reachable again", async () => {
+    jest.spyOn(redis, "hgetall").mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    await expect(service.getSnapshot("BTC")).resolves.toBeNull();
+
+    await service.applyTick({ instrumentId: "BTC", price: 100, eventTime: 1000, receivedTime: 1000, providerId: "prov-1", isDemo: false });
+    const snapshot = await service.getSnapshot("BTC");
+    expect(snapshot?.price).toBe(100);
   });
 });
