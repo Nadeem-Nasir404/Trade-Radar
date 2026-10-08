@@ -93,6 +93,12 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
   private closingIntentionally = false;
   private msgIdCounter = 1;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  /**
+   * 418 ("I'm a teapot") is Binance's response once an IP has been auto-banned for ignoring 429s;
+   * hitting a banned host again before its ban clears only prolongs it. Keyed by host, cleared
+   * once Date.now() passes the value (Binance's Retry-After header, or a 60s guess without one).
+   */
+  private readonly bannedUntil = new Map<string, number>();
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     this.baseUrl = this.config.get("BINANCE_WS_BASE_URL", { infer: true });
@@ -296,12 +302,16 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
     // api.binance.com refuses some server regions (451) and rate-limits (429/418); the public
     // market-data host serves the same klines without the region block, so it's the fallback.
     for (const host of KLINE_HOSTS) {
+      const bannedUntil = this.bannedUntil.get(host);
+      if (bannedUntil && Date.now() < bannedUntil) continue; // still cooling down - don't re-trip the ban
       try {
         const res = await fetch(`${host}/api/v3/klines?${query}`, { signal: AbortSignal.timeout(KLINE_TIMEOUT_MS) });
         if (!res.ok) {
+          if (res.status === 418 || res.status === 429) this.banHost(host, res);
           this.logger.warn(`Binance klines ${providerSymbol} ${timeframe} from ${host}: HTTP ${res.status}`);
           continue;
         }
+        this.bannedUntil.delete(host);
         const raw = (await res.json()) as unknown[][];
         return raw.map((k) => ({
           time: Math.floor(Number(k[0]) / 1000),
@@ -316,6 +326,18 @@ export class BinanceProvider implements MarketDataProvider, OnModuleDestroy {
       }
     }
     return [];
+  }
+
+  /**
+   * Honours Binance's Retry-After on a 418/429 (seconds until the ban lifts) so every other
+   * chart open in the meantime skips straight past this host instead of extending the ban by
+   * hitting it again. Falls back to a conservative 60s when the header is missing.
+   */
+  private banHost(host: string, res: Response) {
+    const header = Number(res.headers.get("retry-after"));
+    const seconds = Number.isFinite(header) && header > 0 ? Math.min(header, 24 * 3600) : 60;
+    this.bannedUntil.set(host, Date.now() + seconds * 1000);
+    this.logger.warn(`Binance host ${host} returned HTTP ${res.status} - pausing klines requests to it for ${seconds}s`);
   }
 
   getHealth(): ProviderHealth {
