@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import type Redis from "ioredis";
 import { InjectRedis } from "../../redis/inject-redis.decorator";
 import { TICK_GUARD_LUA } from "./tick-guard.lua";
@@ -37,7 +37,21 @@ function priceKey(instrumentId: string) {
 
 @Injectable()
 export class PriceCacheService {
+  private readonly logger = new Logger(PriceCacheService.name);
+  private lastReadErrorLog = 0;
+
   constructor(@InjectRedis() private readonly redis: Redis) {}
+
+  // A single coin's page, and the markets list, both read the live price as a nice-to-have on
+  // top of the Postgres row. If Redis is unreachable or full ("max number of clients reached"),
+  // this used to throw and turn the whole request into a 500 - now it degrades to "no live price
+  // yet" instead, matching ResilientWorkerHost's throttled-log treatment of the same failure.
+  private logReadError(err: unknown) {
+    const now = Date.now();
+    if (now - this.lastReadErrorLog < 10_000) return;
+    this.lastReadErrorLog = now;
+    this.logger.warn(`Price snapshot read failed, serving without a live price: ${(err as Error).message}`);
+  }
 
   /** The single atomic entry point every provider adapter's tick must pass through. */
   async applyTick(input: {
@@ -111,20 +125,29 @@ export class PriceCacheService {
   }
 
   async getSnapshot(instrumentId: string): Promise<PriceSnapshot | null> {
-    const raw = await this.redis.hgetall(priceKey(instrumentId));
-    return this.parseSnapshot(instrumentId, raw);
+    try {
+      const raw = await this.redis.hgetall(priceKey(instrumentId));
+      return this.parseSnapshot(instrumentId, raw);
+    } catch (err) {
+      this.logReadError(err);
+      return null;
+    }
   }
 
   async getSnapshots(instrumentIds: string[]): Promise<Map<string, PriceSnapshot>> {
     const result = new Map<string, PriceSnapshot>();
     if (instrumentIds.length === 0) return result;
-    const pipeline = this.redis.pipeline();
-    for (const id of instrumentIds) pipeline.hgetall(priceKey(id));
-    const responses = await pipeline.exec();
-    responses?.forEach(([, raw], idx) => {
-      const snapshot = this.parseSnapshot(instrumentIds[idx], raw as Record<string, string> | null);
-      if (snapshot) result.set(instrumentIds[idx], snapshot);
-    });
+    try {
+      const pipeline = this.redis.pipeline();
+      for (const id of instrumentIds) pipeline.hgetall(priceKey(id));
+      const responses = await pipeline.exec();
+      responses?.forEach(([, raw], idx) => {
+        const snapshot = this.parseSnapshot(instrumentIds[idx], raw as Record<string, string> | null);
+        if (snapshot) result.set(instrumentIds[idx], snapshot);
+      });
+    } catch (err) {
+      this.logReadError(err);
+    }
     return result;
   }
 
