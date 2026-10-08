@@ -64,6 +64,43 @@ describe("BinanceProvider historical candles", () => {
     expect(candles).toEqual([{ time: 1_700_000_000, open: 1.5, high: 1.6, low: 1.4, close: 1.55, volume: 1000 }]);
   });
 
+  it("stops calling a host banned with HTTP 418 until its Retry-After cooldown elapses", async () => {
+    const calls: string[] = [];
+    global.fetch = (async (url: string) => {
+      calls.push(url);
+      if (url.startsWith("https://api.binance.com")) {
+        return new Response("teapot", { status: 418, headers: { "retry-after": "120" } });
+      }
+      return new Response(JSON.stringify([kline]), { status: 200 });
+    }) as typeof fetch;
+
+    const { provider } = makeProviderWithInstance();
+    await provider.getHistoricalData("btcusdt", "1h"); // bans api.binance.com for 120s
+    calls.length = 0;
+
+    const candles = await provider.getHistoricalData("btcusdt", "1h");
+    // Only the still-healthy host is called - re-hitting a banned host would only prolong the ban.
+    expect(calls).toEqual(["https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500"]);
+    expect(candles).toHaveLength(1);
+  });
+
+  it("defaults to a 60s cooldown when Binance sends no Retry-After header", async () => {
+    const calls: string[] = [];
+    global.fetch = (async (url: string) => {
+      calls.push(url);
+      return new Response("rate limited", { status: 429 });
+    }) as typeof fetch;
+
+    const { provider } = makeProviderWithInstance();
+    await provider.getHistoricalData("btcusdt", "1h");
+    calls.length = 0;
+
+    await provider.getHistoricalData("btcusdt", "1h");
+    // Both hosts banned on the first round (no Retry-After -> 60s default), so the second round
+    // makes no network calls at all instead of hitting either one again.
+    expect(calls).toEqual([]);
+  });
+
   it("returns no candles when every host fails", async () => {
     global.fetch = (async () => {
       throw new Error("network down");
