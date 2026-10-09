@@ -77,7 +77,10 @@ export default function TabsLayout() {
                 experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
                 style={StyleSheet.absoluteFill}
               />
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(colors.backgroundElevated, 0.72) }]} />
+              {/* Same translucent tint every other glass panel uses (Surface) - backgroundElevated
+                  is a near-solid colour, so tinting with that instead made the bar read as a flat
+                  opaque pill rather than glass reflecting the gradient behind it. */}
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass }]} />
               <LinearGradient colors={[colors.glassBorderStrong, "transparent"]} style={styles.barHighlight} pointerEvents="none" />
             </View>
           ),

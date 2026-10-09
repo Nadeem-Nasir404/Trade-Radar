@@ -91,7 +91,10 @@ export function AlertRow({ alert, autoPeek = false }: { alert: Alert; autoPeek?:
       <PressableScale
         onPress={() => router.push({ pathname: "/(tabs)/markets/[symbol]", params: { symbol: alert.symbol.replace("/", "") } })}
       >
-        <View style={[styles.row, { backgroundColor: colors.background, borderBottomColor: colors.glassBorder, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+        {/* Transparent, not colors.background: a flat fill here paints a visible box over the
+            ambient gradient wherever a row sits on top of it (see AmbientOrbs). MarketRow leaves
+            its row transparent for the same reason - only the hairline divider marks the row. */}
+        <View style={[styles.row, { borderBottomColor: colors.glassBorder, borderBottomWidth: StyleSheet.hairlineWidth }]}>
           <CoinLogo uri={alert.iconUrl} symbol={alert.symbol} />
           <View style={styles.left}>
             <View style={styles.symbolRow}>
