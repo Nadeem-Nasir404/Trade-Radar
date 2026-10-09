@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Pressable, StyleSheet, Modal, ScrollView } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
@@ -128,11 +129,28 @@ function ChartSettingsSheet({ visible, onClose }: { visible: boolean; onClose: (
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   const { colors } = useTheme();
+  // 0..1 drives both the knob's slide and the track's colour crossfade, so the whole switch
+  // settles together instead of the colour snapping instantly while the knob is mid-slide.
+  const progress = useSharedValue(value ? 1 : 0);
+  useEffect(() => {
+    progress.value = withSpring(value ? 1 : 0, { damping: 16, stiffness: 320 });
+  }, [value, progress]);
+
+  const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: progress.value * 16 }] }));
+  const onTintStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+
   return (
-    <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}>
+    <Pressable
+      onPress={() => {
+        haptics.selection();
+        onChange(!value);
+      }}
+      style={styles.toggleRow}
+    >
       <ThemedText>{label}</ThemedText>
-      <View style={[styles.toggleTrack, { backgroundColor: value ? colors.brand : colors.glassHover }]}>
-        <View style={[styles.toggleKnob, { transform: [{ translateX: value ? 16 : 0 }] }]} />
+      <View style={[styles.toggleTrack, { backgroundColor: colors.glassHover }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.toggleTrackFill, { backgroundColor: colors.brand }, onTintStyle]} />
+        <Animated.View style={[styles.toggleKnob, knobStyle]} />
       </View>
     </Pressable>
   );
@@ -159,6 +177,7 @@ const styles = StyleSheet.create({
   swatch: { width: 14, height: 22, borderRadius: 3 },
   paletteName: { fontSize: 12, fontWeight: "600" },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
-  toggleTrack: { width: 40, height: 24, borderRadius: 12, padding: 4, justifyContent: "center" },
-  toggleKnob: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff" },
+  toggleTrack: { width: 40, height: 24, borderRadius: 12, padding: 4, justifyContent: "center", overflow: "hidden" },
+  toggleTrackFill: { borderRadius: 12 },
+  toggleKnob: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffffff", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
 });

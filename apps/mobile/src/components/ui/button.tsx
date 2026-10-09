@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-na
 import { ThemedText } from "./themed-text";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
+import { haptics } from "@/lib/haptics";
 
 type Variant = "primary" | "glass" | "ghost" | "destructive";
 /** "md" is the full-size action button; "sm" is a compact pill for top bars and inline actions. */
@@ -30,6 +31,7 @@ export function Button({ title, variant = "primary", size = "md", loading, icon,
   const pressHandlers = {
     onPressIn: (e: Parameters<NonNullable<PressableProps["onPressIn"]>>[0]) => {
       scale.set(withSpring(0.96, PRESS_SPRING));
+      if (!disabled && !loading) haptics.light();
       onPressIn?.(e);
     },
     onPressOut: (e: Parameters<NonNullable<PressableProps["onPressOut"]>>[0]) => {
