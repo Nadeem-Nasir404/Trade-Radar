@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing, runOnJS } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, withSpring, Easing, runOnJS } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "./themed-text";
@@ -48,10 +48,16 @@ function ToastCard({
   const progress = useSharedValue(1);
 
   useEffect(() => {
-    translateY.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) });
+    // A touch of spring on the way in (a small settle, not a bounce) reads as livelier than a
+    // plain ease; the way out is a quick fade + drop so the toast never just vanishes.
+    translateY.value = withSpring(0, { damping: 16, stiffness: 220 });
     opacity.value = withTiming(1, { duration: 200 });
     progress.value = withTiming(0, { duration: DURATION_MS, easing: Easing.linear }, (finished) => {
-      if (finished) runOnJS(onDone)();
+      if (!finished) return;
+      translateY.value = withTiming(16, { duration: 180, easing: Easing.in(Easing.cubic) });
+      opacity.value = withTiming(0, { duration: 180 }, (faded) => {
+        if (faded) runOnJS(onDone)();
+      });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
