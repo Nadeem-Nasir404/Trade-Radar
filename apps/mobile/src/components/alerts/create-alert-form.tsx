@@ -21,9 +21,14 @@ const CONDITION_OPTIONS: { value: ConditionType; label: string; icon: keyof type
   { value: "BELOW", label: "Below", icon: "trending-down" },
   { value: "EQUALS", label: "Hits exactly", icon: "remove" },
   { value: "PCT_CHANGE", label: "% change", icon: "pulse" },
+  { value: "PCT_CHANGE_WINDOW", label: "% change (window)", icon: "timer-outline" },
   { value: "ENTERS_RANGE", label: "Enters range", icon: "swap-horizontal", needsSecondary: true },
   { value: "EXITS_RANGE", label: "Exits range", icon: "swap-horizontal", needsSecondary: true },
 ];
+
+// Same set the chart's own timeframe picker offers, minus the very short/very long ends - a 1m
+// rolling window is mostly noise, and a 1w window rarely fires before the baseline just rolls over.
+const WINDOW_OPTIONS = ["5m", "15m", "1h", "4h", "1d"] as const;
 
 const CHANNELS: { value: NotificationChannelType; label: string; hint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { value: "EXPO_PUSH", label: "Push", hint: "Instant, even when closed", icon: "notifications-outline" },
@@ -50,13 +55,15 @@ export function CreateAlertForm({
   const [targetValue, setTargetValue] = useState(defaultTargetValue ? String(defaultTargetValue) : "");
   const [secondaryValue, setSecondaryValue] = useState("");
   const [pctDirection, setPctDirection] = useState<"up" | "down">("up");
+  const [windowTimeframe, setWindowTimeframe] = useState<(typeof WINDOW_OPTIONS)[number]>("1h");
   const [channels, setChannels] = useState<Set<NotificationChannelType>>(new Set(["EXPO_PUSH", "EMAIL"]));
   const [note, setNote] = useState("");
   const createAlert = useCreateAlert();
   const showToast = useToastStore((s) => s.show);
 
   const selected = CONDITION_OPTIONS.find((c) => c.value === conditionType)!;
-  const isPct = conditionType === "PCT_CHANGE";
+  const isWindow = conditionType === "PCT_CHANGE_WINDOW";
+  const isPct = conditionType === "PCT_CHANGE" || isWindow;
   const numeric = Number(targetValue);
   const hasValidTarget = targetValue !== "" && Number.isFinite(numeric) && numeric > 0;
 
@@ -85,11 +92,14 @@ export function CreateAlertForm({
       conditionType,
       targetValue: resolvedTarget,
       secondaryValue: selected.needsSecondary && secondaryValue ? Number(secondaryValue) : undefined,
+      timeframe: isWindow ? windowTimeframe : undefined,
       channels: CHANNELS.map((c) => ({ channelType: c.value, isEnabled: channels.has(c.value) })),
       notes: note.trim() || undefined,
     });
     haptics.success();
-    const targetLabel = isPct ? `${pctDirection === "down" ? "-" : "+"}${Math.abs(numeric)}%` : targetValue;
+    const targetLabel = isPct
+      ? `${pctDirection === "down" ? "-" : "+"}${Math.abs(numeric)}%${isWindow ? ` within ${windowTimeframe}` : ""}`
+      : targetValue;
     showToast("Alert created", `${symbol} will notify you when it ${selected.label.toLowerCase()} ${targetLabel}`, "success");
     onSuccess?.();
   };
@@ -154,7 +164,30 @@ export function CreateAlertForm({
             <Input value={targetValue} onChangeText={setTargetValue} keyboardType="decimal-pad" placeholder="5" style={styles.bigInput} />
             <ThemedText variant="muted">%</ThemedText>
           </View>
-        ) : (
+        ) : null}
+        {isWindow && (
+          <View style={styles.windowWrap}>
+            <ThemedText variant="subtle">Within</ThemedText>
+            <View style={styles.windowRow}>
+              {WINDOW_OPTIONS.map((tf) => {
+                const active = tf === windowTimeframe;
+                return (
+                  <Pressable
+                    key={tf}
+                    onPress={() => {
+                      haptics.selection();
+                      setWindowTimeframe(tf);
+                    }}
+                    style={[styles.windowPill, { backgroundColor: active ? colors.brand : colors.glass, borderColor: active ? colors.brand : colors.glassBorder }]}
+                  >
+                    <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "600", fontSize: 13 }}>{tf}</ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+        {!isPct && (
           <>
             <Input
               value={targetValue}
@@ -253,6 +286,9 @@ const styles = StyleSheet.create({
   dirToggle: { flexDirection: "row", borderRadius: radius.md, borderWidth: 1, padding: 3, gap: 3, height: 56 },
   dirSegment: { width: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
   presets: { flexDirection: "row", gap: 8 },
+  windowWrap: { gap: 8, marginTop: 4 },
+  windowRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  windowPill: { paddingHorizontal: 16, height: 36, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   preset: { paddingHorizontal: 14, height: 32, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   channelCard: { padding: 0, overflow: "hidden" },
   channelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
