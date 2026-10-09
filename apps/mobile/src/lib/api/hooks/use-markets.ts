@@ -40,6 +40,10 @@ export function useMarketHistory(symbol: string | undefined, timeframe: string) 
     queryFn: () => api.get<Candle[]>(`/markets/${symbol}/history?timeframe=${timeframe}`),
     enabled: Boolean(symbol),
     staleTime: 30_000,
+    // Switching timeframe changes the query key, so without this the chart would blank out and
+    // show a spinner on every tap while the new candles load - keep the old timeframe's candles
+    // on screen until the new ones arrive instead (same fix as the markets list search).
+    placeholderData: keepPreviousData,
     // An empty answer or an error means the server couldn't get candles this time (it serves real
     // exchange data only), so keep asking every few seconds instead of leaving the chart blank.
     refetchInterval: (query) => (query.state.status === "error" || query.state.data?.length === 0 ? 5_000 : false),

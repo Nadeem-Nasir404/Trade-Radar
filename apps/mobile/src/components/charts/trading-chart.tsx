@@ -600,8 +600,20 @@ function buildChartHtml(): string {
         plusBadge.classList.remove('pressed');
         plusBadge.style.display = 'none';
       }
-      // Handled on pointerup (not click) so the tap registers at once in the WebView, and kept
-      // from reaching the chart so it doesn't count as the tap that dismisses the crosshair.
+      // hidePlus() already clears plusPrice, so calling this twice for the same tap (see the
+      // click fallback below) is harmless - the second call just sees plusPrice === null.
+      function activatePlus() {
+        if (plusPrice === null) return;
+        var p = plusPrice;
+        hidePlus();
+        chart.clearCrosshairPosition();
+        post({ type: 'priceTap', price: Number(fmt(p)) });
+      }
+      // Primarily handled on pointerup (not click) so the tap registers at once, and kept from
+      // reaching the chart so it doesn't count as the tap that dismisses the crosshair. click is
+      // a fallback: pointerdown/pointerup don't always pair up on a touch-action:none, absolutely
+      // positioned element in every Android WebView build, and a tap that only fires pointerdown
+      // would otherwise leave the button stuck "pressed" with nothing happening.
       plusBadge.addEventListener('pointerdown', function (e) {
         e.stopPropagation();
         plusPressed = true;
@@ -610,10 +622,11 @@ function buildChartHtml(): string {
       plusBadge.addEventListener('pointerup', function (e) {
         e.stopPropagation();
         if (!plusPressed) return;
-        var p = plusPrice;
-        hidePlus();
-        chart.clearCrosshairPosition();
-        if (p !== null) post({ type: 'priceTap', price: Number(fmt(p)) });
+        activatePlus();
+      });
+      plusBadge.addEventListener('click', function (e) {
+        e.stopPropagation();
+        activatePlus();
       });
       plusBadge.addEventListener('pointercancel', function () {
         plusPressed = false;
