@@ -8,7 +8,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
-import { ChartToolRail } from "@/components/charts/chart-toolbar";
+import { ChartToolRail, ShowToolsButton } from "@/components/charts/chart-toolbar";
+import { useChartSettings } from "@/lib/stores/chart-settings-store";
 import { TimeframeBar, TIMEFRAMES, type ChartTimeframe } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
@@ -32,6 +33,7 @@ export default function FullscreenChartScreen() {
   const [timeframe, setTimeframe] = useState<Timeframe>(initialTf);
   const [drawMode, setDrawMode] = useState(false);
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
+  const showTools = useChartSettings((s) => s.showTools);
   const [drawStage, setDrawStage] = useState<"start" | "end">("start");
   const chartRef = useRef<TradingChartHandle>(null);
   const [tappedPrice, setTappedPrice] = useState<number | null>(null);
@@ -65,6 +67,7 @@ export default function FullscreenChartScreen() {
       <TimeframeBar value={timeframe} onChange={setTimeframe} style={styles.tfBar} />
 
       <View style={[styles.chartWrap, { height: chartHeight }]}>
+        {showTools && (
         <ChartToolRail
           drawMode={drawMode}
           drawTool={drawTool}
@@ -74,11 +77,13 @@ export default function FullscreenChartScreen() {
             setDrawStage("start");
             setDrawMode(true);
           }}
+          onUndo={() => chartRef.current?.undoDrawing()}
           onClear={() => {
             chartRef.current?.clearDrawings();
             setDrawStage("start");
           }}
         />
+        )}
         <View style={styles.flex}>
         <TradingChart
           ref={chartRef}
@@ -99,7 +104,9 @@ export default function FullscreenChartScreen() {
           onAlertMove={onAlertMove}
           onAlertDelete={onAlertDelete}
           onDrawStage={setDrawStage}
+          onDrawDone={() => setDrawMode(false)}
         />
+        {!showTools && <ShowToolsButton />}
         </View>
       </View>
 

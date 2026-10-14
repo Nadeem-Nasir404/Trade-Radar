@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Pressable, StyleSheet, Modal, ScrollView } from "react-native";
+import { View, Pressable, StyleSheet, Modal, ScrollView, Alert } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -24,6 +24,7 @@ interface ChartToolRailProps {
   /** The cursor: leave drawing mode and go back to panning/zooming the chart. */
   onSelectCursor: () => void;
   onSelectTool: (tool: DrawTool) => void;
+  onUndo: () => void;
   onClear: () => void;
   /** Shown only where there is a bigger chart to open (not on the full-screen chart itself). */
   onFullscreen?: () => void;
@@ -35,9 +36,16 @@ interface ChartToolRailProps {
  * drawing with it; the cursor goes back to moving the chart. Shared by the market screen and the
  * full-screen chart.
  */
-export function ChartToolRail({ drawMode, drawTool, onSelectCursor, onSelectTool, onClear, onFullscreen }: ChartToolRailProps) {
+export function ChartToolRail({ drawMode, drawTool, onSelectCursor, onSelectTool, onUndo, onClear, onFullscreen }: ChartToolRailProps) {
   const { colors } = useTheme();
+  const setSettings = useChartSettings((s) => s.set);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const confirmClear = () =>
+    Alert.alert("Clear all drawings?", "Every line and zone on this chart will be removed.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: onClear },
+    ]);
 
   return (
     <View style={[styles.rail, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
@@ -46,13 +54,39 @@ export function ChartToolRail({ drawMode, drawTool, onSelectCursor, onSelectTool
         <RailButton key={t.value} icon={t.icon} label={t.label} active={drawMode && drawTool === t.value} onPress={() => onSelectTool(t.value)} />
       ))}
       <View style={[styles.railDivider, { backgroundColor: colors.glassBorder }]} />
-      <RailButton icon="trash-outline" label="Clear drawings" onPress={onClear} />
+      <RailButton icon="arrow-undo-outline" label="Undo last drawing" onPress={onUndo} />
+      <RailButton icon="trash-outline" label="Clear drawings" onPress={confirmClear} />
       <View style={styles.spacer} />
       <RailButton icon="options-outline" label="Chart settings" onPress={() => setSettingsOpen(true)} />
       {onFullscreen && <RailButton icon="expand-outline" label="Full screen" onPress={onFullscreen} />}
+      <RailButton
+        icon="chevron-back"
+        label="Hide tools"
+        onPress={() => {
+          onSelectCursor();
+          setSettings({ showTools: false });
+        }}
+      />
 
       <ChartSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </View>
+  );
+}
+
+/** With the rail hidden, this small button over the chart's bottom-left corner brings it back. */
+export function ShowToolsButton() {
+  const { colors } = useTheme();
+  const setSettings = useChartSettings((s) => s.set);
+  return (
+    <PressableScale
+      onPress={() => setSettings({ showTools: true })}
+      accessibilityRole="button"
+      accessibilityLabel="Show drawing tools"
+      hitSlop={6}
+      style={[styles.showTools, { backgroundColor: colors.backgroundElevated, borderColor: colors.glassBorder }]}
+    >
+      <Ionicons name="brush-outline" size={16} color={colors.brand} />
+    </PressableScale>
   );
 }
 
@@ -67,7 +101,7 @@ function RailButton({ icon, label, active = false, onPress }: { icon: keyof type
       hitSlop={4}
       style={[styles.railButton, active && { backgroundColor: colors.brandGlow, borderColor: colors.brand }]}
     >
-      <Ionicons name={icon} size={18} color={active ? colors.brand : colors.foregroundMuted} />
+      <Ionicons name={icon} size={17} color={active ? colors.brand : colors.foregroundMuted} />
     </PressableScale>
   );
 }
@@ -151,10 +185,15 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 }
 
 const styles = StyleSheet.create({
-  rail: { width: 44, paddingVertical: 4, alignItems: "center", gap: 4, borderRadius: radius.md, borderWidth: 1 },
-  railButton: { width: 36, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: "transparent", alignItems: "center", justifyContent: "center" },
+  rail: { width: 40, paddingVertical: 4, alignItems: "center", gap: 2, borderRadius: radius.md, borderWidth: 1 },
+  railButton: { width: 32, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: "transparent", alignItems: "center", justifyContent: "center" },
   railDivider: { width: 22, height: StyleSheet.hairlineWidth, marginVertical: 2 },
   spacer: { flex: 1, minHeight: 4 },
+  // Bottom-left, clear of the OHLC readout at the top and the time axis along the bottom edge.
+  showTools: {
+    position: "absolute", left: 6, bottom: 34, width: 34, height: 34, borderRadius: radius.full, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderRadius: 0, paddingBottom: 32, maxHeight: "72%" },
   sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginTop: 10 },

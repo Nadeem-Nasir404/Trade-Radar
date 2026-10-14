@@ -17,6 +17,7 @@ interface DrawingsState {
   bySymbol: Record<string, Drawing[]>;
   add: (key: string, drawing: Drawing) => void;
   clear: (key: string) => void;
+  removeLast: (key: string) => void;
 }
 
 export const useDrawingsStore = create<DrawingsState>()(
@@ -26,6 +27,7 @@ export const useDrawingsStore = create<DrawingsState>()(
       add: (key, drawing) =>
         set((s) => ({ bySymbol: { ...s.bySymbol, [key]: [...(s.bySymbol[key] ?? []), drawing] } })),
       clear: (key) => set((s) => ({ bySymbol: { ...s.bySymbol, [key]: [] } })),
+      removeLast: (key) => set((s) => ({ bySymbol: { ...s.bySymbol, [key]: (s.bySymbol[key] ?? []).slice(0, -1) } })),
     }),
     {
       name: "lp-chart-drawings",

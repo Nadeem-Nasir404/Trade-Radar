@@ -15,6 +15,8 @@ interface ChartSettingsState {
   showGrid: boolean;
   showVolume: boolean;
   showWicks: boolean;
+  /** The drawing tool rail beside the chart; hidden gives the chart the full width. */
+  showTools: boolean;
   set: (patch: Partial<Omit<ChartSettingsState, "set">>) => void;
 }
 
@@ -25,12 +27,13 @@ export const useChartSettings = create<ChartSettingsState>()(
       showGrid: true,
       showVolume: true,
       showWicks: true,
+      showTools: true,
       set: (patch) => set(patch),
     }),
     {
       name: "lp-chart-settings",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ palette: s.palette, showGrid: s.showGrid, showVolume: s.showVolume, showWicks: s.showWicks }),
+      partialize: (s) => ({ palette: s.palette, showGrid: s.showGrid, showVolume: s.showVolume, showWicks: s.showWicks, showTools: s.showTools }),
     },
   ),
 );

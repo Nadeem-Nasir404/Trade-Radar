@@ -21,6 +21,8 @@ export type DrawTool = "trend" | "horizontal" | "rect";
 
 export interface TradingChartHandle {
   clearDrawings: () => void;
+  /** Removes the most recent drawing. */
+  undoDrawing: () => void;
 }
 
 interface TradingChartProps {
@@ -47,6 +49,8 @@ interface TradingChartProps {
   /** An alert line was swiped off to the left. */
   onAlertDelete?: (alertId: string) => void;
   onDrawStage?: (stage: "start" | "end") => void;
+  /** A shape was finished - the screen goes back to the cursor, as TradingView does. */
+  onDrawDone?: () => void;
   timeframe?: string;
   /** Changes when the instrument or timeframe changes, so the view resets instead of preserving zoom. */
   viewKey?: string;
@@ -63,7 +67,7 @@ interface TradingChartProps {
  * new bar as each timeframe bucket starts.
  */
 export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function TradingChart(
-  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, fallbackPrice = null, alertLevels = [], height = 260, onPriceTap, onAlertMove, onAlertDelete, onDrawStage, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
+  { candles, instrumentId, onBarClose, onLiveBar, watermark = "", loading = false, failed = false, fallbackPrice = null, alertLevels = [], height = 260, onPriceTap, onAlertMove, onAlertDelete, onDrawStage, onDrawDone, timeframe = "1h", viewKey, drawMode = false, drawTool = "trend", drawingsKey = "default" },
   ref,
 ) {
   // isDark is the theme actually showing; `mode` is the user's setting and can be "system".
@@ -87,6 +91,9 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   useImperativeHandle(ref, () => ({
     clearDrawings: () => {
       useDrawingsStore.getState().clear(drawingsKey);
+    },
+    undoDrawing: () => {
+      useDrawingsStore.getState().removeLast(drawingsKey);
     },
   }));
 
@@ -121,6 +128,10 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
         onPriceTap?.(msg.price);
       }
       else if (msg.type === "drawHint") onDrawStage?.(msg.stage);
+      else if (msg.type === "drawDone") {
+        haptics.success();
+        onDrawDone?.();
+      }
       else if (msg.type === "drawingAdded") useDrawingsStore.getState().add(drawingsKey, msg.drawing as Drawing);
     } catch {
       // ignore malformed messages
@@ -335,7 +346,9 @@ function buildChartHtml(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <style>
       html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; height: 100%; }
-      #chart { width: 100%; height: 100%; }
+      /* touch-action none: the chart library handles every gesture itself. Without it, turning off
+         the chart's own drag while drawing would let the WebView claim the drag and cancel it. */
+      #chart { width: 100%; height: 100%; touch-action: none; }
       /* Soft light from the top in the theme's brand colour, behind the (transparent) plot. z-index
          -1 keeps it under everything without giving #chart a stacking context of its own, which
          would push the absolutely positioned overlays (OHLC, markers) underneath the canvas. */
@@ -412,8 +425,13 @@ function buildChartHtml(): string {
     <script>${LIGHTWEIGHT_CHARTS_SOURCE}</script>
     <script>
       var chart, candleSeries, volumeSeries, priceLines = [], theme = null;
-      var drawMode = false, drawTool = 'trend', drawSeries = [], drawPriceLines = [], pendingPoint = null;
-      var rects = [], overlayRunning = false;
+      var drawMode = false, drawTool = 'trend', drawPriceLines = [], pendingPoint = null;
+      // Trend lines and zones are drawn in the SVG overlay (not as chart series), so two points on
+      // the same candle can't break the chart and a line doesn't stretch the price scale. preview
+      // is the shape following the finger while it's being drawn.
+      var rects = [], trends = [], preview = null, overlayRunning = false, lastOverlay = '';
+      var SCROLL_OPTS = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true };
+      var SCALE_OPTS = { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true };
       var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)', watermark = null, watermarkText = '';
 
       function accent() { return theme ? theme.brand : '#a855f7'; }
@@ -445,8 +463,8 @@ function buildChartHtml(): string {
             vertLine: { width: 1, style: 3, labelBackgroundColor: '#2a2d3a' },
             horzLine: { width: 1, style: 3, labelBackgroundColor: '#a855f7' },
           },
-          handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
-          handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
+          handleScroll: SCROLL_OPTS,
+          handleScale: SCALE_OPTS,
           kineticScroll: { touch: true, mouse: false },
           autoSize: true,
         });
@@ -492,35 +510,68 @@ function buildChartHtml(): string {
           showPlus(price, param.point.y);
         });
 
-        function handleDrawTap(x, y) {
-          var p = candleSeries.coordinateToPrice(y);
-          if (p === null) return;
-          if (drawTool === 'horizontal') {
-            addDrawing({ id: uid(), type: 'horizontal', price: p }, true);
-            post({ type: 'drawHint', stage: 'start' });
-            return;
-          }
-          var time = chart.timeScale().coordinateToTime(x);
-          if (time === null) return;
-          if (!pendingPoint) {
-            pendingPoint = { time: time, price: p };
-            showTapMarker(x, y);
-            post({ type: 'drawHint', stage: 'end' });
-            return;
-          }
-          var a = pendingPoint, b = { time: time, price: p };
+        // Drawing works like TradingView on a phone: press and drag from one point to the other
+        // with the shape following the finger, or tap the first point and then the second. A
+        // horizontal line goes where the finger lifts. While drawing, the chart doesn't pan or
+        // zoom (see setDrawMode), so a drag draws instead of moving the chart.
+        var drawStart = null;
+        function toPoint(x, y) {
+          var time = xToTime(x), price = candleSeries.coordinateToPrice(y);
+          return time === null || price === null ? null : { time: time, price: price };
+        }
+        function localXY(e) {
+          var rect = chartEl.getBoundingClientRect();
+          return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+        function showPreview(a, b) {
+          preview = drawTool === 'horizontal' ? { kind: 'horizontal', price: b.price } : { kind: drawTool, a: a, b: b };
+          ensureOverlayLoop();
+        }
+        function onDrawDown(e) {
+          var at = localXY(e), pt = toPoint(at.x, at.y);
+          if (!pt) return;
+          // Keep receiving the drag even if the finger slides off the plot, so it always ends.
+          try { chartEl.setPointerCapture(e.pointerId); } catch (err) {}
+          drawStart = { cx: e.clientX, cy: e.clientY, pt: pt };
+          showPreview(pendingPoint || pt, pt);
+        }
+        function onDrawMove(e) {
+          if (!drawStart) return;
+          var at = localXY(e), pt = toPoint(at.x, at.y);
+          if (pt) showPreview(pendingPoint || drawStart.pt, pt);
+        }
+        function onDrawUp(e) {
+          if (!drawStart) return;
+          var start = drawStart;
+          drawStart = null;
+          var at = localXY(e), end = toPoint(at.x, at.y) || start.pt;
+          var moved = Math.abs(e.clientX - start.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - start.cy) > MOVE_TOLERANCE_PX;
+
+          if (drawTool === 'horizontal') return finishDrawing({ id: uid(), type: 'horizontal', price: end.price });
+          if (pendingPoint) return finishTwoPoint(pendingPoint, end);
+          if (moved) return finishTwoPoint(start.pt, end);
+          // A tap: this is the first point; the next tap (or drag) sets the second.
+          pendingPoint = start.pt;
+          var px = timeToX(start.pt.time), py = candleSeries.priceToCoordinate(start.pt.price);
+          if (px !== null && py !== null) showTapMarker(px, py);
+          post({ type: 'drawHint', stage: 'end' });
+        }
+        function finishTwoPoint(a, b) {
+          if (a.time === b.time && Math.abs(a.price - b.price) < 1e-12) { cancelDraft(); return; }
+          if (drawTool === 'rect' && a.time === b.time) { cancelDraft(); return; }
+          finishDrawing({ id: uid(), type: drawTool === 'rect' ? 'rect' : 'trend', a: a, b: b });
+        }
+        function finishDrawing(d) {
+          cancelDraft();
+          addDrawing(d, true);
+          // One shape per tool pick, then back to the cursor - TradingView's default.
+          post({ type: 'drawDone' });
+        }
+        function cancelDraft() {
           pendingPoint = null;
+          preview = null;
           hideTapMarker();
           post({ type: 'drawHint', stage: 'start' });
-
-          if (drawTool === 'rect') {
-            var t1 = Math.min(a.time, b.time), t2 = Math.max(a.time, b.time);
-            if (t1 === t2) return;
-            addDrawing({ id: uid(), type: 'rect', a: { time: a.time, price: a.price }, b: { time: b.time, price: b.price } }, true);
-            return;
-          }
-
-          addDrawing({ id: uid(), type: 'trend', a: a, b: b }, true);
         }
 
         var pressStart = null, MOVE_TOLERANCE_PX = 8;
@@ -532,18 +583,18 @@ function buildChartHtml(): string {
         var plusPressTimer = null, PLUS_PRESS_MS = 450;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
-          var rect = chartEl.getBoundingClientRect();
-          pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
-          if (!drawMode) {
-            clearTimeout(plusPressTimer);
-            plusPressTimer = setTimeout(function () {
-              if (!pressStart) return;
-              var price = candleSeries.coordinateToPrice(pressStart.y);
-              if (price !== null) showPlus(price, pressStart.y);
-            }, PLUS_PRESS_MS);
-          }
+          if (drawMode) return onDrawDown(e);
+          var at = localXY(e);
+          pressStart = { x: at.x, y: at.y, cx: e.clientX, cy: e.clientY };
+          clearTimeout(plusPressTimer);
+          plusPressTimer = setTimeout(function () {
+            if (!pressStart) return;
+            var price = candleSeries.coordinateToPrice(pressStart.y);
+            if (price !== null) showPlus(price, pressStart.y);
+          }, PLUS_PRESS_MS);
         });
         chartEl.addEventListener('pointermove', function (e) {
+          if (drawMode) return onDrawMove(e);
           if (!pressStart) return;
           if (Math.abs(e.clientX - pressStart.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - pressStart.cy) > MOVE_TOLERANCE_PX) {
             pressStart = null;
@@ -551,18 +602,15 @@ function buildChartHtml(): string {
           }
         });
         chartEl.addEventListener('pointerup', function (e) {
+          if (drawMode) return onDrawUp(e);
           clearTimeout(plusPressTimer);
-          var start = pressStart;
           pressStart = null;
-          if (!drawMode || !start) return;
-          if (Math.abs(e.clientX - start.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - start.cy) > MOVE_TOLERANCE_PX) return;
-          handleDrawTap(start.x, start.y);
         });
-        ['pointercancel', 'pointerleave'].forEach(function (type) {
-          chartEl.addEventListener(type, function () {
-            pressStart = null;
-            clearTimeout(plusPressTimer);
-          });
+        chartEl.addEventListener('pointercancel', function () {
+          pressStart = null;
+          clearTimeout(plusPressTimer);
+          // An interrupted drag drops its preview, but a first point already tapped is kept.
+          if (drawStart) { drawStart = null; preview = null; }
         });
 
         chart.timeScale().subscribeVisibleTimeRangeChange(function () {
@@ -592,15 +640,40 @@ function buildChartHtml(): string {
       window.setDrawMode = function (on) {
         drawMode = on;
         pendingPoint = null;
-        if (!on) hideTapMarker();
+        preview = null;
+        hideTapMarker();
+        // While drawing the chart holds still, so a drag draws the shape instead of panning.
+        chart.applyOptions({ handleScroll: on ? false : SCROLL_OPTS, handleScale: on ? false : SCALE_OPTS });
         if (on) { hidePlus(); chart.clearCrosshairPosition(); }
       };
 
       window.setDrawTool = function (tool) {
         drawTool = tool;
         pendingPoint = null;
+        preview = null;
         hideTapMarker();
       };
+
+      // Bar time <-> x, extended past the last bar (and before the first) at one bar per
+      // timeframe step, so a line can be drawn into the empty space to the right of the price.
+      function lastBarLogical() {
+        if (lastBarTime === null) return null;
+        var x = chart.timeScale().timeToCoordinate(lastBarTime);
+        return x === null ? null : chart.timeScale().coordinateToLogical(x);
+      }
+      function timeToX(t) {
+        var x = chart.timeScale().timeToCoordinate(t);
+        if (x !== null) return x;
+        var last = lastBarLogical();
+        return last === null ? null : chart.timeScale().logicalToCoordinate(last + (t - lastBarTime) / tfSeconds);
+      }
+      function xToTime(x) {
+        var t = chart.timeScale().coordinateToTime(x);
+        if (t !== null) return t;
+        var logical = chart.timeScale().coordinateToLogical(x), last = lastBarLogical();
+        if (logical === null || last === null) return null;
+        return lastBarTime + Math.round(logical - last) * tfSeconds;
+      }
 
       // "+" on the crosshair: appears with the crosshair (long-press the chart), follows it, and
       // tapping it opens the alert sheet at that price. The app buzzes when it appears.
@@ -655,25 +728,60 @@ function buildChartHtml(): string {
         plusBadge.classList.remove('pressed');
       });
 
+      function pointXY(pt) {
+        var x = timeToX(pt.time), y = candleSeries.priceToCoordinate(pt.price);
+        return x === null || y === null ? null : { x: x, y: y };
+      }
+      function svgLine(p, q, stroke, width, dash) {
+        return '<line x1="' + p.x + '" y1="' + p.y + '" x2="' + q.x + '" y2="' + q.y + '" stroke="' + stroke + '" stroke-width="' + width + '"' +
+          (dash ? ' stroke-dasharray="5 4"' : '') + ' stroke-linecap="round"/>';
+      }
+      function svgRect(p, q, fill, stroke) {
+        return '<rect x="' + Math.min(p.x, q.x) + '" y="' + Math.min(p.y, q.y) + '" width="' + Math.abs(q.x - p.x) + '" height="' + Math.abs(q.y - p.y) +
+          '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1"/>';
+      }
+      function svgDot(p, fill) {
+        return '<circle cx="' + p.x + '" cy="' + p.y + '" r="5" fill="' + fill + '" stroke="#fff" stroke-width="1.5"/>';
+      }
       function drawOverlay() {
-        var svg = document.getElementById('overlay');
-        var ts = chart.timeScale();
-        var parts = [];
+        var stroke = accent(), fill = accentAlpha(0.18), parts = [];
         rects.forEach(function (r) {
-          var x1 = ts.timeToCoordinate(r.t1), x2 = ts.timeToCoordinate(r.t2);
-          var y1 = candleSeries.priceToCoordinate(r.p1), y2 = candleSeries.priceToCoordinate(r.p2);
-          if (x1 === null || x2 === null || y1 === null || y2 === null) return;
-          var x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
-          parts.push('<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + accentAlpha(0.18) + '" stroke="' + accent() + '" stroke-width="1"/>');
+          var p = pointXY(r.a), q = pointXY(r.b);
+          if (p && q) parts.push(svgRect(p, q, fill, stroke));
         });
-        svg.innerHTML = parts.join('');
+        trends.forEach(function (t) {
+          var p = pointXY(t.a), q = pointXY(t.b);
+          if (p && q) parts.push(svgLine(p, q, stroke, 2, false));
+        });
+        if (preview) {
+          if (preview.kind === 'horizontal') {
+            var y = candleSeries.priceToCoordinate(preview.price);
+            if (y !== null) parts.push(svgLine({ x: 0, y: y }, { x: document.getElementById('chart').clientWidth, y: y }, stroke, 1.5, true));
+          } else {
+            var p = pointXY(preview.a), q = pointXY(preview.b);
+            if (p && q) {
+              parts.push(preview.kind === 'rect' ? svgRect(p, q, accentAlpha(0.12), stroke) : svgLine(p, q, stroke, 2, true));
+              parts.push(svgDot(p, stroke), svgDot(q, stroke));
+            }
+          }
+        }
+        var html = parts.join('');
+        // Only touch the DOM when something actually moved.
+        if (html !== lastOverlay) { lastOverlay = html; document.getElementById('overlay').innerHTML = html; }
       }
 
+      // Redraws every frame while there's anything to draw: shapes are pinned to time and price,
+      // so they have to follow every pan, zoom and rescale of the chart.
       function ensureOverlayLoop() {
         if (overlayRunning) return;
         overlayRunning = true;
         (function frame() {
-          if (rects.length === 0) { overlayRunning = false; document.getElementById('overlay').innerHTML = ''; return; }
+          if (rects.length === 0 && trends.length === 0 && !preview) {
+            overlayRunning = false;
+            lastOverlay = '';
+            document.getElementById('overlay').innerHTML = '';
+            return;
+          }
           drawOverlay();
           requestAnimationFrame(frame);
         })();
@@ -685,14 +793,11 @@ function buildChartHtml(): string {
         if (d.type === 'horizontal') {
           drawPriceLines.push(candleSeries.createPriceLine({ price: d.price, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }));
         } else if (d.type === 'rect') {
-          rects.push({ t1: Math.min(d.a.time, d.b.time), t2: Math.max(d.a.time, d.b.time), p1: d.a.price, p2: d.b.price });
+          rects.push({ a: d.a, b: d.b });
           ensureOverlayLoop();
         } else {
-          var line = chart.addSeries(LightweightCharts.LineSeries, {
-            color: accent(), lineWidth: 2, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
-          });
-          line.setData([d.a, d.b].sort(function (x1, x2) { return x1.time - x2.time; }));
-          drawSeries.push(line);
+          trends.push({ a: d.a, b: d.b });
+          ensureOverlayLoop();
         }
       }
       function addDrawing(d, report) {
@@ -702,17 +807,17 @@ function buildChartHtml(): string {
       }
       window.setDrawings = function (list) {
         rects = [];
-        document.getElementById('overlay').innerHTML = '';
-        drawSeries.forEach(function (s) { chart.removeSeries(s); });
+        trends = [];
         drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
-        drawSeries = [];
         drawPriceLines = [];
         drawingList = [];
         (list || []).forEach(function (d) { addDrawing(d, false); });
+        ensureOverlayLoop(); // clears the overlay when the list is now empty
       };
       window.clearDrawings = function () {
         window.setDrawings([]);
         pendingPoint = null;
+        preview = null;
         hideTapMarker();
       };
 

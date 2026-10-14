@@ -13,7 +13,8 @@ import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
-import { ChartToolRail } from "@/components/charts/chart-toolbar";
+import { ChartToolRail, ShowToolsButton } from "@/components/charts/chart-toolbar";
+import { useChartSettings } from "@/lib/stores/chart-settings-store";
 import { TimeframeBar, TIMEFRAMES } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
@@ -54,6 +55,7 @@ export default function MarketDetailScreen() {
   const [drawMode, setDrawMode] = useState(false);
   const [drawStage, setDrawStage] = useState<"start" | "end">("start");
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
+  const showTools = useChartSettings((s) => s.showTools);
 
   const { data: instrument, isLoading } = useMarket(symbol);
   const { data: candles, isLoading: historyLoading, isError: historyFailed } = useMarketHistory(symbol, timeframe);
@@ -153,6 +155,7 @@ export default function MarketDetailScreen() {
           <LiveLegend key={timeframe} ref={legendRef} initial={lastCandle} />
 
           <View style={styles.chartRow}>
+          {showTools && (
           <ChartToolRail
             drawMode={drawMode}
             drawTool={drawTool}
@@ -162,6 +165,7 @@ export default function MarketDetailScreen() {
               setDrawStage("start");
               setDrawMode(true);
             }}
+            onUndo={() => chartRef.current?.undoDrawing()}
             onClear={() => {
               chartRef.current?.clearDrawings();
               setDrawStage("start");
@@ -170,6 +174,7 @@ export default function MarketDetailScreen() {
               router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } })
             }
           />
+          )}
           <View style={styles.flex}>
           <TradingChart
             ref={chartRef}
@@ -187,12 +192,14 @@ export default function MarketDetailScreen() {
             onAlertDelete={onAlertDelete}
             drawMode={drawMode}
             onDrawStage={setDrawStage}
+            onDrawDone={() => setDrawMode(false)}
             timeframe={timeframe}
             drawTool={drawTool}
             drawingsKey={symbol}
             viewKey={`${symbol}|${timeframe}`}
             onPriceTap={setTappedPrice}
           />
+          {!showTools && <ShowToolsButton />}
           </View>
           </View>
 
