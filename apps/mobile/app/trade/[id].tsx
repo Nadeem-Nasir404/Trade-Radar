@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { View, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
 import Animated, { Easing, FadeInDown } from "react-native-reanimated";
 import { useLivePrice } from "@/lib/ws/use-live-price";
@@ -38,7 +38,6 @@ export default function TradeDetailScreen() {
   // Trades started from an alert carry an instrument, so they get the same live price as the chart.
   // Hand-logged trades have no instrument, so the user types the current price for those.
   const live = useLivePrice(trade?.instrumentId || undefined);
-  const cardRef = useRef<View>(null);
   const [current, setCurrent] = useState("");
   const typedPrice = useMemo(() => {
     const n = Number(current);
@@ -101,10 +100,10 @@ export default function TradeDetailScreen() {
           >
             <View pointerEvents="none" style={[styles.cardGlow, { backgroundColor: glowColor, width: cardWidth * 0.92, height: cardWidth * 0.92 }]} />
             <SectionErrorBoundary label="Trade card">
-              <PnlCard ref={cardRef} trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
+              <PnlCard trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
             </SectionErrorBoundary>
 
-            <CardActions cardRef={cardRef} />
+            <CardActions trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
           </Animated.View>
 
           <View style={[styles.detailColumn, wide ? styles.detailColumnWide : { width: cardWidth }]}>

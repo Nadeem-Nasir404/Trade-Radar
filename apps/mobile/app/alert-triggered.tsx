@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -56,7 +56,6 @@ export default function AlertTriggeredScreen() {
   const [amount, setAmount] = useState("");
 
   const showToast = useToastStore((s) => s.show);
-  const cardRef = useRef<View>(null);
 
   const start = (side: TradeSide) => {
     try {
@@ -93,9 +92,9 @@ export default function AlertTriggeredScreen() {
               outcome={pnlPct(activeTrade.side, activeTrade.entryPrice, activeTrade.exitPrice ?? price ?? activeTrade.entryPrice) >= 0 ? "profit" : "loss"}
             />
             <SectionErrorBoundary label="Trade card">
-              <PnlCard ref={cardRef} trade={activeTrade} livePrice={price} style={cardStyle} />
+              <PnlCard trade={activeTrade} livePrice={price} style={cardStyle} />
             </SectionErrorBoundary>
-            <CardActions cardRef={cardRef} />
+            <CardActions trade={activeTrade} livePrice={price} style={cardStyle} />
             <Button
               title={`Close trade at ${formatCompactPrice(price ?? activeTrade.entryPrice)}`}
               icon={<Ionicons name="stop-circle-outline" size={18} color={colors.brandForeground} />}
