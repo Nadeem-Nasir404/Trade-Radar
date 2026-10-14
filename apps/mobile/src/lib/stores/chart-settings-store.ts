@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DEFAULT_FAVORITE_TOOLS, type DrawTool } from "@/components/charts/drawing-tools";
 
 export const CANDLE_PALETTES = {
   classic: { label: "Classic", up: "#22c55e", down: "#f43f5e" },
@@ -15,8 +16,8 @@ interface ChartSettingsState {
   showGrid: boolean;
   showVolume: boolean;
   showWicks: boolean;
-  /** The drawing tool rail beside the chart; hidden gives the chart the full width. */
-  showTools: boolean;
+  /** Drawing tools starred in the Drawings panel, shown on the bar under the chart. */
+  favoriteTools: DrawTool[];
   set: (patch: Partial<Omit<ChartSettingsState, "set">>) => void;
 }
 
@@ -27,13 +28,13 @@ export const useChartSettings = create<ChartSettingsState>()(
       showGrid: true,
       showVolume: true,
       showWicks: true,
-      showTools: true,
+      favoriteTools: DEFAULT_FAVORITE_TOOLS,
       set: (patch) => set(patch),
     }),
     {
       name: "lp-chart-settings",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ palette: s.palette, showGrid: s.showGrid, showVolume: s.showVolume, showWicks: s.showWicks, showTools: s.showTools }),
+      partialize: (s) => ({ palette: s.palette, showGrid: s.showGrid, showVolume: s.showVolume, showWicks: s.showWicks, favoriteTools: s.favoriteTools }),
     },
   ),
 );

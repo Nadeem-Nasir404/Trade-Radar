@@ -9,8 +9,10 @@ export interface ChartPoint {
 
 export type Drawing =
   | { id: string; type: "horizontal"; price: number }
-  | { id: string; type: "trend"; a: ChartPoint; b: ChartPoint }
-  | { id: string; type: "rect"; a: ChartPoint; b: ChartPoint };
+  /** One anchor: a ray running right from it, or a line through its candle. */
+  | { id: string; type: "hray" | "vline"; a: ChartPoint }
+  /** Two anchors: start and end. */
+  | { id: string; type: "trend" | "ray" | "rect" | "fib" | "measure"; a: ChartPoint; b: ChartPoint };
 
 interface DrawingsState {
   /** Drawings keyed by instrument symbol, so the market screen and full-screen chart share them. */

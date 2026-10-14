@@ -1,3 +1,4 @@
+import type { DrawTool } from "./drawing-tools";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -17,7 +18,7 @@ import type { ChartAlertLevel } from "@/lib/alert-lines";
 
 export type { ChartAlertLevel } from "@/lib/alert-lines";
 
-export type DrawTool = "trend" | "horizontal" | "rect";
+export type { DrawTool };
 
 export interface TradingChartHandle {
   clearDrawings: () => void;
@@ -429,7 +430,8 @@ function buildChartHtml(): string {
       // Trend lines and zones are drawn in the SVG overlay (not as chart series), so two points on
       // the same candle can't break the chart and a line doesn't stretch the price scale. preview
       // is the shape following the finger while it's being drawn.
-      var rects = [], trends = [], preview = null, overlayRunning = false, lastOverlay = '';
+      var shapes = [], preview = null, overlayRunning = false, lastOverlay = '';
+      var ONE_POINT_TOOLS = { horizontal: true, hray: true, vline: true };
       var SCROLL_OPTS = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true };
       var SCALE_OPTS = { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true };
       var tapMarkerTimer = null, hasData = false, gridColor = 'rgba(255,255,255,0.045)', watermark = null, watermarkText = '';
@@ -452,9 +454,11 @@ function buildChartHtml(): string {
           localization: { priceFormatter: function (p) { return fmt(p); } },
           // Horizontal guides only: vertical lines add noise without helping read a level.
           grid: { vertLines: { visible: false }, horzLines: { color: gridColor } },
-          rightPriceScale: { borderVisible: false, minimumWidth: 64 },
+          // Drag the price axis to zoom vertically and the time axis to zoom horizontally (as in
+          // TradingView). Both are wider than the library's default so a thumb can grab them.
+          rightPriceScale: { borderVisible: false, minimumWidth: 78 },
           timeScale: {
-            borderVisible: false, timeVisible: true, secondsVisible: false,
+            borderVisible: false, timeVisible: true, secondsVisible: false, minimumHeight: 36,
             rightOffset: 8, barSpacing: 8, minBarSpacing: 2, fixLeftEdge: false,
           },
           trackingMode: { exitMode: 1 /* OnNextTap */ },
@@ -524,7 +528,8 @@ function buildChartHtml(): string {
           return { x: e.clientX - rect.left, y: e.clientY - rect.top };
         }
         function showPreview(a, b) {
-          preview = drawTool === 'horizontal' ? { kind: 'horizontal', price: b.price } : { kind: drawTool, a: a, b: b };
+          // One-point tools preview at the finger; two-point tools from the first point to it.
+          preview = ONE_POINT_TOOLS[drawTool] ? { type: drawTool, a: b, price: b.price } : { type: drawTool, a: a, b: b };
           ensureOverlayLoop();
         }
         function onDrawDown(e) {
@@ -548,6 +553,7 @@ function buildChartHtml(): string {
           var moved = Math.abs(e.clientX - start.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - start.cy) > MOVE_TOLERANCE_PX;
 
           if (drawTool === 'horizontal') return finishDrawing({ id: uid(), type: 'horizontal', price: end.price });
+          if (ONE_POINT_TOOLS[drawTool]) return finishDrawing({ id: uid(), type: drawTool, a: end });
           if (pendingPoint) return finishTwoPoint(pendingPoint, end);
           if (moved) return finishTwoPoint(start.pt, end);
           // A tap: this is the first point; the next tap (or drag) sets the second.
@@ -558,8 +564,9 @@ function buildChartHtml(): string {
         }
         function finishTwoPoint(a, b) {
           if (a.time === b.time && Math.abs(a.price - b.price) < 1e-12) { cancelDraft(); return; }
+          // A box with no width is invisible; every other two-point tool only needs two distinct points.
           if (drawTool === 'rect' && a.time === b.time) { cancelDraft(); return; }
-          finishDrawing({ id: uid(), type: drawTool === 'rect' ? 'rect' : 'trend', a: a, b: b });
+          finishDrawing({ id: uid(), type: drawTool, a: a, b: b });
         }
         function finishDrawing(d) {
           cancelDraft();
@@ -743,29 +750,80 @@ function buildChartHtml(): string {
       function svgDot(p, fill) {
         return '<circle cx="' + p.x + '" cy="' + p.y + '" r="5" fill="' + fill + '" stroke="#fff" stroke-width="1.5"/>';
       }
-      function drawOverlay() {
-        var stroke = accent(), fill = accentAlpha(0.18), parts = [];
-        rects.forEach(function (r) {
-          var p = pointXY(r.a), q = pointXY(r.b);
-          if (p && q) parts.push(svgRect(p, q, fill, stroke));
-        });
-        trends.forEach(function (t) {
-          var p = pointXY(t.a), q = pointXY(t.b);
-          if (p && q) parts.push(svgLine(p, q, stroke, 2, false));
-        });
-        if (preview) {
-          if (preview.kind === 'horizontal') {
-            var y = candleSeries.priceToCoordinate(preview.price);
-            if (y !== null) parts.push(svgLine({ x: 0, y: y }, { x: document.getElementById('chart').clientWidth, y: y }, stroke, 1.5, true));
-          } else {
-            var p = pointXY(preview.a), q = pointXY(preview.b);
-            if (p && q) {
-              parts.push(preview.kind === 'rect' ? svgRect(p, q, accentAlpha(0.12), stroke) : svgLine(p, q, stroke, 2, true));
-              parts.push(svgDot(p, stroke), svgDot(q, stroke));
-            }
+      function svgText(x, y, text, fill, anchor) {
+        return '<text x="' + x + '" y="' + y + '" fill="' + fill + '" font-size="10" font-weight="600" font-family="-apple-system, Roboto, sans-serif"' +
+          (anchor ? ' text-anchor="' + anchor + '"' : '') + '>' + text + '</text>';
+      }
+      // TradingView's Fibonacci levels and colours.
+      var FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+      var FIB_COLORS = ['#787b86', '#f23645', '#ff9800', '#4caf50', '#089981', '#00bcd4', '#787b86'];
+
+      /** SVG for one drawing (or the in-progress preview), clipped later to the plot area. */
+      function shapeSVG(d, draft) {
+        var stroke = accent(), w = plotRight(), h = plotBottom(), out = [];
+        if (d.type === 'horizontal') {
+          var hy = candleSeries.priceToCoordinate(d.price);
+          if (hy !== null) out.push(svgLine({ x: 0, y: hy }, { x: w, y: hy }, stroke, 1.5, true));
+          return out.join('');
+        }
+        var p = pointXY(d.a);
+        if (!p) return '';
+        if (d.type === 'hray') {
+          out.push(svgLine(p, { x: w, y: p.y }, stroke, 2, draft));
+        } else if (d.type === 'vline') {
+          out.push(svgLine({ x: p.x, y: 0 }, { x: p.x, y: h }, stroke, 2, draft));
+        } else {
+          var q = pointXY(d.b);
+          if (!q) return '';
+          if (d.type === 'trend') {
+            out.push(svgLine(p, q, stroke, 2, draft));
+          } else if (d.type === 'ray') {
+            // Run from the first point through the second to the edge of the plot.
+            var dx = q.x - p.x, dy = q.y - p.y, end;
+            if (Math.abs(dx) < 0.5) end = { x: p.x, y: dy > 0 ? h : 0 };
+            else { var ex = dx > 0 ? w : 0; end = { x: ex, y: p.y + (dy * (ex - p.x)) / dx }; }
+            out.push(svgLine(p, end, stroke, 2, draft));
+          } else if (d.type === 'rect') {
+            out.push(svgRect(p, q, accentAlpha(draft ? 0.12 : 0.18), stroke));
+          } else if (d.type === 'fib') {
+            var left = Math.min(p.x, q.x), right = Math.max(Math.max(p.x, q.x), left + 60);
+            FIB_LEVELS.forEach(function (lv, i) {
+              var price = d.b.price + (d.a.price - d.b.price) * lv;
+              var y = candleSeries.priceToCoordinate(price);
+              if (y === null) return;
+              if (i > 0) {
+                var prevY = candleSeries.priceToCoordinate(d.b.price + (d.a.price - d.b.price) * FIB_LEVELS[i - 1]);
+                if (prevY !== null) out.push('<rect x="' + left + '" y="' + Math.min(y, prevY) + '" width="' + (right - left) + '" height="' + Math.abs(y - prevY) + '" fill="' + FIB_COLORS[i] + '" fill-opacity="0.08"/>');
+              }
+              out.push(svgLine({ x: left, y: y }, { x: right, y: y }, FIB_COLORS[i], 1, false));
+              out.push(svgText(left + 3, y - 3, lv + ' (' + fmt(price) + ')', FIB_COLORS[i]));
+            });
+            out.push(svgLine(p, q, '#787b86', 1, true));
+          } else if (d.type === 'measure') {
+            var diff = d.b.price - d.a.price, up = diff >= 0, tone = up ? '#22c55e' : '#f43f5e';
+            var pct = d.a.price ? (diff / d.a.price) * 100 : 0;
+            var bars = Math.round(Math.abs(d.b.time - d.a.time) / tfSeconds);
+            out.push('<rect x="' + Math.min(p.x, q.x) + '" y="' + Math.min(p.y, q.y) + '" width="' + Math.abs(q.x - p.x) + '" height="' + Math.abs(q.y - p.y) + '" fill="' + tone + '" fill-opacity="0.15" stroke="' + tone + '" stroke-width="1"/>');
+            var cx = (p.x + q.x) / 2, labelY = up ? Math.min(p.y, q.y) - 6 : Math.max(p.y, q.y) + 14;
+            out.push(svgText(cx, labelY, (up ? '+' : '') + fmt(diff) + ' (' + (up ? '+' : '') + pct.toFixed(2) + '%) · ' + bars + ' bars', tone, 'middle'));
           }
         }
-        var html = parts.join('');
+        if (draft) {
+          out.push(svgDot(p, stroke));
+          if (d.b) { var qq = pointXY(d.b); if (qq) out.push(svgDot(qq, stroke)); }
+        }
+        return out.join('');
+      }
+      function plotRight() { return document.getElementById('chart').clientWidth - chart.priceScale('right').width(); }
+      function plotBottom() { return document.getElementById('chart').clientHeight - chart.timeScale().height(); }
+
+      function drawOverlay() {
+        var parts = [];
+        shapes.forEach(function (d) { parts.push(shapeSVG(d, false)); });
+        if (preview) parts.push(shapeSVG(preview, true));
+        // Clip to the plot so nothing is drawn over the price or time axes.
+        var html = '<defs><clipPath id="plot"><rect x="0" y="0" width="' + plotRight() + '" height="' + plotBottom() + '"/></clipPath></defs>' +
+          '<g clip-path="url(#plot)">' + parts.join('') + '</g>';
         // Only touch the DOM when something actually moved.
         if (html !== lastOverlay) { lastOverlay = html; document.getElementById('overlay').innerHTML = html; }
       }
@@ -776,7 +834,7 @@ function buildChartHtml(): string {
         if (overlayRunning) return;
         overlayRunning = true;
         (function frame() {
-          if (rects.length === 0 && trends.length === 0 && !preview) {
+          if (shapes.length === 0 && !preview) {
             overlayRunning = false;
             lastOverlay = '';
             document.getElementById('overlay').innerHTML = '';
@@ -791,12 +849,10 @@ function buildChartHtml(): string {
       function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
       function renderDrawing(d) {
         if (d.type === 'horizontal') {
+          // A real price line, so its price shows on the axis like TradingView's.
           drawPriceLines.push(candleSeries.createPriceLine({ price: d.price, color: accent(), lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }));
-        } else if (d.type === 'rect') {
-          rects.push({ a: d.a, b: d.b });
-          ensureOverlayLoop();
         } else {
-          trends.push({ a: d.a, b: d.b });
+          shapes.push(d);
           ensureOverlayLoop();
         }
       }
@@ -806,8 +862,7 @@ function buildChartHtml(): string {
         if (report) post({ type: 'drawingAdded', drawing: d });
       }
       window.setDrawings = function (list) {
-        rects = [];
-        trends = [];
+        shapes = [];
         drawPriceLines.forEach(function (l) { candleSeries.removePriceLine(l); });
         drawPriceLines = [];
         drawingList = [];

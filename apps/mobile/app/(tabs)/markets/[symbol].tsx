@@ -13,8 +13,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
-import { ChartToolRail, ShowToolsButton } from "@/components/charts/chart-toolbar";
-import { useChartSettings } from "@/lib/stores/chart-settings-store";
+import { ChartToolbar } from "@/components/charts/chart-toolbar";
 import { TimeframeBar, TIMEFRAMES } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
@@ -26,7 +25,6 @@ import { useLivePriceStore } from "@/lib/ws/live-price-store";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { Alert, Candle, Instrument } from "@/lib/api/types";
 import { haptics } from "@/lib/haptics";
-import { withAlpha } from "@/lib/color";
 import {
   computeDistancePct,
   formatAlertTarget,
@@ -41,7 +39,7 @@ import { radius } from "@/lib/theme";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
 
-/** Tall enough to read price action, with room for the tool rail beside it. */
+/** Tall enough to read price action comfortably. */
 const CHART_HEIGHT = 360;
 
 export default function MarketDetailScreen() {
@@ -53,9 +51,7 @@ export default function MarketDetailScreen() {
   const chartRef = useRef<TradingChartHandle>(null);
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1h");
   const [drawMode, setDrawMode] = useState(false);
-  const [drawStage, setDrawStage] = useState<"start" | "end">("start");
   const [drawTool, setDrawTool] = useState<DrawTool>("trend");
-  const showTools = useChartSettings((s) => s.showTools);
 
   const { data: instrument, isLoading } = useMarket(symbol);
   const { data: candles, isLoading: historyLoading, isError: historyFailed } = useMarketHistory(symbol, timeframe);
@@ -154,28 +150,6 @@ export default function MarketDetailScreen() {
 
           <LiveLegend key={timeframe} ref={legendRef} initial={lastCandle} />
 
-          <View style={styles.chartRow}>
-          {showTools && (
-          <ChartToolRail
-            drawMode={drawMode}
-            drawTool={drawTool}
-            onSelectCursor={() => setDrawMode(false)}
-            onSelectTool={(tool) => {
-              setDrawTool(tool);
-              setDrawStage("start");
-              setDrawMode(true);
-            }}
-            onUndo={() => chartRef.current?.undoDrawing()}
-            onClear={() => {
-              chartRef.current?.clearDrawings();
-              setDrawStage("start");
-            }}
-            onFullscreen={() =>
-              router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } })
-            }
-          />
-          )}
-          <View style={styles.flex}>
           <TradingChart
             ref={chartRef}
             height={CHART_HEIGHT}
@@ -191,7 +165,6 @@ export default function MarketDetailScreen() {
             onAlertMove={onAlertMove}
             onAlertDelete={onAlertDelete}
             drawMode={drawMode}
-            onDrawStage={setDrawStage}
             onDrawDone={() => setDrawMode(false)}
             timeframe={timeframe}
             drawTool={drawTool}
@@ -199,20 +172,21 @@ export default function MarketDetailScreen() {
             viewKey={`${symbol}|${timeframe}`}
             onPriceTap={setTappedPrice}
           />
-          {!showTools && <ShowToolsButton />}
-          </View>
-          </View>
 
-          {drawMode && (
-            <View style={[styles.drawHint, { backgroundColor: withAlpha(colors.brand, 0.12) }]}>
-              <Ionicons name="hand-left-outline" size={14} color={colors.brand} />
-              <ThemedText style={[styles.drawHintText, { color: colors.brand }]}>
-                {drawStage === "start" ? "Tap a point to start your line" : "Tap a second point to finish"}
-              </ThemedText>
-            </View>
-          )}
-
-
+          <ChartToolbar
+            drawMode={drawMode}
+            drawTool={drawTool}
+            onSelectTool={(tool) => {
+              setDrawTool(tool);
+              setDrawMode(true);
+            }}
+            onCancelDraw={() => setDrawMode(false)}
+            onUndo={() => chartRef.current?.undoDrawing()}
+            onClear={() => chartRef.current?.clearDrawings()}
+            onFullscreen={() =>
+              router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } })
+            }
+          />
         </Surface>
 
         <PriceActionSheet price={tappedPrice} displaySymbol={instrument.displaySymbol} symbol={symbol} instrumentId={instrument.id} onClose={() => setTappedPrice(null)} />
@@ -381,10 +355,6 @@ const styles = StyleSheet.create({
   price: { fontSize: 30 },
   chartCard: { marginTop: 20, padding: 12 },
   timeframeBar: { marginBottom: 12 },
-  // Tool rail on the left, chart filling the rest - the TradingView layout.
-  chartRow: { flexDirection: "row", gap: 8, height: CHART_HEIGHT },
-  drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginTop: 10 },
-  drawHintText: { fontSize: 12, fontWeight: "600" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8, paddingHorizontal: 4 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendLabel: { fontSize: 11, fontWeight: "600" },
