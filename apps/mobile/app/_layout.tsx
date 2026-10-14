@@ -27,12 +27,12 @@ import { persistQueryCache, restoreQueryCache } from "@/lib/api/query-persistenc
 import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import { setupNotificationHandler, subscribeNotificationTaps } from "@/lib/safe-notifications";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
+import { ToastHost } from "@/components/ui/toast-host";
 
 /** Notification data can carry numbers or strings; route params must be strings. */
 function toParam(v: unknown): string {
   return typeof v === "string" || typeof v === "number" ? String(v) : "";
 }
-import { ToastHost } from "@/components/ui/toast-host";
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 setupNotificationHandler();
