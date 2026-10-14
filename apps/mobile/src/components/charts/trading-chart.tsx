@@ -519,18 +519,34 @@ function buildChartHtml(): string {
         }
 
         var pressStart = null, MOVE_TOLERANCE_PX = 8;
+        // The "+" badge used to rely only on the chart library's own crosshair/trackingMode to
+        // detect a hold - which depends on touch-gesture internals we can't verify across every
+        // Android WebView/device. This timer is a self-contained long-press detector on the same
+        // element the (already working) draw-mode tap detection uses, so showing the "+" no
+        // longer depends on the library noticing the hold on its own.
+        var plusPressTimer = null, PLUS_PRESS_MS = 450;
         var chartEl = document.getElementById('chart');
         chartEl.addEventListener('pointerdown', function (e) {
           var rect = chartEl.getBoundingClientRect();
           pressStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, cx: e.clientX, cy: e.clientY };
+          if (!drawMode) {
+            clearTimeout(plusPressTimer);
+            plusPressTimer = setTimeout(function () {
+              if (!pressStart) return;
+              var price = candleSeries.coordinateToPrice(pressStart.y);
+              if (price !== null) showPlus(price, pressStart.y);
+            }, PLUS_PRESS_MS);
+          }
         });
         chartEl.addEventListener('pointermove', function (e) {
           if (!pressStart) return;
           if (Math.abs(e.clientX - pressStart.cx) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - pressStart.cy) > MOVE_TOLERANCE_PX) {
             pressStart = null;
+            clearTimeout(plusPressTimer);
           }
         });
         chartEl.addEventListener('pointerup', function (e) {
+          clearTimeout(plusPressTimer);
           var start = pressStart;
           pressStart = null;
           if (!drawMode || !start) return;
@@ -540,6 +556,7 @@ function buildChartHtml(): string {
         ['pointercancel', 'pointerleave'].forEach(function (type) {
           chartEl.addEventListener(type, function () {
             pressStart = null;
+            clearTimeout(plusPressTimer);
           });
         });
 

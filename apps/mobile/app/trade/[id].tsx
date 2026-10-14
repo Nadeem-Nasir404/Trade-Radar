@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
+import Animated, { Easing, FadeInDown } from "react-native-reanimated";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -14,6 +15,7 @@ import { PnlCard } from "@/components/trade/pnl-card";
 import { CardActions } from "@/components/trade/card-actions";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { useTradesStore, pnlPct } from "@/lib/stores/trades-store";
+import { CARD_THEMES, resolveStyle } from "@/lib/card-layout";
 import { useTheme } from "@/lib/use-theme";
 import { radius, fonts } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -58,6 +60,9 @@ export default function TradeDetailScreen() {
   // Same price the card shows, so the picker offers artwork for the card's result.
   const cardPrice = trade.exitPrice ?? (isOpen ? currentPrice : null) ?? trade.entryPrice;
   const outcome = pnlPct(trade.side, trade.entryPrice, cardPrice) >= 0 ? "profit" : "loss";
+  // A soft halo in the card's own colour behind it, so the card feels lit/staged rather than
+  // just floating on the plain background - and it recolours the instant the style changes.
+  const glowColor = CARD_THEMES[resolveStyle(cardStyle, outcome)].fallback[0];
 
   const endTrade = () => {
     if (currentPrice == null) return;
@@ -90,13 +95,17 @@ export default function TradeDetailScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.cardColumn, { width: cardWidth }]}>
+          <Animated.View
+            entering={FadeInDown.duration(420).easing(Easing.out(Easing.cubic)).withInitialValues({ opacity: 0, transform: [{ translateY: 18 }] })}
+            style={[styles.cardColumn, { width: cardWidth }]}
+          >
+            <View pointerEvents="none" style={[styles.cardGlow, { backgroundColor: glowColor, width: cardWidth * 0.92, height: cardWidth * 0.92 }]} />
             <SectionErrorBoundary label="Trade card">
               <PnlCard ref={cardRef} trade={trade} livePrice={isOpen ? currentPrice : null} style={cardStyle} />
             </SectionErrorBoundary>
 
             <CardActions cardRef={cardRef} />
-          </View>
+          </Animated.View>
 
           <View style={[styles.detailColumn, wide ? styles.detailColumnWide : { width: cardWidth }]}>
             <ThemedText variant="label" style={styles.pickerLabel}>
@@ -155,6 +164,7 @@ const styles = StyleSheet.create({
   body: { padding: 20, gap: 16, paddingBottom: 40, alignItems: "center" },
   bodyWide: { flexDirection: "row", alignItems: "flex-start", justifyContent: "center", gap: 24 },
   cardColumn: { gap: 12 },
+  cardGlow: { position: "absolute", top: 24, alignSelf: "center", borderRadius: 999, opacity: 0.28 },
   detailColumn: { gap: 14 },
   detailColumnWide: { width: 380 },
   pickerLabel: { marginLeft: 4, fontSize: 11, letterSpacing: 1 },

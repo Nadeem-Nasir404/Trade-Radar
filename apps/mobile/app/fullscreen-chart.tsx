@@ -2,13 +2,14 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { Instrument } from "@/lib/api/types";
-import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { View, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { TimeframeBar, TIMEFRAMES, type ChartTimeframe } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
@@ -16,12 +17,10 @@ import { useAlerts } from "@/lib/api/hooks/use-alerts";
 import { useChartAlerts } from "@/lib/hooks/use-chart-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTheme } from "@/lib/use-theme";
-import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
 import { formatPct } from "@/lib/format";
 
-const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
-type Timeframe = (typeof TIMEFRAMES)[number];
+type Timeframe = ChartTimeframe;
 
 export default function FullscreenChartScreen() {
   const { colors } = useTheme();
@@ -63,25 +62,7 @@ export default function FullscreenChartScreen() {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tfRow} style={styles.tfScroll}>
-        <View style={[styles.segment, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          {TIMEFRAMES.map((tf) => {
-            const active = tf === timeframe;
-            return (
-              <Pressable
-                key={tf}
-                onPress={() => {
-                  haptics.selection();
-                  setTimeframe(tf);
-                }}
-                style={[styles.segmentItem, active && { backgroundColor: colors.brand }]}
-              >
-                <ThemedText style={[styles.segmentText, { color: active ? colors.brandForeground : colors.foregroundMuted }]}>{tf}</ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+      <TimeframeBar value={timeframe} onChange={setTimeframe} style={styles.tfBar} />
 
       <View style={styles.chartWrap}>
         <TradingChart
@@ -147,11 +128,7 @@ const styles = StyleSheet.create({
   iconButton: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
   symbol: { fontSize: 16, fontWeight: "600" },
   headerPrice: { fontSize: 14 },
-  tfScroll: { flexGrow: 0, marginBottom: 8 },
-  tfRow: { paddingHorizontal: 16 },
-  segment: { flexDirection: "row", padding: 3, borderRadius: radius.full, borderWidth: 1, gap: 2 },
-  segmentItem: { minWidth: 44, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, alignItems: "center" },
-  segmentText: { fontSize: 12, fontWeight: "600" },
+  tfBar: { marginHorizontal: 16, marginBottom: 8 },
   chartWrap: { paddingHorizontal: 8 },
   footer: { paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   hint: { textAlign: "center", fontSize: 12 },

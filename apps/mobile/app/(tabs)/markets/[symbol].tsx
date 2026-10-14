@@ -14,6 +14,7 @@ import { PriceText } from "@/components/ui/price-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
 import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { TimeframeBar, TIMEFRAMES } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
 import { useAlerts, useDeleteAlert } from "@/lib/api/hooks/use-alerts";
@@ -38,8 +39,6 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
-
-const TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 export default function MarketDetailScreen() {
   const tabSpace = useTabBarSpace();
@@ -146,29 +145,7 @@ export default function MarketDetailScreen() {
           onTouchEnd={() => scrollRef.current?.setNativeProps({ scrollEnabled: true })}
           onTouchCancel={() => scrollRef.current?.setNativeProps({ scrollEnabled: true })}
         >
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentWrap} style={styles.segmentScroll}>
-            <View style={[styles.segment, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              {TIMEFRAMES.map((tf) => {
-                const active = tf === timeframe;
-                return (
-                  <Pressable
-                    key={tf}
-                    onPress={() => {
-                      haptics.selection();
-                      setTimeframe(tf);
-                    }}
-                    style={[styles.segmentItem, active && { backgroundColor: colors.brand }]}
-                  >
-                    <ThemedText
-                      style={[styles.segmentText, { color: active ? colors.brandForeground : colors.foregroundMuted }]}
-                    >
-                      {tf}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <TimeframeBar value={timeframe} onChange={setTimeframe} style={styles.timeframeBar} />
 
           <LiveLegend key={timeframe} ref={legendRef} initial={lastCandle} />
 
@@ -399,55 +376,14 @@ const styles = StyleSheet.create({
   badges: { flexDirection: "row", gap: 8, marginBottom: 8 },
   price: { fontSize: 30 },
   chartCard: { marginTop: 20, padding: 12 },
-  tapPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 10,
-    paddingLeft: 12,
-    paddingRight: 6,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  tapPillText: { flex: 1, fontSize: 13 },
-  tapPillButton: { width: 26, height: 26, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
-  chartToolbar: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
-  toolSpacer: { flex: 1 },
+  timeframeBar: { marginBottom: 12 },
   fullscreenPill: { width: 30, height: 30, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginBottom: 8 },
   drawHintText: { fontSize: 12, fontWeight: "600" },
-  toolButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-    borderWidth: 1,
-  },
-  toolButtonText: { fontSize: 12, fontWeight: "600" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8, paddingHorizontal: 4 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendLabel: { fontSize: 11, fontWeight: "600" },
   legendValue: { fontSize: 12 },
-  segmentScroll: { marginBottom: 12, flexGrow: 0 },
-  segmentWrap: { paddingRight: 4 },
-  segment: {
-    flexDirection: "row",
-    padding: 3,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    gap: 2,
-  },
-  segmentItem: {
-    minWidth: 44,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    alignItems: "center",
-  },
-  segmentText: { fontSize: 12, fontWeight: "600" },
   statsCard: { flexDirection: "row", marginTop: 16, paddingVertical: 14, paddingHorizontal: 4 },
   stat: { flex: 1, paddingHorizontal: 10, gap: 6, alignItems: "center" },
   statDivider: { width: StyleSheet.hairlineWidth, marginVertical: 4 },

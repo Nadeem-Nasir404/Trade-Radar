@@ -1,8 +1,9 @@
-import { View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, ScrollView, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
+import { PressableScale } from "@/components/ui/pressable-scale";
 import { CARD_FONTS, CARD_PACKS, CARD_PACK_ORDER, CARD_THEMES, coverFor, packOf, randomStyleFrom, resolveStyle, stylesFor, type CardOutcome, type CardStyle } from "@/lib/card-layout";
 import { useTheme } from "@/lib/use-theme";
 import { withAlpha } from "@/lib/color";
@@ -35,7 +36,7 @@ export function CardStylePicker({
         const count = stylesFor(packId, outcome).length;
         const canShuffle = count > 1;
         return (
-          <Pressable
+          <PressableScale
             key={packId}
             onPress={() => {
               haptics.selection();
@@ -70,7 +71,7 @@ export function CardStylePicker({
             <ThemedText style={[styles.label, { color: active ? colors.foreground : colors.foregroundMuted }]} numberOfLines={1}>
               {pack.label}
             </ThemedText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </ScrollView>
