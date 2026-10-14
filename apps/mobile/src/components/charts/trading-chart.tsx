@@ -336,6 +336,10 @@ function buildChartHtml(): string {
     <style>
       html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; height: 100%; }
       #chart { width: 100%; height: 100%; }
+      /* Soft light from the top in the theme's brand colour, behind the (transparent) plot. z-index
+         -1 keeps it under everything without giving #chart a stacking context of its own, which
+         would push the absolutely positioned overlays (OHLC, markers) underneath the canvas. */
+      #glow { position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: -1; pointer-events: none; }
       #ohlc {
         position: absolute; top: 6px; left: 8px; font: 500 11px -apple-system, Roboto, sans-serif;
         font-variant-numeric: tabular-nums; padding: 3px 7px; border-radius: 6px;
@@ -391,6 +395,7 @@ function buildChartHtml(): string {
     </style>
   </head>
   <body>
+    <div id="glow"></div>
     <div id="chart"></div>
     <svg id="overlay" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
     <div id="ohlc"></div>
@@ -937,6 +942,8 @@ function buildChartHtml(): string {
           },
         });
         document.getElementById('ohlc').style.background = t.legendBackground;
+        document.getElementById('glow').style.background =
+          'radial-gradient(120% 75% at 50% 0%, ' + accentAlpha(0.16) + ', transparent 70%)';
         window.setWatermark(watermarkText);
       };
 

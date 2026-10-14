@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PriceText } from "@/components/ui/price-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
-import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { ChartToolRail } from "@/components/charts/chart-toolbar";
 import { TimeframeBar, TIMEFRAMES } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { useMarket, useMarketHistory } from "@/lib/api/hooks/use-markets";
@@ -39,6 +39,9 @@ import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useTabBarSpace } from "@/lib/hooks/use-tab-bar-space";
 import { AmbientOrbs } from "@/components/ui/ambient-orbs";
+
+/** Tall enough to read price action, with room for the tool rail beside it. */
+const CHART_HEIGHT = 360;
 
 export default function MarketDetailScreen() {
   const tabSpace = useTabBarSpace();
@@ -149,8 +152,28 @@ export default function MarketDetailScreen() {
 
           <LiveLegend key={timeframe} ref={legendRef} initial={lastCandle} />
 
+          <View style={styles.chartRow}>
+          <ChartToolRail
+            drawMode={drawMode}
+            drawTool={drawTool}
+            onSelectCursor={() => setDrawMode(false)}
+            onSelectTool={(tool) => {
+              setDrawTool(tool);
+              setDrawStage("start");
+              setDrawMode(true);
+            }}
+            onClear={() => {
+              chartRef.current?.clearDrawings();
+              setDrawStage("start");
+            }}
+            onFullscreen={() =>
+              router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } })
+            }
+          />
+          <View style={styles.flex}>
           <TradingChart
             ref={chartRef}
+            height={CHART_HEIGHT}
             candles={candles ?? []}
             instrumentId={instrument.id}
             onBarClose={refetchHistory}
@@ -170,6 +193,8 @@ export default function MarketDetailScreen() {
             viewKey={`${symbol}|${timeframe}`}
             onPriceTap={setTappedPrice}
           />
+          </View>
+          </View>
 
           {drawMode && (
             <View style={[styles.drawHint, { backgroundColor: withAlpha(colors.brand, 0.12) }]}>
@@ -179,34 +204,6 @@ export default function MarketDetailScreen() {
               </ThemedText>
             </View>
           )}
-
-          <ChartToolbar
-            drawMode={drawMode}
-            drawTool={drawTool}
-            onToggleDraw={() => {
-              haptics.selection();
-              setDrawStage("start");
-              setDrawMode((v) => !v);
-            }}
-            onSelectTool={setDrawTool}
-            onClear={() => {
-              haptics.light();
-              chartRef.current?.clearDrawings();
-              setDrawStage("start");
-            }}
-            trailing={
-              <Pressable
-                hitSlop={8}
-                onPress={() => {
-                  haptics.medium();
-                  router.push({ pathname: "/fullscreen-chart", params: { symbol, displaySymbol: instrument.displaySymbol, timeframe } });
-                }}
-                style={[styles.fullscreenPill, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-              >
-                <Ionicons name="expand-outline" size={16} color={colors.foregroundMuted} />
-              </Pressable>
-            }
-          />
 
 
         </Surface>
@@ -377,8 +374,9 @@ const styles = StyleSheet.create({
   price: { fontSize: 30 },
   chartCard: { marginTop: 20, padding: 12 },
   timeframeBar: { marginBottom: 12 },
-  fullscreenPill: { width: 30, height: 30, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginBottom: 8 },
+  // Tool rail on the left, chart filling the rest - the TradingView layout.
+  chartRow: { flexDirection: "row", gap: 8, height: CHART_HEIGHT },
+  drawHint: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.full, marginTop: 10 },
   drawHintText: { fontSize: 12, fontWeight: "600" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8, paddingHorizontal: 4 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },

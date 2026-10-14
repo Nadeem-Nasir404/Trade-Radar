@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { IconButton } from "@/components/ui/icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { TradingChart, type TradingChartHandle, type DrawTool } from "@/components/charts/trading-chart";
-import { ChartToolbar } from "@/components/charts/chart-toolbar";
+import { ChartToolRail } from "@/components/charts/chart-toolbar";
 import { TimeframeBar, TIMEFRAMES, type ChartTimeframe } from "@/components/charts/timeframe-bar";
 import { PriceActionSheet } from "@/components/charts/price-action-sheet";
 import { PriceText } from "@/components/ui/price-text";
@@ -17,7 +17,6 @@ import { useAlerts } from "@/lib/api/hooks/use-alerts";
 import { useChartAlerts } from "@/lib/hooks/use-chart-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTheme } from "@/lib/use-theme";
-import { haptics } from "@/lib/haptics";
 import { formatPct } from "@/lib/format";
 
 type Timeframe = ChartTimeframe;
@@ -47,7 +46,8 @@ export default function FullscreenChartScreen() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.marketHistory(symbol, timeframe) });
   }, [queryClient, symbol, timeframe]);
 
-  const chartHeight = height - 230;
+  // The tools moved into the side rail, so the chart takes the space the bottom toolbar used.
+  const chartHeight = height - 190;
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
@@ -64,7 +64,22 @@ export default function FullscreenChartScreen() {
 
       <TimeframeBar value={timeframe} onChange={setTimeframe} style={styles.tfBar} />
 
-      <View style={styles.chartWrap}>
+      <View style={[styles.chartWrap, { height: chartHeight }]}>
+        <ChartToolRail
+          drawMode={drawMode}
+          drawTool={drawTool}
+          onSelectCursor={() => setDrawMode(false)}
+          onSelectTool={(tool) => {
+            setDrawTool(tool);
+            setDrawStage("start");
+            setDrawMode(true);
+          }}
+          onClear={() => {
+            chartRef.current?.clearDrawings();
+            setDrawStage("start");
+          }}
+        />
+        <View style={styles.flex}>
         <TradingChart
           ref={chartRef}
           height={chartHeight}
@@ -85,6 +100,7 @@ export default function FullscreenChartScreen() {
           onAlertDelete={onAlertDelete}
           onDrawStage={setDrawStage}
         />
+        </View>
       </View>
 
       <PriceActionSheet
@@ -96,21 +112,6 @@ export default function FullscreenChartScreen() {
       />
 
       <View style={styles.footer}>
-        <ChartToolbar
-          drawMode={drawMode}
-          drawTool={drawTool}
-          onToggleDraw={() => {
-            haptics.selection();
-            setDrawStage("start");
-            setDrawMode((v) => !v);
-          }}
-          onSelectTool={setDrawTool}
-          onClear={() => {
-            haptics.light();
-            chartRef.current?.clearDrawings();
-            setDrawStage("start");
-          }}
-        />
         <ThemedText variant="subtle" style={[styles.hint, drawMode && { color: colors.brand }]}>
           {drawMode
             ? drawStage === "start" ? "Tap a point to start your drawing" : "Tap a second point to finish"
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
   symbol: { fontSize: 16, fontWeight: "600" },
   headerPrice: { fontSize: 14 },
   tfBar: { marginHorizontal: 16, marginBottom: 8 },
-  chartWrap: { paddingHorizontal: 8 },
+  chartWrap: { flexDirection: "row", gap: 6, paddingHorizontal: 8 },
   footer: { paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   hint: { textAlign: "center", fontSize: 12 },
 });

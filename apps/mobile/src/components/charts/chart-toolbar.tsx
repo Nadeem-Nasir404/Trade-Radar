@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Surface } from "@/components/ui/surface";
 import { GlassPressable } from "@/components/ui/glass-pressable";
+import { PressableScale } from "@/components/ui/pressable-scale";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { haptics } from "@/lib/haptics";
@@ -12,69 +13,62 @@ import { CANDLE_PALETTES, useChartSettings, type CandlePalette } from "@/lib/sto
 import type { DrawTool } from "./trading-chart";
 
 const TOOLS: { value: DrawTool; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: "trend", label: "Trend", icon: "analytics-outline" },
-  { value: "horizontal", label: "Level", icon: "remove-outline" },
-  { value: "rect", label: "Zone", icon: "scan-outline" },
+  { value: "trend", label: "Trend line", icon: "trending-up-outline" },
+  { value: "horizontal", label: "Horizontal line", icon: "remove-outline" },
+  { value: "rect", label: "Zone", icon: "square-outline" },
 ];
 
-interface ChartToolbarProps {
+interface ChartToolRailProps {
   drawMode: boolean;
   drawTool: DrawTool;
-  onToggleDraw: () => void;
+  /** The cursor: leave drawing mode and go back to panning/zooming the chart. */
+  onSelectCursor: () => void;
   onSelectTool: (tool: DrawTool) => void;
   onClear: () => void;
-  trailing?: React.ReactNode;
+  /** Shown only where there is a bigger chart to open (not on the full-screen chart itself). */
+  onFullscreen?: () => void;
 }
 
-/** Draw tools, clear, and chart settings - one bar shared by the market screen and full-screen chart. */
-export function ChartToolbar({ drawMode, drawTool, onToggleDraw, onSelectTool, onClear, trailing }: ChartToolbarProps) {
+/**
+ * TradingView-style tool rail down the left edge of the chart: the cursor and every drawing tool
+ * are always one tap away, instead of hidden behind a "Draw" button. Picking a tool starts
+ * drawing with it; the cursor goes back to moving the chart. Shared by the market screen and the
+ * full-screen chart.
+ */
+export function ChartToolRail({ drawMode, drawTool, onSelectCursor, onSelectTool, onClear, onFullscreen }: ChartToolRailProps) {
+  const { colors } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.row}>
-        <Pill active={drawMode} onPress={onToggleDraw} icon="pencil-outline" label={drawMode ? "Drawing" : "Draw"} />
-        {drawMode &&
-          TOOLS.map((t) => (
-            <Pill
-              key={t.value}
-              active={drawTool === t.value}
-              onPress={() => {
-                haptics.selection();
-                onSelectTool(t.value);
-              }}
-              icon={t.icon}
-              label={t.label}
-            />
-          ))}
-        {drawMode && <Pill active={false} onPress={onClear} icon="trash-outline" label="Clear" />}
-        <View style={styles.spacer} />
-        {trailing}
-        <GlassPressable
-          hitSlop={8}
-          onPress={() => {
-            haptics.light();
-            setSettingsOpen(true);
-          }}
-          style={styles.iconPill}
-        >
-          <Ionicons name="options-outline" size={16} />
-        </GlassPressable>
-      </View>
+    <View style={[styles.rail, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <RailButton icon="navigate-outline" label="Cursor" active={!drawMode} onPress={onSelectCursor} />
+      {TOOLS.map((t) => (
+        <RailButton key={t.value} icon={t.icon} label={t.label} active={drawMode && drawTool === t.value} onPress={() => onSelectTool(t.value)} />
+      ))}
+      <View style={[styles.railDivider, { backgroundColor: colors.glassBorder }]} />
+      <RailButton icon="trash-outline" label="Clear drawings" onPress={onClear} />
+      <View style={styles.spacer} />
+      <RailButton icon="options-outline" label="Chart settings" onPress={() => setSettingsOpen(true)} />
+      {onFullscreen && <RailButton icon="expand-outline" label="Full screen" onPress={onFullscreen} />}
 
       <ChartSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </View>
   );
 }
 
-function Pill({ active, onPress, icon, label }: { active: boolean; onPress: () => void; icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function RailButton({ icon, label, active = false, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; active?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
-  const tint = active ? colors.brand : colors.foregroundMuted;
   return (
-    <GlassPressable active={active} onPress={onPress} style={styles.pill}>
-      <Ionicons name={icon} size={14} color={tint} />
-      <ThemedText style={[styles.pillText, { color: active ? colors.brand : colors.foreground }]}>{label}</ThemedText>
-    </GlassPressable>
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      hitSlop={4}
+      style={[styles.railButton, active && { backgroundColor: colors.brandGlow, borderColor: colors.brand }]}
+    >
+      <Ionicons name={icon} size={18} color={active ? colors.brand : colors.foregroundMuted} />
+    </PressableScale>
   );
 }
 
@@ -157,14 +151,10 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 8 },
-  row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  spacer: { flex: 1, minWidth: 4 },
-  // No flexDirection here: GlassPressable lays its content out in a row itself, and a row on the
-  // outer view collapsed the pill to its padding (an empty pill instead of "Draw").
-  pill: { height: 32, paddingHorizontal: 12, borderRadius: radius.full },
-  pillText: { fontSize: 12, fontWeight: "600" },
-  iconPill: { width: 32, height: 32, borderRadius: radius.full },
+  rail: { width: 44, paddingVertical: 4, alignItems: "center", gap: 4, borderRadius: radius.md, borderWidth: 1 },
+  railButton: { width: 36, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: "transparent", alignItems: "center", justifyContent: "center" },
+  railDivider: { width: 22, height: StyleSheet.hairlineWidth, marginVertical: 2 },
+  spacer: { flex: 1, minHeight: 4 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderRadius: 0, paddingBottom: 32, maxHeight: "72%" },
   sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, marginTop: 10 },
