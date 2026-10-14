@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -16,6 +16,7 @@ import { CardActions } from "@/components/trade/card-actions";
 import { CardStylePicker } from "@/components/trade/card-style-picker";
 import { SectionErrorBoundary } from "@/components/ui/error-boundary";
 import { useToastStore } from "@/lib/stores/toast-store";
+import { useAcknowledgeAlert } from "@/lib/api/hooks/use-alerts";
 import { useLivePrice } from "@/lib/ws/use-live-price";
 import { useTradesStore, pnlPct, type TradeSide } from "@/lib/stores/trades-store";
 import { useTheme } from "@/lib/use-theme";
@@ -37,7 +38,15 @@ const CONDITION_TEXT: Record<string, string> = {
 export default function AlertTriggeredScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ symbol: string; instrumentId?: string; price?: string; condition?: string; target?: string }>();
+  const params = useLocalSearchParams<{ symbol: string; instrumentId?: string; price?: string; condition?: string; target?: string; alertId?: string }>();
+  // Opening the alert counts as seeing it: stop its repeat reminders (a no-op if it has none).
+  const acknowledge = useAcknowledgeAlert();
+  const alertId = params.alertId ?? "";
+  useEffect(() => {
+    if (alertId) acknowledge.mutate(alertId);
+    // Once per opened alert; the mutation object itself changes identity every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertId]);
   const symbol = params.symbol ?? "";
   const instrumentId = params.instrumentId ?? "";
   const triggerPrice = params.price ? Number(params.price) : null;

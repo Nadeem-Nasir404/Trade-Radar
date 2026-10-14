@@ -55,6 +55,8 @@ export interface AlertTriggeredEvent {
   targetValue: string;
   observedPrice: string;
   eventTime: number;
+  /** A repeat reminder that the level is still crossed, rather than a new crossing. */
+  isReminder?: boolean;
 }
 
 export interface AlertStatusChangedEvent {

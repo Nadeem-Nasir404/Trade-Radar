@@ -28,7 +28,9 @@ export function useAlertTriggeredListener() {
       if (cancelled) return;
 
       const onTriggered = (payload: AlertTriggeredEvent) => {
-        const title = `🔔 ${payload.symbol} ${describeCondition(payload.conditionType)}`;
+        const title = payload.isReminder
+          ? `🔁 ${payload.symbol} is still past your level`
+          : `🔔 ${payload.symbol} ${describeCondition(payload.conditionType)}`;
         const body = `Observed at ${formatCompactPrice(Number(payload.observedPrice))}`;
 
         // Always show the celebratory in-app toast (works everywhere, including Expo Go) and
@@ -42,6 +44,8 @@ export function useAlertTriggeredListener() {
           price: String(payload.observedPrice),
           condition: payload.conditionType,
           target: String(payload.targetValue),
+          alertId: payload.alertId,
+          reminder: payload.isReminder ? "1" : "",
         });
 
         queryClient.invalidateQueries({ queryKey: ["alerts"] });

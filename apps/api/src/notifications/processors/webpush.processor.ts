@@ -52,7 +52,7 @@ export class WebPushProcessor extends ResilientWorkerHost implements OnModuleIni
       return;
     }
 
-    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue);
+    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue, ctx.isReminder);
     const payload = JSON.stringify({
       title: `🔔 ${ctx.symbol} ${conditionText}`,
       body: `Observed price: ${ctx.observedPrice}`,

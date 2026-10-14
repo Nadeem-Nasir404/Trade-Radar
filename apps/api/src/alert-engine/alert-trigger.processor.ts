@@ -7,6 +7,7 @@ import { AlertStatus, Prisma } from "@prisma/client";
 import { QUEUE_NAMES, type AlertTriggerJobPayload } from "@levelpulse/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
 import { ALERT_TRIGGERED_EVENT, type AlertTriggeredPayload } from "./alert-engine.events";
+import { repeatsReminders } from "./alert-repeat";
 
 /**
  * Consumes QUEUE_NAMES.ALERT_TRIGGER. This is the durability boundary: AlertEngineService's
@@ -71,6 +72,10 @@ export class AlertTriggerProcessor extends ResilientWorkerHost {
           lastTriggeredAt: new Date(data.eventTime),
           lastEvaluatedPrice: new Prisma.Decimal(data.observedPrice),
           status: alert.isRecurring ? alert.status : AlertStatus.TRIGGERED,
+          // A new firing starts a fresh run of reminders (see AlertRepeatService).
+          repeatCount: 0,
+          lastRepeatedAt: null,
+          repeatEndedAt: null,
         },
       });
 
@@ -87,7 +92,9 @@ export class AlertTriggerProcessor extends ResilientWorkerHost {
       targetValue: data.targetValue,
       observedPrice: data.observedPrice,
       eventTime: data.eventTime,
-      deactivated: !alert.isRecurring,
+      // A one-shot alert with reminders keeps its market feed until the reminders end, since
+      // AlertRepeatService needs a live price to know whether the level is still crossed.
+      deactivated: !alert.isRecurring && !repeatsReminders(alert),
     };
     this.events.emit(ALERT_TRIGGERED_EVENT, payload);
   }

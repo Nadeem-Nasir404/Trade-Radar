@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { ConditionType, NotificationChannelType } from "@prisma/client";
+import { REPEAT_INTERVAL_MINUTES } from "@levelpulse/shared-types";
 
 export class ChannelPreferenceDto {
   @IsEnum(NotificationChannelType)
@@ -56,6 +57,11 @@ export class CreateAlertDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  /** Keep reminding every N minutes after the alert fires, while the level is still crossed. null turns it off. */
+  @IsOptional()
+  @IsIn([...REPEAT_INTERVAL_MINUTES, null])
+  repeatIntervalMinutes?: number | null;
 
   @IsOptional()
   @IsString()

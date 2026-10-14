@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from "@nestjs/common";
 import { AlertsService } from "./alerts.service";
+import { AlertRepeatService } from "./alert-repeat.service";
 import { CreateAlertDto } from "./dto/create-alert.dto";
 import { UpdateAlertDto } from "./dto/update-alert.dto";
 import { ListAlertsDto } from "./dto/list-alerts.dto";
@@ -8,7 +9,10 @@ import { CurrentUser, type AuthenticatedUser } from "../common/decorators/curren
 
 @Controller("alerts")
 export class AlertsController {
-  constructor(private readonly alertsService: AlertsService) {}
+  constructor(
+    private readonly alertsService: AlertsService,
+    private readonly repeats: AlertRepeatService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListAlertsDto) {
@@ -68,6 +72,13 @@ export class AlertsController {
   @HttpCode(HttpStatus.OK)
   resume(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.alertsService.resume(user.id, id);
+  }
+
+  /** The user has seen this alert in the app - stop its repeat reminders for the current firing. */
+  @Post(":id/acknowledge")
+  @HttpCode(HttpStatus.OK)
+  acknowledge(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.repeats.acknowledge(user.id, id);
   }
 
   @Post(":id/clone")

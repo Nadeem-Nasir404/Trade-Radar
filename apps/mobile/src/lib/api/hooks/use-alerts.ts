@@ -41,6 +41,7 @@ export interface CreateAlertInput {
   timeframe?: string;
   isRecurring?: boolean;
   cooldownSeconds?: number;
+  repeatIntervalMinutes?: number | null;
   expiresAt?: string;
   notes?: string;
   tags?: string[];
@@ -136,6 +137,13 @@ export function usePauseAlert() {
 
 export function useResumeAlert() {
   return useSetAlertStatus("resume");
+}
+
+/** Tells the server the user has seen a fired alert, which stops its repeat reminders. */
+export function useAcknowledgeAlert() {
+  return useMutation({
+    mutationFn: (id: string) => api.post<{ acknowledged: boolean }>(`/alerts/${id}/acknowledge`),
+  });
 }
 
 export function useCloneAlert() {

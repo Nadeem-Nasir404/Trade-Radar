@@ -5,6 +5,7 @@ import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AlertIndexerService } from "../alert-engine/alert-indexer.service";
 import { AlertEngineService } from "../alert-engine/alert-engine.service";
+import { repeatsReminders } from "../alert-engine/alert-repeat";
 import { MarketDataService } from "../market-data/market-data.service";
 import { PriceCacheService } from "../market-data/price-cache/price-cache.service";
 import type { CreateAlertDto } from "./dto/create-alert.dto";
@@ -73,6 +74,7 @@ export class AlertsService {
         timeframe: dto.timeframe,
         isRecurring: dto.isRecurring ?? false,
         cooldownSeconds: dto.cooldownSeconds ?? 0,
+        repeatIntervalMinutes: repeatIntervalFor(dto.conditionType, dto.repeatIntervalMinutes),
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
         notes: dto.notes,
         tags: dto.tags ?? [],
@@ -170,6 +172,10 @@ export class AlertsService {
         timeframe: dto.timeframe,
         isRecurring: dto.isRecurring,
         cooldownSeconds: dto.cooldownSeconds,
+        repeatIntervalMinutes:
+          dto.repeatIntervalMinutes !== undefined
+            ? repeatIntervalFor(dto.conditionType ?? existing.conditionType, dto.repeatIntervalMinutes)
+            : undefined,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
         notes: dto.notes,
         tags: dto.tags,
@@ -200,7 +206,10 @@ export class AlertsService {
   async remove(userId: string, id: string): Promise<void> {
     const alert = await this.findOwned(userId, id);
     await this.indexer.deindexAlert(alert.id, alert.instrumentId, alert.conditionType);
-    if (alert.status === AlertStatus.ACTIVE) {
+    // A fired one-shot alert still holds its market feed while its repeat reminders run.
+    const holdsFeedForReminders =
+      alert.status === AlertStatus.TRIGGERED && repeatsReminders(alert) && alert.lastTriggeredAt != null && alert.repeatEndedAt == null;
+    if (alert.status === AlertStatus.ACTIVE || holdsFeedForReminders) {
       await this.marketData.onAlertDeactivated(alert.instrumentId, alert.id);
     }
     await this.prisma.alert.delete({ where: { id } });
@@ -212,7 +221,12 @@ export class AlertsService {
 
     await this.indexer.deindexAlert(alert.id, alert.instrumentId, alert.conditionType);
     await this.marketData.onAlertDeactivated(alert.instrumentId, alert.id);
-    const updated = await this.prisma.alert.update({ where: { id }, data: { status: AlertStatus.PAUSED }, include: ALERT_INCLUDE });
+    // Pausing also silences any repeat reminders still running for its last firing.
+    const updated = await this.prisma.alert.update({
+      where: { id },
+      data: { status: AlertStatus.PAUSED, repeatEndedAt: alert.repeatEndedAt ?? new Date() },
+      include: ALERT_INCLUDE,
+    });
     return this.serialize(updated);
   }
 
@@ -241,6 +255,7 @@ export class AlertsService {
         timeframe: source.timeframe,
         isRecurring: source.isRecurring,
         cooldownSeconds: source.cooldownSeconds,
+        repeatIntervalMinutes: source.repeatIntervalMinutes,
         tags: source.tags,
         channelPrefs: {
           create: source.channelPrefs.map((c) => ({ channelType: c.channelType, isEnabled: c.isEnabled })),
@@ -355,6 +370,7 @@ export class AlertsService {
       status: alert.status,
       isRecurring: alert.isRecurring,
       cooldownSeconds: alert.cooldownSeconds,
+      repeatIntervalMinutes: alert.repeatIntervalMinutes,
       triggerCount: alert.triggerCount,
       lastTriggeredAt: alert.lastTriggeredAt,
       expiresAt: alert.expiresAt,
@@ -368,6 +384,12 @@ export class AlertsService {
       createdAt: alert.createdAt,
     };
   }
+}
+
+/** The repeat interval to store: only conditions with a lasting state can repeat (see REPEATABLE_CONDITIONS). */
+function repeatIntervalFor(conditionType: ConditionType, minutes: number | null | undefined): number | null {
+  if (minutes == null) return null;
+  return repeatsReminders({ conditionType, repeatIntervalMinutes: minutes }) ? minutes : null;
 }
 
 /** Level alerts whose direction can flip when their line is dragged across the price. */

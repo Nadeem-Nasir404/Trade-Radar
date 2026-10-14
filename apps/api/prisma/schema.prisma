@@ -306,6 +306,13 @@ model Alert {
   status             AlertStatus   @default(ACTIVE)
   isRecurring        Boolean       @default(false)
   cooldownSeconds    Int           @default(0)
+  /// Re-notify every N minutes while the condition still holds after a trigger (null = off).
+  repeatIntervalMinutes Int?
+  /// Reminders sent for the current trigger; reset whenever the alert fires again.
+  repeatCount        Int           @default(0)
+  lastRepeatedAt     DateTime?
+  /// Set when reminders for the current trigger stop (seen in the app, price moved back, or the cap).
+  repeatEndedAt      DateTime?
   triggerCount       Int           @default(0)
   lastTriggeredAt    DateTime?
   lastEvaluatedPrice Decimal?      @db.Decimal(24, 10)
@@ -353,6 +360,8 @@ model AlertEvent {
   eventTime     DateTime
   receivedTime  DateTime
   transitionId  String        @unique
+  /// A repeat reminder for an alert that already fired, not a new crossing.
+  isReminder    Boolean       @default(false)
   createdAt     DateTime      @default(now())
 
   alert      Alert                   @relation(fields: [alertId], references: [id], onDelete: Cascade)

@@ -28,7 +28,7 @@ export class EmailProcessor extends ResilientWorkerHost {
       return;
     }
 
-    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue);
+    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue, ctx.isReminder);
     const templateParams = {
       symbol: ctx.symbol,
       conditionType: ctx.conditionType,

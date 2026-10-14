@@ -14,4 +14,6 @@ export interface AlertTriggeredPayload {
   eventTime: number;
   /** True when this trigger ended the alert (one-shot), so its market feed can be released. */
   deactivated: boolean;
+  /** A repeat reminder that the level is still crossed, rather than a new crossing. */
+  isReminder?: boolean;
 }

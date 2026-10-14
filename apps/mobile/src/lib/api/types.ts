@@ -72,6 +72,8 @@ export interface Alert {
   status: AlertStatus;
   isRecurring: boolean;
   cooldownSeconds: number;
+  /** Minutes between repeat reminders after the alert fires, or null when it notifies once. */
+  repeatIntervalMinutes: number | null;
   triggerCount: number;
   lastTriggeredAt: string | null;
   expiresAt: string | null;

@@ -152,6 +152,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       targetValue: event.targetValue,
       observedPrice: event.observedPrice,
       eventTime: event.eventTime,
+      isReminder: event.isReminder ?? false,
     };
     this.server.to(userRoom(event.userId)).emit(WS_EVENTS.ALERT_TRIGGERED, payload);
   }

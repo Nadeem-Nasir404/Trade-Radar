@@ -48,7 +48,7 @@ export class ExpoPushProcessor extends ResilientWorkerHost {
     const ctx = await this.context.load(job.data.alertEventId, job.data.userId);
     if (!ctx) return;
 
-    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue);
+    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue, ctx.isReminder);
 
     try {
       const res = await fetch(EXPO_PUSH_API_URL, {
@@ -58,7 +58,16 @@ export class ExpoPushProcessor extends ResilientWorkerHost {
           to: token,
           title: `${ctx.symbol} ${conditionText}`,
           body: `Observed price: ${ctx.observedPrice}`,
-          data: { symbol: ctx.symbol.replace("/", ""), instrumentId: ctx.instrumentId, price: ctx.observedPrice, condition: ctx.conditionType, target: ctx.targetValue },
+          data: {
+            symbol: ctx.symbol.replace("/", ""),
+            instrumentId: ctx.instrumentId,
+            price: ctx.observedPrice,
+            condition: ctx.conditionType,
+            target: ctx.targetValue,
+            // Opening the alert from this notification acknowledges it, which stops repeat reminders.
+            alertId: ctx.alertId,
+            reminder: ctx.isReminder ? "1" : "",
+          },
           sound: "default",
           priority: "high",
           channelId: "default",

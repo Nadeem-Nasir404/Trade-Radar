@@ -1,42 +1,56 @@
 import { useState } from "react";
-import { View, ScrollView, StyleSheet, Pressable, Switch } from "react-native";
+import { View, ScrollView, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ui/themed-text";
-import { Surface } from "@/components/ui/surface";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { PressableScale } from "@/components/ui/pressable-scale";
 import { useCreateAlert } from "@/lib/api/hooks/use-alerts";
 import { formatCompactPrice } from "@/lib/format";
 import { useTheme } from "@/lib/use-theme";
 import { radius } from "@/lib/theme";
 import { useToastStore } from "@/lib/stores/toast-store";
 import { haptics } from "@/lib/haptics";
-import type { ConditionType, NotificationChannelType } from "@levelpulse/shared-types";
+import {
+  MAX_ALERT_REMINDERS,
+  REPEAT_INTERVAL_MINUTES,
+  REPEATABLE_CONDITIONS,
+  type ConditionType,
+  type NotificationChannelType,
+  type RepeatIntervalMinutes,
+} from "@levelpulse/shared-types";
 
-const CONDITION_OPTIONS: { value: ConditionType; label: string; icon: keyof typeof Ionicons.glyphMap; needsSecondary?: boolean }[] = [
-  { value: "CROSSES_ABOVE", label: "Crosses above", icon: "arrow-up" },
-  { value: "CROSSES_BELOW", label: "Crosses below", icon: "arrow-down" },
-  { value: "ABOVE", label: "Above", icon: "trending-up" },
-  { value: "BELOW", label: "Below", icon: "trending-down" },
-  { value: "EQUALS", label: "Hits exactly", icon: "remove" },
-  { value: "PCT_CHANGE", label: "% change", icon: "pulse" },
-  { value: "PCT_CHANGE_WINDOW", label: "% change (window)", icon: "timer-outline" },
-  { value: "ENTERS_RANGE", label: "Enters range", icon: "swap-horizontal", needsSecondary: true },
-  { value: "EXITS_RANGE", label: "Exits range", icon: "swap-horizontal", needsSecondary: true },
+const CONDITION_OPTIONS: { value: ConditionType; label: string; phrase: string; icon: keyof typeof Ionicons.glyphMap; needsSecondary?: boolean }[] = [
+  { value: "CROSSES_ABOVE", label: "Crosses above", phrase: "crosses above", icon: "arrow-up" },
+  { value: "CROSSES_BELOW", label: "Crosses below", phrase: "crosses below", icon: "arrow-down" },
+  { value: "ABOVE", label: "Above", phrase: "is above", icon: "trending-up" },
+  { value: "BELOW", label: "Below", phrase: "is below", icon: "trending-down" },
+  { value: "EQUALS", label: "Exactly", phrase: "hits", icon: "remove" },
+  { value: "PCT_CHANGE", label: "% change", phrase: "moves", icon: "pulse" },
+  { value: "PCT_CHANGE_WINDOW", label: "% in window", phrase: "moves", icon: "timer-outline" },
+  { value: "ENTERS_RANGE", label: "Enters range", phrase: "enters", icon: "enter-outline", needsSecondary: true },
+  { value: "EXITS_RANGE", label: "Exits range", phrase: "exits", icon: "exit-outline", needsSecondary: true },
 ];
 
 // Same set the chart's own timeframe picker offers, minus the very short/very long ends - a 1m
 // rolling window is mostly noise, and a 1w window rarely fires before the baseline just rolls over.
 const WINDOW_OPTIONS = ["5m", "15m", "1h", "4h", "1d"] as const;
 
-const CHANNELS: { value: NotificationChannelType; label: string; hint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: "EXPO_PUSH", label: "Push", hint: "Instant, even when closed", icon: "notifications-outline" },
-  { value: "EMAIL", label: "Email", hint: "Sent to your account email", icon: "mail-outline" },
-  { value: "TELEGRAM", label: "Telegram", hint: "Needs a linked bot", icon: "paper-plane-outline" },
-  { value: "DISCORD", label: "Discord", hint: "Needs a webhook", icon: "logo-discord" },
+const CHANNELS: { value: NotificationChannelType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: "EXPO_PUSH", label: "Push", icon: "notifications-outline" },
+  { value: "EMAIL", label: "Email", icon: "mail-outline" },
+  { value: "TELEGRAM", label: "Telegram", icon: "paper-plane-outline" },
+  { value: "DISCORD", label: "Discord", icon: "logo-discord" },
 ];
 
+function repeatLabel(minutes: RepeatIntervalMinutes): string {
+  return minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`;
+}
+
+/**
+ * Compact on purpose: every choice is a row of small chips under a one-line label, rather than a
+ * card per section with full-height buttons, so the whole form fits about one screen.
+ */
 export function CreateAlertForm({
   instrumentId,
   symbol,
@@ -56,6 +70,7 @@ export function CreateAlertForm({
   const [secondaryValue, setSecondaryValue] = useState("");
   const [pctDirection, setPctDirection] = useState<"up" | "down">("up");
   const [windowTimeframe, setWindowTimeframe] = useState<(typeof WINDOW_OPTIONS)[number]>("1h");
+  const [repeatEvery, setRepeatEvery] = useState<RepeatIntervalMinutes | null>(null);
   const [channels, setChannels] = useState<Set<NotificationChannelType>>(new Set(["EXPO_PUSH", "EMAIL"]));
   const [note, setNote] = useState("");
   const createAlert = useCreateAlert();
@@ -64,22 +79,22 @@ export function CreateAlertForm({
   const selected = CONDITION_OPTIONS.find((c) => c.value === conditionType)!;
   const isWindow = conditionType === "PCT_CHANGE_WINDOW";
   const isPct = conditionType === "PCT_CHANGE" || isWindow;
+  // "Hits exactly" is a single touch and the window baseline resets itself, so neither can be "still true".
+  const canRepeat = (REPEATABLE_CONDITIONS as readonly string[]).includes(conditionType);
   const numeric = Number(targetValue);
   const hasValidTarget = targetValue !== "" && Number.isFinite(numeric) && numeric > 0;
 
   const applyPreset = (kind: "current" | "+1" | "-1") => {
     if (!currentPrice) return;
-    haptics.selection();
     if (kind === "current") setTargetValue(String(currentPrice));
     else setTargetValue(String(Number((currentPrice * (kind === "+1" ? 1.01 : 0.99)).toPrecision(8))));
   };
 
-  const toggleChannel = (value: NotificationChannelType, on: boolean) => {
-    haptics.selection();
+  const toggleChannel = (value: NotificationChannelType) => {
     setChannels((prev) => {
       const next = new Set(prev);
-      if (on) next.add(value);
-      else next.delete(value);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
       return next;
     });
   };
@@ -93,6 +108,7 @@ export function CreateAlertForm({
       targetValue: resolvedTarget,
       secondaryValue: selected.needsSecondary && secondaryValue ? Number(secondaryValue) : undefined,
       timeframe: isWindow ? windowTimeframe : undefined,
+      repeatIntervalMinutes: canRepeat ? repeatEvery : null,
       channels: CHANNELS.map((c) => ({ channelType: c.value, isEnabled: channels.has(c.value) })),
       notes: note.trim() || undefined,
     });
@@ -100,200 +116,178 @@ export function CreateAlertForm({
     const targetLabel = isPct
       ? `${pctDirection === "down" ? "-" : "+"}${Math.abs(numeric)}%${isWindow ? ` within ${windowTimeframe}` : ""}`
       : targetValue;
-    showToast("Alert created", `${symbol} will notify you when it ${selected.label.toLowerCase()} ${targetLabel}`, "success");
+    const repeatNote = canRepeat && repeatEvery ? `, then every ${repeatLabel(repeatEvery)}` : "";
+    showToast("Alert created", `${symbol} will notify you when it ${selected.phrase} ${targetLabel}${repeatNote}`, "success");
     onSuccess?.();
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <Surface style={styles.hero}>
-        <LinearGradient
-          colors={[colors.brandGlow, "transparent"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-        <ThemedText variant="subtle">{symbol} · current price</ThemedText>
-        <ThemedText variant="mono" style={styles.heroPrice}>
+      <View style={[styles.priceBar, { backgroundColor: colors.brandGlow, borderColor: colors.glassBorder }]}>
+        <ThemedText variant="subtle">{symbol}</ThemedText>
+        <ThemedText variant="mono" style={styles.priceBarValue}>
           {currentPrice != null ? formatCompactPrice(currentPrice) : "--"}
         </ThemedText>
-      </Surface>
+      </View>
 
-      <Section title="Condition">
-        <View style={styles.grid}>
-          {CONDITION_OPTIONS.map((opt) => {
-            const active = opt.value === conditionType;
-            return (
-              <Pressable
-                key={opt.value}
-                onPress={() => {
-                  haptics.selection();
-                  setConditionType(opt.value);
-                }}
-                style={[styles.option, { backgroundColor: active ? colors.brandGlow : colors.glass, borderColor: active ? colors.brand : colors.glassBorder }]}
-              >
-                <Ionicons name={opt.icon} size={16} color={active ? colors.brand : colors.foregroundMuted} />
-                <ThemedText style={{ color: active ? colors.foreground : colors.foregroundMuted, fontWeight: "600", fontSize: 13 }}>{opt.label}</ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </Section>
+      <Field label="When price">
+        <ChipRow>
+          {CONDITION_OPTIONS.map((opt) => (
+            <Chip key={opt.value} active={opt.value === conditionType} icon={opt.icon} label={opt.label} onPress={() => setConditionType(opt.value)} />
+          ))}
+        </ChipRow>
+      </Field>
 
-      <Section title={isPct ? "Change" : selected.needsSecondary ? "Range" : "Target price"}>
+      <Field label={isPct ? "By" : selected.needsSecondary ? "Range" : "Target price"}>
         {isPct ? (
-          <View style={styles.pctRow}>
-            <View style={[styles.dirToggle, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              {(["up", "down"] as const).map((dir) => {
-                const active = pctDirection === dir;
-                return (
-                  <Pressable
-                    key={dir}
-                    onPress={() => {
-                      haptics.selection();
-                      setPctDirection(dir);
-                    }}
-                    style={[styles.dirSegment, active && { backgroundColor: dir === "up" ? colors.positive : colors.negative }]}
-                  >
-                    <Ionicons name={dir === "up" ? "arrow-up" : "arrow-down"} size={16} color={active ? colors.brandForeground : colors.foregroundMuted} />
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Input value={targetValue} onChangeText={setTargetValue} keyboardType="decimal-pad" placeholder="5" style={styles.bigInput} />
+          <View style={styles.inlineRow}>
+            <Chip active={pctDirection === "up"} icon="arrow-up" tone={colors.positive} onPress={() => setPctDirection("up")} />
+            <Chip active={pctDirection === "down"} icon="arrow-down" tone={colors.negative} onPress={() => setPctDirection("down")} />
+            <Input value={targetValue} onChangeText={setTargetValue} keyboardType="decimal-pad" placeholder="5" style={[styles.input, styles.flex]} />
             <ThemedText variant="muted">%</ThemedText>
           </View>
-        ) : null}
-        {isWindow && (
-          <View style={styles.windowWrap}>
-            <ThemedText variant="subtle">Within</ThemedText>
-            <View style={styles.windowRow}>
-              {WINDOW_OPTIONS.map((tf) => {
-                const active = tf === windowTimeframe;
-                return (
-                  <Pressable
-                    key={tf}
-                    onPress={() => {
-                      haptics.selection();
-                      setWindowTimeframe(tf);
-                    }}
-                    style={[styles.windowPill, { backgroundColor: active ? colors.brand : colors.glass, borderColor: active ? colors.brand : colors.glassBorder }]}
-                  >
-                    <ThemedText style={{ color: active ? colors.brandForeground : colors.foregroundMuted, fontWeight: "600", fontSize: 13 }}>{tf}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
-        {!isPct && (
-          <>
+        ) : (
+          <View style={styles.inlineRow}>
             <Input
               value={targetValue}
               onChangeText={setTargetValue}
               keyboardType="decimal-pad"
-              placeholder={currentPrice ? String(currentPrice) : "0.00"}
-              style={styles.bigInput}
+              placeholder={selected.needsSecondary ? "Lower" : currentPrice ? String(currentPrice) : "0.00"}
+              style={[styles.input, styles.flex]}
             />
             {selected.needsSecondary && (
-              <Input value={secondaryValue} onChangeText={setSecondaryValue} keyboardType="decimal-pad" placeholder="Upper bound" style={styles.bigInput} />
+              <Input value={secondaryValue} onChangeText={setSecondaryValue} keyboardType="decimal-pad" placeholder="Upper" style={[styles.input, styles.flex]} />
             )}
-            {currentPrice != null && !selected.needsSecondary && (
-              <View style={styles.presets}>
-                <Preset label="Current" onPress={() => applyPreset("current")} />
-                <Preset label="+1%" onPress={() => applyPreset("+1")} />
-                <Preset label="-1%" onPress={() => applyPreset("-1")} />
-              </View>
-            )}
-          </>
+          </View>
+        )}
+        {!isPct && !selected.needsSecondary && currentPrice != null && (
+          <View style={styles.chipsWrap}>
+            <Chip small label="Current" onPress={() => applyPreset("current")} />
+            <Chip small label="+1%" onPress={() => applyPreset("+1")} />
+            <Chip small label="−1%" onPress={() => applyPreset("-1")} />
+          </View>
+        )}
+        {isWindow && (
+          <View style={styles.chipsWrap}>
+            <ThemedText variant="subtle">within</ThemedText>
+            {WINDOW_OPTIONS.map((tf) => (
+              <Chip key={tf} small active={tf === windowTimeframe} label={tf} onPress={() => setWindowTimeframe(tf)} />
+            ))}
+          </View>
         )}
         {targetValue !== "" && !hasValidTarget && (
           <ThemedText style={{ color: colors.negative, fontSize: 12 }}>Enter a number greater than 0.</ThemedText>
         )}
-      </Section>
+      </Field>
 
-      <Section title="Note (optional)">
-        <Input value={note} onChangeText={setNote} placeholder="e.g. swing trade level" maxLength={140} />
-      </Section>
+      {canRepeat && (
+        <Field label="Repeat reminder">
+          <ChipRow>
+            <Chip small active={repeatEvery === null} label="Off" onPress={() => setRepeatEvery(null)} />
+            {REPEAT_INTERVAL_MINUTES.map((m) => (
+              <Chip key={m} small active={repeatEvery === m} icon="repeat" label={repeatLabel(m)} onPress={() => setRepeatEvery(m)} />
+            ))}
+          </ChipRow>
+          <ThemedText variant="subtle" style={styles.hint}>
+            {repeatEvery
+              ? `After it fires, reminds you every ${repeatLabel(repeatEvery)} while the price stays there, until you open the alert (up to ${MAX_ALERT_REMINDERS}).`
+              : "Notifies you once when it fires."}
+          </ThemedText>
+        </Field>
+      )}
 
-      <Section title="Notify me">
-        <Surface style={styles.channelCard}>
-          {CHANNELS.map((c, i) => (
-            <View key={c.value}>
-              {i > 0 && <View style={[styles.divider, { backgroundColor: colors.glassBorder }]} />}
-              <View style={styles.channelRow}>
-                <View style={[styles.channelIcon, { backgroundColor: colors.brandGlow }]}>
-                  <Ionicons name={c.icon} size={15} color={colors.brand} />
-                </View>
-                <View style={styles.channelText}>
-                  <ThemedText>{c.label}</ThemedText>
-                  <ThemedText variant="subtle">{c.hint}</ThemedText>
-                </View>
-                <Switch
-                  value={channels.has(c.value)}
-                  onValueChange={(on) => toggleChannel(c.value, on)}
-                  trackColor={{ true: colors.brand }}
-                />
-              </View>
-            </View>
+      <Field label="Notify via">
+        <View style={styles.chipsWrap}>
+          {CHANNELS.map((c) => (
+            <Chip key={c.value} active={channels.has(c.value)} icon={c.icon} label={c.label} onPress={() => toggleChannel(c.value)} />
           ))}
-        </Surface>
-      </Section>
+        </View>
+        {(channels.has("TELEGRAM") || channels.has("DISCORD")) && (
+          <ThemedText variant="subtle" style={styles.hint}>
+            Telegram and Discord only deliver once connected in Profile.
+          </ThemedText>
+        )}
+      </Field>
 
-      <Button
-        title="Create alert"
-        onPress={handleSubmit}
-        loading={createAlert.isPending}
-        disabled={!hasValidTarget}
-        style={styles.submit}
-      />
+      <Input value={note} onChangeText={setNote} placeholder="Note (optional)" maxLength={140} style={styles.input} />
+
+      <Button title="Create alert" onPress={handleSubmit} loading={createAlert.isPending} disabled={!hasValidTarget} />
     </ScrollView>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <ThemedText variant="label" style={styles.sectionTitle}>
-        {title.toUpperCase()}
+    <View style={styles.field}>
+      <ThemedText variant="label" style={styles.fieldLabel}>
+        {label.toUpperCase()}
       </ThemedText>
-      <Surface style={styles.sectionCard}>{children}</Surface>
+      {children}
     </View>
   );
 }
 
-function Preset({ label, onPress }: { label: string; onPress: () => void }) {
-  const { colors } = useTheme();
+/** One horizontally scrolling line of chips, so a long list of options costs a single row of height. */
+function ChipRow({ children }: { children: React.ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={[styles.preset, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-      <ThemedText style={{ color: colors.foregroundMuted, fontWeight: "600", fontSize: 12 }}>{label}</ThemedText>
-    </Pressable>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+      {children}
+    </ScrollView>
+  );
+}
+
+function Chip({
+  label,
+  icon,
+  active = false,
+  small = false,
+  tone,
+  onPress,
+}: {
+  label?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  active?: boolean;
+  small?: boolean;
+  /** Fill colour when active (defaults to the brand tint). */
+  tone?: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const fill = active ? (tone ?? colors.brandGlow) : colors.glass;
+  const ink = active ? (tone ? "#FFFFFF" : colors.brand) : colors.foregroundMuted;
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[
+        styles.chip,
+        small && styles.chipSmall,
+        !label && styles.chipIconOnly,
+        { backgroundColor: fill, borderColor: active ? (tone ?? colors.brand) : colors.glassBorder },
+      ]}
+    >
+      {icon && <Ionicons name={icon} size={small ? 12 : 14} color={ink} />}
+      {label && <ThemedText style={[styles.chipText, small && styles.chipTextSmall, { color: active ? (tone ? "#FFFFFF" : colors.foreground) : colors.foregroundMuted }]}>{label}</ThemedText>}
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 22, paddingBottom: 40 },
-  hero: { padding: 20, gap: 6, overflow: "hidden" },
-  heroPrice: { fontSize: 30, fontWeight: "700" },
-  section: { gap: 10 },
-  sectionCard: { padding: 14, gap: 12 },
-  sectionTitle: { fontSize: 11, letterSpacing: 0.8 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  option: { flexGrow: 1, flexBasis: "47%", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, height: 44, borderRadius: radius.md, borderWidth: 1 },
-  bigInput: { height: 56, fontSize: 18, fontWeight: "600" },
-  pctRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  dirToggle: { flexDirection: "row", borderRadius: radius.md, borderWidth: 1, padding: 3, gap: 3, height: 56 },
-  dirSegment: { width: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
-  presets: { flexDirection: "row", gap: 8 },
-  windowWrap: { gap: 8, marginTop: 4 },
-  windowRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  windowPill: { paddingHorizontal: 16, height: 36, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  preset: { paddingHorizontal: 14, height: 32, borderRadius: radius.full, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  channelCard: { padding: 0, overflow: "hidden" },
-  channelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
-  channelIcon: { width: 32, height: 32, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  channelText: { flex: 1, gap: 2 },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: 60 },
-  submit: { marginTop: 4, height: 54 },
+  container: { padding: 16, gap: 16, paddingBottom: 32 },
+  flex: { flex: 1 },
+  priceBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, height: 46, borderRadius: radius.lg, borderWidth: 1 },
+  priceBarValue: { fontSize: 18, fontWeight: "700" },
+  field: { gap: 8 },
+  fieldLabel: { fontSize: 11, letterSpacing: 0.8 },
+  hint: { fontSize: 12 },
+  inlineRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  input: { height: 46, fontSize: 16, fontWeight: "600" },
+  chipRow: { gap: 6, paddingRight: 4 },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 34, paddingHorizontal: 12, borderRadius: radius.full, borderWidth: 1 },
+  chipSmall: { height: 30, paddingHorizontal: 10 },
+  chipIconOnly: { width: 46, height: 46, paddingHorizontal: 0, justifyContent: "center", borderRadius: radius.md },
+  chipText: { fontSize: 13, fontWeight: "600" },
+  chipTextSmall: { fontSize: 12 },
 });

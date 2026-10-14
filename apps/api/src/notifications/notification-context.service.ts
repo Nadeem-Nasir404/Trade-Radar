@@ -10,6 +10,9 @@ export interface NotificationContext {
   targetValue: string;
   observedPrice: string;
   eventTime: Date;
+  alertId: string;
+  /** A repeat reminder that the level is still crossed, rather than a new crossing. */
+  isReminder: boolean;
 }
 
 /** Shared by every channel processor to build the human-readable message content for a delivery. */
@@ -30,6 +33,8 @@ export class NotificationContextService {
         targetValue: "100000",
         observedPrice: "100000.42",
         eventTime: new Date(),
+        alertId: "",
+        isReminder: false,
       };
     }
 
@@ -48,11 +53,14 @@ export class NotificationContextService {
       targetValue: alertEvent.targetValue.toString(),
       observedPrice: alertEvent.observedPrice.toString(),
       eventTime: alertEvent.eventTime,
+      alertId: alertEvent.alertId,
+      isReminder: alertEvent.isReminder,
     };
   }
 }
 
-export function formatConditionText(conditionType: string, targetValue: string): string {
+export function formatConditionText(conditionType: string, targetValue: string, isReminder = false): string {
+  if (isReminder) return formatReminderText(conditionType, targetValue);
   switch (conditionType) {
     case "ABOVE":
       return `is above ${targetValue}`;
@@ -73,5 +81,25 @@ export function formatConditionText(conditionType: string, targetValue: string):
       return `exited your range`;
     default:
       return `reached ${targetValue}`;
+  }
+}
+
+/** Wording for a repeat reminder: the alert already fired, and the level is still crossed. */
+function formatReminderText(conditionType: string, targetValue: string): string {
+  switch (conditionType) {
+    case "ABOVE":
+    case "CROSSES_ABOVE":
+      return `is still above ${targetValue}`;
+    case "BELOW":
+    case "CROSSES_BELOW":
+      return `is still below ${targetValue}`;
+    case "ENTERS_RANGE":
+      return `is still inside your range`;
+    case "EXITS_RANGE":
+      return `is still outside your range`;
+    case "PCT_CHANGE":
+      return `is still past ${targetValue}%`;
+    default:
+      return `is still past your level`;
   }
 }

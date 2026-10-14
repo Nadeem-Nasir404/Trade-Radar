@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { EventEmitter2, OnEvent } from "@nestjs/event-emitter";
-import { AssetType, type Instrument, AlertStatus } from "@prisma/client";
+import { AssetType, type Instrument, AlertStatus, type Prisma } from "@prisma/client";
 import type { Candle, NormalizedTick, Timeframe } from "@levelpulse/shared-types";
 import type Redis from "ioredis";
 import { InjectRedis } from "../redis/inject-redis.decorator";
@@ -165,14 +165,22 @@ export class MarketDataService implements OnModuleInit {
   }
 
   private async resubscribeFromExistingAlerts() {
+    // Active alerts, plus fired one-shot alerts whose repeat reminders are still running - those
+    // need a live price to tell whether the level is still crossed (see AlertRepeatService).
+    const needsFeed: Prisma.AlertWhereInput = {
+      OR: [
+        { status: AlertStatus.ACTIVE },
+        { status: AlertStatus.TRIGGERED, repeatIntervalMinutes: { not: null }, repeatEndedAt: null },
+      ],
+    };
     const instrumentIds = await this.prisma.alert.findMany({
-      where: { status: AlertStatus.ACTIVE },
+      where: needsFeed,
       distinct: ["instrumentId"],
       select: { instrumentId: true },
     });
     for (const { instrumentId } of instrumentIds) {
       const alertsForInstrument = await this.prisma.alert.findMany({
-        where: { instrumentId, status: AlertStatus.ACTIVE },
+        where: { instrumentId, ...needsFeed },
         select: { id: true },
       });
       // Ref-counting lives in Redis; if Redis is refusing connections the feed still subscribes,

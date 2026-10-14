@@ -122,6 +122,9 @@ function AuthGate({ fontsLoaded }: { fontsLoaded: boolean }) {
               price: toParam(data.price),
               condition: typeof data.condition === "string" ? data.condition : "",
               target: toParam(data.target),
+              // Lets the screen acknowledge the alert, which stops its repeat reminders.
+              alertId: typeof data.alertId === "string" ? data.alertId : "",
+              reminder: typeof data.reminder === "string" ? data.reminder : "",
             },
           });
         } catch (err) {

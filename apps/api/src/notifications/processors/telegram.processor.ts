@@ -43,7 +43,7 @@ export class TelegramProcessor extends ResilientWorkerHost {
     const ctx = await this.context.load(job.data.alertEventId, job.data.userId);
     if (!ctx) return;
 
-    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue);
+    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue, ctx.isReminder);
     const text = `🔔 *${ctx.symbol}* ${conditionText}\nObserved price: ${ctx.observedPrice}`;
 
     try {

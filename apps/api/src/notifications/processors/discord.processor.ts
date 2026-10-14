@@ -34,7 +34,7 @@ export class DiscordProcessor extends ResilientWorkerHost {
     const ctx = await this.context.load(job.data.alertEventId, job.data.userId);
     if (!ctx) return;
 
-    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue);
+    const conditionText = formatConditionText(ctx.conditionType, ctx.targetValue, ctx.isReminder);
 
     try {
       const res = await fetch(webhookUrl, {
